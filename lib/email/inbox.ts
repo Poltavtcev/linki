@@ -185,13 +185,6 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
       AND rp.email_account_id = ?
   `).all(emailAccountId) as { id: string; email: string; state: string; track: string; email_replied_at: string | null }[];
 
-  console.log(`[runner] [DEBUG-SYNC] === START EVALUATING pendingTargets ===`);
-  console.log(`[runner] [DEBUG-SYNC] Account ID: ${emailAccountId}`);
-  console.log(`[runner] [DEBUG-SYNC] Query returned: ${pendingTargets.length} targets`);
-  for (const pt of pendingTargets) {
-    console.log(`[runner] [DEBUG-SYNC] Target [${pt.id}] -> Email: ${pt.email} | State: ${pt.state} | Track: ${pt.track} | RepliedAt: ${pt.email_replied_at}`);
-  }
-  console.log(`[runner] [DEBUG-SYNC] === END EVALUATING pendingTargets ===`);
   console.log(`[runner-trace] TARGETS COUNT=${pendingTargets.length}`);
 
   if (pendingTargets.length === 0) {
@@ -237,55 +230,24 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
         
         console.log(`[runner-trace] IMAP INBOX OPEN total=${box?.messages?.total}`);
         
-        console.log(`[runner] [DEBUG-IMAP] openBox successful. Total messages in INBOX: ${box.messages.total}`);
-        console.log(`[runner] [DEBUG-IMAP] pendingTargets count: ${pendingTargets.length}`);
-
         // ── Reply detection: one FROM search per lead ──────────────────────────
         // Run sequentially — the imap library serialises commands over one TCP connection
         for (const target of pendingTargets) {
-          console.log(`[runner] [DEBUG-IMAP] Target [${target.id}] - Checking email: ${target.email}`);
           await new Promise<void>((resSearch) => {
             const criteria = [["FROM", target.email]];
             console.log(`[runner-trace] IMAP SEARCH target=${target.id} email=${target.email}`);
-            console.log(`[runner] [DEBUG-IMAP] Executing imap.search with criteria: ${JSON.stringify(criteria)}`);
-            
             imap.search(criteria, async (searchErr, uids) => {
               if (searchErr) { 
-                console.error(`[runner] [DEBUG-IMAP] searchErr for ${target.email}:`, searchErr);
                 console.log(`[runner-trace] IMAP SEARCH ERROR target=${target.id}`);
                 resSearch(); 
                 return; 
               }
               
-              console.log(`[runner] [DEBUG-IMAP] imap.search returned ${uids.length} uids for ${target.email}`);
-              
               console.log(`[runner-trace] IMAP SEARCH RESULT target=${target.id} uids=${uids.length}`);
               
               if (uids.length > 0) {
-                // DEBUG: Fetch headers for diagnostics
-                await new Promise<void>((resHeaders) => {
-                  try {
-                    const latestUid = uids[uids.length - 1];
-                    console.log(`[runner-trace] REPLY UID FOUND target=${target.id} uid=${latestUid}`);
-                    console.log(`[runner] [DEBUG-IMAP] Fetching headers for latest UID: ${latestUid}`);
-                    const headerFetch = imap.fetch(latestUid, { bodies: ["HEADER.FIELDS (FROM TO SUBJECT DATE MESSAGE-ID IN-REPLY-TO)"], struct: false });
-                    headerFetch.on("message", (msg) => {
-                      msg.on("body", (stream) => {
-                        let headerData = "";
-                        stream.on("data", (chunk) => headerData += chunk.toString());
-                        stream.once("end", () => {
-                          console.log(`[runner] [DEBUG-IMAP] Headers for UID ${latestUid}:\n${headerData.trim()}`);
-                        });
-                      });
-                    });
-                    headerFetch.once("error", (e) => console.error("[runner] [DEBUG-IMAP] header fetch error", e));
-                    headerFetch.once("end", () => resHeaders());
-                  } catch (e) {
-                    console.error("[runner] [DEBUG-IMAP] Failed to fetch debug headers", e);
-                    resHeaders();
-                  }
-                });
-
+                const latestUid = uids[uids.length - 1];
+                console.log(`[runner-trace] REPLY UID FOUND target=${target.id} uid=${latestUid}`);
                 console.log(`[email-inbox] Reply detected for ${target.email} (target ${target.id})`);
                 replies++;
 
@@ -295,7 +257,6 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
                 // unset for OOO follow-ups so the runner keeps the contact enrolled.
                 // On any failure the contact stays enrolled (safe fallback, plan §3.2).
                 try {
-                  const latestUid = uids[uids.length - 1];
                   const replyId = await captureReplyBody(imap, db, target.id, target.email, latestUid);
                   // The reply is always STORED (open-core). AI classification + auto-followup
                   // is a premium feature — skipped cleanly when ee/ is absent.
