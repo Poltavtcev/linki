@@ -214,7 +214,7 @@ export async function processReply(targetId: string, channel: "email" | "linkedi
       model: "gpt-4o-mini", // For classification MVP
       temperature: 0,
       messages: [
-        { role: "system", content: "You classify a single sales reply. The reply may be written in any language. Classify its meaning, not specific keywords. Do not assume English. Respond with ONLY a compact JSON object and nothing else. Keys: kind (exactly one of: positive, negative, out_of_office, unsubscribe, human_review)." },
+        { role: "system", content: "You classify a single sales reply. The reply may be written in any language. Classify its meaning, not specific keywords. Do not assume English. Respond with ONLY a compact JSON object and nothing else. Keys: kind (exactly one of: ooo_followup, substitute, call_task, human_reply, not_interested)." },
         { role: "user", content: text.slice(0, 12000) }
       ],
       response_format: { type: "json_object" }
@@ -230,7 +230,7 @@ export async function processReply(targetId: string, channel: "email" | "linkedi
          db.prepare("UPDATE email_replies SET classification_json = ?, classified_at = ?, classification_error = NULL WHERE id = ?").run(JSON.stringify(obj), now, replyId);
        }
        
-       if (kind !== "out_of_office") {
+       if (kind !== "ooo_followup") {
           stopBasic();
        }
     } else {
