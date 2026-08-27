@@ -110,6 +110,7 @@ async function generateContent(params: CommunityAiParams) {
   const parsed = parseModelJson(content, params.stepType);
   const inputTokens = response.usage?.prompt_tokens ?? 0;
   const outputTokens = response.usage?.completion_tokens ?? 0;
+  const costUsd = (inputTokens * 0.150 / 1000000) + (outputTokens * 0.600 / 1000000);
 
   if (params.runId || params.targetId || params.stepId) {
     const db = getDb();
@@ -131,7 +132,7 @@ async function generateContent(params: CommunityAiParams) {
     );
   }
 
-  return parsed;
+  return { ...parsed, inputTokens, outputTokens, costUsd };
 }
 
 const ai = {
@@ -160,22 +161,22 @@ const ai = {
 
   async writeEmail(params: CommunityAiParams) {
     const result = await generateContent({ ...params, stepType: "email" });
-    return { subject: result.subject ?? "", body: result.body };
+    return { subject: result.subject ?? "", body: result.body, input_tokens: result.inputTokens, output_tokens: result.outputTokens, cost_usd: result.costUsd };
   },
 
   async writeLinkedInMessage(params: CommunityAiParams) {
     const result = await generateContent({ ...params, stepType: "message" });
-    return { body: result.body };
+    return { body: result.body, input_tokens: result.inputTokens, output_tokens: result.outputTokens, cost_usd: result.costUsd };
   },
 
   async writeSalesInMail(params: CommunityAiParams) {
     const result = await generateContent({ ...params, stepType: "sales_inmail" });
-    return { subject: result.subject ?? "", body: result.body };
+    return { subject: result.subject ?? "", body: result.body, input_tokens: result.inputTokens, output_tokens: result.outputTokens, cost_usd: result.costUsd };
   },
 };
 
 // Unified decision pipeline for all reply events
-export async function processReply(targetId: string, channel: "email" | "linkedin", text?: string) {
+export async function processReply(targetId: string, channel: "email" | "linkedin", text?: string, replyId?: string) {
   const db = getDb();
   const now = new Date().toISOString();
 
@@ -224,15 +225,26 @@ export async function processReply(targetId: string, channel: "email" | "linkedi
        const obj = JSON.parse(content);
        const kind = obj.kind;
        console.log(`[runner-trace] AI CLASSIFICATION RESULT kind=${kind}`);
+       
+       if (replyId && channel === "email") {
+         db.prepare("UPDATE email_replies SET classification_json = ?, classified_at = ?, classification_error = NULL WHERE id = ?").run(JSON.stringify(obj), now, replyId);
+       }
+       
        if (kind !== "out_of_office") {
           stopBasic();
        }
     } else {
+      if (replyId && channel === "email") {
+        db.prepare("UPDATE email_replies SET classification_error = ? WHERE id = ?").run("Empty response", replyId);
+      }
       stopBasic(); // Fallback on empty response
     }
   } catch (e) {
     console.log(`[runner-trace] AI CLASSIFICATION ERROR targetId=${targetId}`);
     console.warn(`[ee/replies] AI classification failed for target ${targetId}, falling back to deterministic STOP`, e);
+    if (replyId && channel === "email") {
+      db.prepare("UPDATE email_replies SET classification_error = ? WHERE id = ?").run(String(e), replyId);
+    }
     stopBasic();
   }
 }
@@ -252,7 +264,7 @@ const replies = {
     const targetId = String(reply.target_id);
     const text = `${reply.subject || ""}\n${reply.body_text || ""}`.trim();
     
-    await processReply(targetId, "email", text);
+    await processReply(targetId, "email", text, replyId);
   },
 
   shouldSyncInbox: () => false,
