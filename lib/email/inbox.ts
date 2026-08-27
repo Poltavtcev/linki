@@ -178,7 +178,7 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
     JOIN run_profile_tracks rt ON rt.run_profile_id = rp.id
     WHERE t.email IS NOT NULL
       AND t.email_replied_at IS NULL
-      AND t.email_status != 'invalid'
+      AND (t.email_status IS NULL OR t.email_status != 'invalid')
       AND rt.track = 'email'
       AND rt.state NOT IN ('pending')
       AND rp.email_account_id = ?
