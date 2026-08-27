@@ -181,6 +181,7 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
       AND (t.email_status IS NULL OR t.email_status != 'invalid')
       AND rt.track = 'email'
       AND rt.state NOT IN ('pending')
+      AND (rt.last_email_subject IS NOT NULL OR rt.last_email_body IS NOT NULL)
       AND rp.email_account_id = ?
   `).all(emailAccountId) as { id: string; email: string; state: string; track: string; email_replied_at: string | null }[];
 
