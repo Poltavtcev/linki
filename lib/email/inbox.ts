@@ -167,7 +167,7 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
 
   // Leads that were emailed via this account and haven't replied yet
   const pendingTargets = db.prepare(`
-    SELECT DISTINCT t.id, t.email
+    SELECT DISTINCT t.id, t.email, rt.state, rt.track, t.email_replied_at
     FROM targets t
     JOIN run_profiles rp ON rp.target_id = t.id
     JOIN run_profile_tracks rt ON rt.run_profile_id = rp.id
@@ -177,14 +177,22 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
       AND rt.track = 'email'
       AND rt.state NOT IN ('pending')
       AND rp.email_account_id = ?
-  `).all(emailAccountId) as { id: string; email: string }[];
+  `).all(emailAccountId) as { id: string; email: string; state: string; track: string; email_replied_at: string | null }[];
+
+  console.log(`[runner] [DEBUG-SYNC] === START EVALUATING pendingTargets ===`);
+  console.log(`[runner] [DEBUG-SYNC] Account ID: ${emailAccountId}`);
+  console.log(`[runner] [DEBUG-SYNC] Query returned: ${pendingTargets.length} targets`);
+  for (const pt of pendingTargets) {
+    console.log(`[runner] [DEBUG-SYNC] Target [${pt.id}] -> Email: ${pt.email} | State: ${pt.state} | Track: ${pt.track} | RepliedAt: ${pt.email_replied_at}`);
+  }
+  console.log(`[runner] [DEBUG-SYNC] === END EVALUATING pendingTargets ===`);
 
   if (pendingTargets.length === 0) {
     db.prepare("UPDATE email_accounts SET inbox_synced_at = datetime('now') WHERE id = ?").run(emailAccountId);
     return { replies: 0, bounces: 0 };
   }
 
-  console.log(`[email-inbox] Checking ${pendingTargets.length} leads via IMAP FROM search`);
+  console.log(`[runner] [email-inbox] Checking ${pendingTargets.length} leads via IMAP FROM search`);
 
   const imapUser = account.imap_username ?? account.username;
   const imapPass = decryptSecret(account.imap_password) ?? decryptSecret(account.password)!;
@@ -218,46 +226,46 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
       imap.openBox("INBOX", true, async (err, box) => {
         if (err || !box) { console.warn("[email-inbox] openBox failed:", err?.message); done(); return; }
         
-        console.log(`[DEBUG-IMAP] openBox successful. Total messages in INBOX: ${box.messages.total}`);
-        console.log(`[DEBUG-IMAP] pendingTargets count: ${pendingTargets.length}`);
+        console.log(`[runner] [DEBUG-IMAP] openBox successful. Total messages in INBOX: ${box.messages.total}`);
+        console.log(`[runner] [DEBUG-IMAP] pendingTargets count: ${pendingTargets.length}`);
 
         // ── Reply detection: one FROM search per lead ──────────────────────────
         // Run sequentially — the imap library serialises commands over one TCP connection
         for (const target of pendingTargets) {
-          console.log(`[DEBUG-IMAP] Target [${target.id}] - Checking email: ${target.email}`);
+          console.log(`[runner] [DEBUG-IMAP] Target [${target.id}] - Checking email: ${target.email}`);
           await new Promise<void>((resSearch) => {
             const criteria = [["FROM", target.email]];
-            console.log(`[DEBUG-IMAP] Executing imap.search with criteria: ${JSON.stringify(criteria)}`);
+            console.log(`[runner] [DEBUG-IMAP] Executing imap.search with criteria: ${JSON.stringify(criteria)}`);
             
             imap.search(criteria, async (searchErr, uids) => {
               if (searchErr) { 
-                console.error(`[DEBUG-IMAP] searchErr for ${target.email}:`, searchErr);
+                console.error(`[runner] [DEBUG-IMAP] searchErr for ${target.email}:`, searchErr);
                 resSearch(); 
                 return; 
               }
               
-              console.log(`[DEBUG-IMAP] imap.search returned ${uids.length} uids for ${target.email}`);
+              console.log(`[runner] [DEBUG-IMAP] imap.search returned ${uids.length} uids for ${target.email}`);
               
               if (uids.length > 0) {
                 // DEBUG: Fetch headers for diagnostics
                 await new Promise<void>((resHeaders) => {
                   try {
                     const latestUid = uids[uids.length - 1];
-                    console.log(`[DEBUG-IMAP] Fetching headers for latest UID: ${latestUid}`);
+                    console.log(`[runner] [DEBUG-IMAP] Fetching headers for latest UID: ${latestUid}`);
                     const headerFetch = imap.fetch(latestUid, { bodies: ["HEADER.FIELDS (FROM TO SUBJECT DATE MESSAGE-ID IN-REPLY-TO)"], struct: false });
                     headerFetch.on("message", (msg) => {
                       msg.on("body", (stream) => {
                         let headerData = "";
                         stream.on("data", (chunk) => headerData += chunk.toString());
                         stream.once("end", () => {
-                          console.log(`[DEBUG-IMAP] Headers for UID ${latestUid}:\n${headerData.trim()}`);
+                          console.log(`[runner] [DEBUG-IMAP] Headers for UID ${latestUid}:\n${headerData.trim()}`);
                         });
                       });
                     });
-                    headerFetch.once("error", (e) => console.error("[DEBUG-IMAP] header fetch error", e));
+                    headerFetch.once("error", (e) => console.error("[runner] [DEBUG-IMAP] header fetch error", e));
                     headerFetch.once("end", () => resHeaders());
                   } catch (e) {
-                    console.error("[DEBUG-IMAP] Failed to fetch debug headers", e);
+                    console.error("[runner] [DEBUG-IMAP] Failed to fetch debug headers", e);
                     resHeaders();
                   }
                 });
