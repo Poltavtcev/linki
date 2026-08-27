@@ -41,8 +41,13 @@ function buildPrompt(params: CommunityAiParams): string {
     "Avoid hype, generic compliments, fake familiarity, and unsupported claims.",
     `Write in ${params.language || "English"}.`,
     params.maxWords ? `Keep the body at or below ${params.maxWords} words.` : "Keep the body brief.",
-    `Return only valid JSON matching ${outputShape}.`,
   ];
+
+  if (params.stepType === "email") {
+    instructions.push("Do NOT generate an email signature, sender name, sender placeholder, or sign-off/closing (e.g., Best regards, Pozdrawiam). The application handles the sender signature separately.");
+  }
+
+  instructions.push(`Return only valid JSON matching ${outputShape}.`);
 
   return JSON.stringify({
     task: params.stepType,
@@ -218,6 +223,7 @@ export async function processReply(targetId: string, channel: "email" | "linkedi
     if (content) {
        const obj = JSON.parse(content);
        const kind = obj.kind;
+       console.log(`[runner-trace] AI CLASSIFICATION RESULT kind=${kind}`);
        if (kind !== "out_of_office") {
           stopBasic();
        }
@@ -225,6 +231,7 @@ export async function processReply(targetId: string, channel: "email" | "linkedi
       stopBasic(); // Fallback on empty response
     }
   } catch (e) {
+    console.log(`[runner-trace] AI CLASSIFICATION ERROR targetId=${targetId}`);
     console.warn(`[ee/replies] AI classification failed for target ${targetId}, falling back to deterministic STOP`, e);
     stopBasic();
   }

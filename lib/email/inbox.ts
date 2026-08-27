@@ -126,6 +126,7 @@ export function captureReplyBody(
             `INSERT INTO email_replies (id, target_id, run_id, from_email, subject, body_text, received_at)
              VALUES (?, ?, ?, ?, ?, ?, ?)`
           ).run(replyId, targetId, runRow?.id ?? null, parsedFrom, subject, bodyText, receivedAt);
+          console.log(`[runner-trace] REPLY SAVED replyId=${replyId}`);
           resolve(replyId);
         } catch (err) {
           console.warn(`[email-inbox] captureReplyBody parse/insert failed:`, err);
@@ -154,13 +155,17 @@ export function shouldSyncEmailInbox(emailAccountId: string): boolean {
  * Also scans the last 50 messages for bounces (mailer-daemon etc.).
  */
 export async function syncEmailInbox(emailAccountId: string): Promise<{ replies: number; bounces: number }> {
+  console.log(`[runner-trace] SYNC ENTER accountId=${emailAccountId}`);
   const db = getDb();
 
   const account = db
     .prepare("SELECT id, imap_host, imap_port, username, password, imap_username, imap_password, inbox_synced_at FROM email_accounts WHERE id = ?")
     .get(emailAccountId) as EmailAccount | undefined;
 
+  console.log(`[runner-trace] ACCOUNT imapHost=${account?.imap_host || "none"}`);
+
   if (!account?.imap_host) {
+    console.log(`[runner-trace] SYNC EARLY RETURN: missing imap_host`);
     console.warn(`[email-inbox] Account ${emailAccountId} has no IMAP config — skipping`);
     return { replies: 0, bounces: 0 };
   }
@@ -186,6 +191,7 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
     console.log(`[runner] [DEBUG-SYNC] Target [${pt.id}] -> Email: ${pt.email} | State: ${pt.state} | Track: ${pt.track} | RepliedAt: ${pt.email_replied_at}`);
   }
   console.log(`[runner] [DEBUG-SYNC] === END EVALUATING pendingTargets ===`);
+  console.log(`[runner-trace] TARGETS COUNT=${pendingTargets.length}`);
 
   if (pendingTargets.length === 0) {
     db.prepare("UPDATE email_accounts SET inbox_synced_at = datetime('now') WHERE id = ?").run(emailAccountId);
@@ -200,6 +206,7 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
   let replies = 0;
   let bounces = 0;
 
+  console.log(`[runner-trace] IMAP CONNECT START`);
   await new Promise<void>((resolve) => {
     const imap = new Imap({
       host: account.imap_host!,
@@ -223,8 +230,11 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
     });
 
     imap.once("ready", () => {
+      console.log(`[runner-trace] IMAP READY`);
       imap.openBox("INBOX", true, async (err, box) => {
         if (err || !box) { console.warn("[email-inbox] openBox failed:", err?.message); done(); return; }
+        
+        console.log(`[runner-trace] IMAP INBOX OPEN total=${box?.messages?.total}`);
         
         console.log(`[runner] [DEBUG-IMAP] openBox successful. Total messages in INBOX: ${box.messages.total}`);
         console.log(`[runner] [DEBUG-IMAP] pendingTargets count: ${pendingTargets.length}`);
@@ -235,22 +245,27 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
           console.log(`[runner] [DEBUG-IMAP] Target [${target.id}] - Checking email: ${target.email}`);
           await new Promise<void>((resSearch) => {
             const criteria = [["FROM", target.email]];
+            console.log(`[runner-trace] IMAP SEARCH target=${target.id} email=${target.email}`);
             console.log(`[runner] [DEBUG-IMAP] Executing imap.search with criteria: ${JSON.stringify(criteria)}`);
             
             imap.search(criteria, async (searchErr, uids) => {
               if (searchErr) { 
                 console.error(`[runner] [DEBUG-IMAP] searchErr for ${target.email}:`, searchErr);
+                console.log(`[runner-trace] IMAP SEARCH ERROR target=${target.id}`);
                 resSearch(); 
                 return; 
               }
               
               console.log(`[runner] [DEBUG-IMAP] imap.search returned ${uids.length} uids for ${target.email}`);
               
+              console.log(`[runner-trace] IMAP SEARCH RESULT target=${target.id} uids=${uids.length}`);
+              
               if (uids.length > 0) {
                 // DEBUG: Fetch headers for diagnostics
                 await new Promise<void>((resHeaders) => {
                   try {
                     const latestUid = uids[uids.length - 1];
+                    console.log(`[runner-trace] REPLY UID FOUND target=${target.id} uid=${latestUid}`);
                     console.log(`[runner] [DEBUG-IMAP] Fetching headers for latest UID: ${latestUid}`);
                     const headerFetch = imap.fetch(latestUid, { bodies: ["HEADER.FIELDS (FROM TO SUBJECT DATE MESSAGE-ID IN-REPLY-TO)"], struct: false });
                     headerFetch.on("message", (msg) => {
@@ -284,6 +299,7 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
                   // The reply is always STORED (open-core). AI classification + auto-followup
                   // is a premium feature — skipped cleanly when ee/ is absent.
                   if (replyId && premium?.replies) {
+                    console.log(`[runner-trace] AI CLASSIFICATION START replyId=${replyId}`);
                     await premium.replies.classifyAndDispatch(replyId);
                   }
                 } catch (err) {
@@ -408,5 +424,6 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
   });
 
   db.prepare("UPDATE email_accounts SET inbox_synced_at = datetime('now') WHERE id = ?").run(emailAccountId);
+  console.log(`[runner-trace] SYNC EXIT replies=${replies} bounces=${bounces}`);
   return { replies, bounces };
 }
