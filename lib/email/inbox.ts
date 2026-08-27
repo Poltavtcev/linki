@@ -217,14 +217,51 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
     imap.once("ready", () => {
       imap.openBox("INBOX", true, async (err, box) => {
         if (err || !box) { console.warn("[email-inbox] openBox failed:", err?.message); done(); return; }
+        
+        console.log(`[DEBUG-IMAP] openBox successful. Total messages in INBOX: ${box.messages.total}`);
+        console.log(`[DEBUG-IMAP] pendingTargets count: ${pendingTargets.length}`);
 
         // ── Reply detection: one FROM search per lead ──────────────────────────
         // Run sequentially — the imap library serialises commands over one TCP connection
         for (const target of pendingTargets) {
+          console.log(`[DEBUG-IMAP] Target [${target.id}] - Checking email: ${target.email}`);
           await new Promise<void>((resSearch) => {
-            imap.search([["FROM", target.email]], async (searchErr, uids) => {
-              if (searchErr) { resSearch(); return; }
+            const criteria = [["FROM", target.email]];
+            console.log(`[DEBUG-IMAP] Executing imap.search with criteria: ${JSON.stringify(criteria)}`);
+            
+            imap.search(criteria, async (searchErr, uids) => {
+              if (searchErr) { 
+                console.error(`[DEBUG-IMAP] searchErr for ${target.email}:`, searchErr);
+                resSearch(); 
+                return; 
+              }
+              
+              console.log(`[DEBUG-IMAP] imap.search returned ${uids.length} uids for ${target.email}`);
+              
               if (uids.length > 0) {
+                // DEBUG: Fetch headers for diagnostics
+                await new Promise<void>((resHeaders) => {
+                  try {
+                    const latestUid = uids[uids.length - 1];
+                    console.log(`[DEBUG-IMAP] Fetching headers for latest UID: ${latestUid}`);
+                    const headerFetch = imap.fetch(latestUid, { bodies: ["HEADER.FIELDS (FROM TO SUBJECT DATE MESSAGE-ID IN-REPLY-TO)"], struct: false });
+                    headerFetch.on("message", (msg) => {
+                      msg.on("body", (stream) => {
+                        let headerData = "";
+                        stream.on("data", (chunk) => headerData += chunk.toString());
+                        stream.once("end", () => {
+                          console.log(`[DEBUG-IMAP] Headers for UID ${latestUid}:\n${headerData.trim()}`);
+                        });
+                      });
+                    });
+                    headerFetch.once("error", (e) => console.error("[DEBUG-IMAP] header fetch error", e));
+                    headerFetch.once("end", () => resHeaders());
+                  } catch (e) {
+                    console.error("[DEBUG-IMAP] Failed to fetch debug headers", e);
+                    resHeaders();
+                  }
+                });
+
                 console.log(`[email-inbox] Reply detected for ${target.email} (target ${target.id})`);
                 replies++;
 

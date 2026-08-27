@@ -575,10 +575,11 @@ async function executeStep(
           return;
         }
         const integration = db.prepare("SELECT api_key FROM integrations WHERE key = 'openrouter'").get() as { api_key: string } | undefined;
+        const apiKey = process.env.OPENAI_API_KEY || (integration?.api_key ? decryptSecret(integration.api_key) : null);
         const agentCfgForMsg = premium.ai.getAgentConfig();
-        const resolvedMsgModel = step.ai_model || agentCfgForMsg.default_model;
-        if (!integration?.api_key || !resolvedMsgModel) {
-          log(db, runId, target.id, "warn", `AI enabled on message step but OpenRouter key or model missing — skipping ${name}`);
+        const resolvedMsgModel = step.ai_model || agentCfgForMsg.default_model || "gpt-4o-mini";
+        if (!apiKey || !resolvedMsgModel) {
+          log(db, runId, target.id, "warn", `AI enabled on message step but API key or model missing — skipping ${name}`);
           trAdvance(db, tr, steps);
           return;
         }
@@ -595,7 +596,7 @@ async function executeStep(
           previousMessageContext = { followupNumber: msgPosition - 1, previousMessage: tr.last_linkedin_message };
         }
         const result = await premium.ai.writeLinkedInMessage({
-          apiKey: decryptSecret(integration.api_key)!,
+          apiKey: apiKey,
           model: resolvedMsgModel,
           stepType: "message",
           stepPrompt: step.ai_prompt ?? "",
@@ -685,10 +686,11 @@ async function executeStep(
           return;
         }
         const integration = db.prepare("SELECT api_key FROM integrations WHERE key = 'openrouter'").get() as { api_key: string } | undefined;
+        const apiKey = process.env.OPENAI_API_KEY || (integration?.api_key ? decryptSecret(integration.api_key) : null);
         const agentCfgForMsg = premium.ai.getAgentConfig();
-        const resolvedMsgModel = step.ai_model || agentCfgForMsg.default_model;
-        if (!integration?.api_key || !resolvedMsgModel) {
-          log(db, runId, target.id, "warn", `AI enabled on InMail step but OpenRouter key or model missing — skipping ${name}`);
+        const resolvedMsgModel = step.ai_model || agentCfgForMsg.default_model || "gpt-4o-mini";
+        if (!apiKey || !resolvedMsgModel) {
+          log(db, runId, target.id, "warn", `AI enabled on InMail step but API key or model missing — skipping ${name}`);
           trAdvance(db, tr, steps);
           return;
         }
@@ -705,7 +707,7 @@ async function executeStep(
           previousMessageContext = { followupNumber: msgPosition - 1, previousMessage: tr.last_linkedin_message };
         }
         const result = await premium.ai.writeSalesInMail({
-          apiKey: decryptSecret(integration.api_key)!,
+          apiKey: apiKey,
           model: resolvedMsgModel,
           stepType: "sales_inmail",
           stepPrompt: step.ai_prompt ?? "",
@@ -801,10 +803,11 @@ async function executeStep(
           return;
         }
         const integration = db.prepare("SELECT api_key FROM integrations WHERE key = 'openrouter'").get() as { api_key: string } | undefined;
+        const apiKey = process.env.OPENAI_API_KEY || (integration?.api_key ? decryptSecret(integration.api_key) : null);
         const agentCfgForEmail = premium.ai.getAgentConfig();
-        const resolvedEmailModel = step.ai_model || agentCfgForEmail.default_model;
-        if (!integration?.api_key || !resolvedEmailModel) {
-          log(db, runId, target.id, "warn", `AI enabled on email step but OpenRouter key or model missing — skipping ${name}`);
+        const resolvedEmailModel = step.ai_model || agentCfgForEmail.default_model || "gpt-4o-mini";
+        if (!apiKey || !resolvedEmailModel) {
+          log(db, runId, target.id, "warn", `AI enabled on email step but API key or model missing — skipping ${name}`);
           trAdvance(db, tr, steps);
           return;
         }
@@ -825,7 +828,7 @@ async function executeStep(
           };
         }
         const result = await premium.ai.writeEmail({
-          apiKey: decryptSecret(integration.api_key)!,
+          apiKey: apiKey,
           model: resolvedEmailModel,
           stepType: "email",
           stepPrompt: step.ai_prompt ?? "",
