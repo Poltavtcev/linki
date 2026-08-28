@@ -139,12 +139,10 @@ function ReplyModal({ reply, onClose, onActionDone, hasPremium }: ReplyModalProp
   }
 
   useEffect(() => {
-    if (!reply.email_account_id || !reply.email) {
-      setLoadingThread(false);
-      return;
-    }
+    /* Allow fetching even without email account for LinkedIn threads */
     setLoadingThread(true);
-    const params = new URLSearchParams({ targetId: reply.id, emailAccountId: reply.email_account_id });
+    const params = new URLSearchParams({ targetId: reply.id });
+    if (reply.email_account_id) params.append("emailAccountId", reply.email_account_id);
     fetch(`/api/inbox/thread?${params}`)
       .then((r) => r.json())
       .then((d) => {

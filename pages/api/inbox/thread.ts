@@ -23,27 +23,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).end();
   }
 
-  const { targetId, emailAccountId } = req.query as { targetId?: string; emailAccountId?: string };
-  if (!targetId || !emailAccountId) return res.status(400).json({ error: "targetId and emailAccountId required" });
+  const targetId = req.query.targetId as string | undefined;
+  const emailAccountId = req.query.emailAccountId as string | undefined;
+  if (!targetId) return res.status(400).json({ error: "targetId required" });
 
   const db = getDb();
 
   const target = db.prepare("SELECT email FROM targets WHERE id = ?").get(targetId) as { email: string | null } | undefined;
-  if (!target?.email) return res.status(404).json({ error: "Target has no email" });
+  // Allow fetching even without email for pure LinkedIn targets
 
-  const account = db.prepare(
+  const account = emailAccountId ? db.prepare(
     "SELECT imap_host, imap_port, username, password, imap_username, imap_password FROM email_accounts WHERE id = ?"
   ).get(emailAccountId) as {
     imap_host: string | null; imap_port: number | null;
     username: string; password: string;
     imap_username: string | null; imap_password: string | null;
-  } | undefined;
+  } | undefined : undefined;
 
-  if (!account?.imap_host) return res.status(404).json({ error: "Email account not found or missing IMAP config" });
 
-  const imapUser = account.imap_username ?? account.username;
-  const imapPass = decryptSecret(account.imap_password) ?? decryptSecret(account.password)!;
-  const targetEmail = target.email.toLowerCase();
+  // Skip IMAP if no account configured (e.g. for purely LinkedIn threads)
+
+  const imapUser = account?.imap_username ?? account?.username ?? "";
+  const imapPass = account ? (decryptSecret(account.imap_password) ?? decryptSecret(account.password)!) : "";
+  const targetEmail = target?.email?.toLowerCase() ?? "";
 
   try {
     
@@ -58,15 +60,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       SELECT message_id AS msg_id FROM email_replies WHERE target_id = ? AND message_id IS NOT NULL
     `).all(targetId, targetId) as { msg_id: string }[];
     const knownMessageIds = new Set(knownIdsRows.map(r => r.msg_id.trim().replace(/^<|>$/g, '')));
-    const ownerEmail = account.username.toLowerCase();
+    const ownerEmail = account?.username?.toLowerCase() ?? "";
 
-    const messages = await fetchThread(
+    
+    const dbMessagesRows = db.prepare("SELECT * FROM email_replies WHERE target_id = ? AND from_email LIKE 'urn:li:member:%'").all(targetId) as any[];
+    const linkedinMessages: EmailMessage[] = dbMessagesRows.map((r, idx) => ({
+      uid: -idx - 1,
+      from: r.subject || r.from_email,
+      to: "You (LinkedIn)",
+      subject: "LinkedIn Message",
+      date: new Date(r.received_at).toISOString(),
+      text: r.body_text,
+      html: null,
+      messageId: r.message_id,
+      inReplyTo: r.in_reply_to,
+      references: []
+    }));
+    
+    let messages = linkedinMessages;
+    if (account?.imap_host && targetEmail) {
+      const emailMessages = await fetchThread(
       { host: account.imap_host, port: account.imap_port ?? 993, user: imapUser, password: imapPass },
       targetEmail,
       ownerEmail,
       knownMessageIds,
       legacyTimes
     );
+      messages = [...linkedinMessages, ...emailMessages];
+    }
+    messages.sort((a, b) => a.date.localeCompare(b.date));
     return res.json({ messages });
   } catch (err) {
     console.error("[inbox/thread] IMAP error:", err);

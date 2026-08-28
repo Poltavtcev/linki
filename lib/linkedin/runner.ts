@@ -1,3 +1,5 @@
+import { LinkedInNetworkObserver } from "./inbox-observer";
+import { syncLinkedInInboxReadOnly } from "./inbox-sync";
 import { getDb } from "@/lib/db";
 import { randomUUID } from "crypto";
 import { getSessionPage, saveSessionState, getSessionContext } from "@/lib/linkedin/session";
@@ -1007,10 +1009,17 @@ async function tick(db: ReturnType<typeof getDb>): Promise<void> {
   // account. Sets targets.last_replied_at so the runner auto-unenrolls repliers.
   // LinkedIn reply detection is a premium feature (AI classifier layer) — no-op without ee/.
   for (const accountId of seenAccounts) {
-    if (premium?.replies?.shouldSyncInbox(accountId)) {
+    
+    // Check if account has cookies (is authenticated), then we can sync inbox
+    const acc = db.prepare("SELECT is_authenticated FROM accounts WHERE id = ?").get(accountId) as { is_authenticated: number } | undefined;
+    if (acc && acc.is_authenticated) {
+
       try {
         console.log(`[runner] Starting LinkedIn inbox sync for account ${accountId}`);
-        const replies = await premium.replies.syncAccountInbox(accountId);
+        
+        const syncResult = await syncLinkedInInboxReadOnly({ accountId, source: new LinkedInNetworkObserver() });
+        const replies = syncResult.captured;
+
         console.log(`[runner] LinkedIn inbox sync complete — ${replies} new repl${replies === 1 ? "y" : "ies"}`);
         if (replies > 0) {
           for (const r of activeRuns.filter(x => x.account_id === accountId)) {
