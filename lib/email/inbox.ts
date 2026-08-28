@@ -128,7 +128,6 @@ export function captureReplyBody(
             `INSERT INTO email_replies (id, target_id, run_id, from_email, subject, body_text, received_at)
              VALUES (?, ?, ?, ?, ?, ?, ?)`
           ).run(replyId, targetId, runRow?.id ?? null, parsedFrom, subject, bodyText, receivedAt);
-          console.log(`[runner-trace] REPLY SAVED replyId=${replyId}`);
           resolve(replyId);
         } catch (err) {
           console.warn(`[email-inbox] captureReplyBody parse/insert failed:`, err);
@@ -157,17 +156,14 @@ export function shouldSyncEmailInbox(emailAccountId: string): boolean {
  * Also scans the last 50 messages for bounces (mailer-daemon etc.).
  */
 export async function syncEmailInbox(emailAccountId: string): Promise<{ replies: number; bounces: number }> {
-  console.log(`[runner-trace] SYNC ENTER accountId=${emailAccountId}`);
   const db = getDb();
 
   const account = db
     .prepare("SELECT id, imap_host, imap_port, username, password, imap_username, imap_password, inbox_synced_at, inbox_last_uid, inbox_uidvalidity FROM email_accounts WHERE id = ?")
     .get(emailAccountId) as EmailAccount | undefined;
 
-  console.log(`[runner-trace] ACCOUNT imapHost=${account?.imap_host || "none"}`);
 
   if (!account?.imap_host) {
-    console.log(`[runner-trace] SYNC EARLY RETURN: missing imap_host`);
     console.warn(`[email-inbox] Account ${emailAccountId} has no IMAP config — skipping`);
     return { replies: 0, bounces: 0 };
   }
@@ -187,14 +183,12 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
       AND rp.email_account_id = ?
   `).all(emailAccountId) as { id: string; email: string; state: string; track: string; email_replied_at: string | null , last_email_message_id: string | null }[];
 
-  console.log(`[runner-trace] TARGETS COUNT=${pendingTargets.length}`);
 
   if (pendingTargets.length === 0) {
     db.prepare("UPDATE email_accounts SET inbox_synced_at = datetime('now') WHERE id = ?").run(emailAccountId);
     return { replies: 0, bounces: 0 };
   }
 
-  console.log(`[runner] [email-inbox] Checking ${pendingTargets.length} leads via IMAP FROM search`);
 
   const imapUser = account.imap_username ?? account.username;
   const imapPass = decryptSecret(account.imap_password) ?? decryptSecret(account.password)!;
@@ -202,7 +196,6 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
   let replies = 0;
   let bounces = 0;
 
-  console.log(`[runner-trace] IMAP CONNECT START`);
   await new Promise<void>((resolve) => {
     const imap = new Imap({
       host: account.imap_host!,
@@ -226,11 +219,9 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
     });
 
     imap.once("ready", () => {
-      console.log(`[runner-trace] IMAP READY`);
       imap.openBox("INBOX", true, async (err, box) => {
         if (err || !box) { console.warn("[email-inbox] openBox failed:", err?.message); done(); return; }
         
-        console.log(`[runner-trace] IMAP INBOX OPEN total=${box?.messages?.total}`);
         
         
         // ── Incremental IMAP Reply Detection ──────────────────────────────
@@ -250,7 +241,7 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
         let lastUid = account.inbox_last_uid || 0;
         let newUidValidity = box.uidvalidity;
         if (account.inbox_uidvalidity && account.inbox_uidvalidity !== box.uidvalidity) {
-          console.log(`[runner-trace] UIDVALIDITY changed from ${account.inbox_uidvalidity} to ${box.uidvalidity}. Resetting last_uid.`);
+          console.log(`[email-inbox] UIDVALIDITY changed from ${account.inbox_uidvalidity} to ${box.uidvalidity}. Resetting checkpoint.`);
           lastUid = 0;
         }
 
@@ -265,20 +256,17 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
             const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
             const imapDate = `${d.getUTCDate()}-${months[d.getUTCMonth()]}-${d.getUTCFullYear()}`;
             searchCriteria = [["SINCE", imapDate]];
-            console.log(`[runner-trace] IMAP first-sync range=SINCE ${imapDate}`);
           } else {
             searchCriteria = [["UID", `${lastUid + 1}:*`]];
-            console.log(`[runner-trace] IMAP incremental range=UID ${lastUid + 1}:*`);
           }
 
           imap.search(searchCriteria, async (searchErr, uids) => {
             if (searchErr || !uids || uids.length === 0) {
-              console.log(`[runner-trace] IMAP fetched=0 messages`);
               resRangeSearch();
               return;
             }
 
-            console.log(`[runner-trace] IMAP fetched=${uids.length} messages`);
+            if (uids.length > 0) console.log(`[email-inbox] Incremental sync: fetched ${uids.length} new messages`);
 
             const fetchHeaders = imap.fetch(uids, {
               bodies: ["HEADER.FIELDS (FROM TO DATE MESSAGE-ID IN-REPLY-TO REFERENCES SUBJECT)"],
@@ -347,14 +335,12 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
 
                     if (targetId) {
                       matchedCount++;
-                      console.log(`[runner-trace] REPLY UID FOUND target=${targetId} uid=${msg.uid} (from=${fromEmail})`);
                       console.log(`[email-inbox] Reply detected for ${fromEmail} (target ${targetId})`);
                       replies++;
 
                       try {
                         const replyId = await captureReplyBody(imap, db, targetId, fromEmail, msg.uid);
                         if (replyId && premium?.replies) {
-                          console.log(`[runner-trace] AI CLASSIFICATION START replyId=${replyId}`);
                           await premium.replies.classifyAndDispatch(replyId);
                         }
                       } catch (err) {
@@ -373,8 +359,6 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
                   }
                 }
 
-                console.log(`[runner-trace] IMAP matched=${matchedCount} relevant replies`);
-                console.log(`[runner-trace] IMAP ignored=${ignoredCount} irrelevant messages`);
                 resRangeSearch();
               })();
             });
@@ -391,7 +375,6 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
           if (highestUidProcessed > lastUid || isFirstSync) {
             db.prepare("UPDATE email_accounts SET inbox_last_uid = ?, inbox_uidvalidity = ? WHERE id = ?")
               .run(highestUidProcessed, newUidValidity, emailAccountId);
-            console.log(`[runner-trace] Checkpoint updated to UID=${highestUidProcessed}, UIDVALIDITY=${newUidValidity}`);
           }
         }
 
@@ -508,6 +491,5 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
   });
 
   db.prepare("UPDATE email_accounts SET inbox_synced_at = datetime('now') WHERE id = ?").run(emailAccountId);
-  console.log(`[runner-trace] SYNC EXIT replies=${replies} bounces=${bounces}`);
   return { replies, bounces };
 }

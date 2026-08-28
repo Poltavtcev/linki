@@ -231,7 +231,7 @@ export async function processReply(targetId: string, channel: "email" | "linkedi
     if (content) {
        const obj = JSON.parse(content);
        const kind = obj.kind;
-       console.log(`[runner-trace] AI CLASSIFICATION RESULT kind=${kind}`);
+       console.log(`[email-inbox] Reply classified as ${kind}`);
        
        if (replyId && channel === "email") {
          db.prepare("UPDATE email_replies SET classification_json = ?, classified_at = ?, classification_error = NULL WHERE id = ?").run(JSON.stringify(obj), now, replyId);
@@ -247,7 +247,6 @@ export async function processReply(targetId: string, channel: "email" | "linkedi
       stopBasic(); // Fallback on empty response
     }
   } catch (e) {
-    console.log(`[runner-trace] AI CLASSIFICATION ERROR targetId=${targetId}`);
     console.warn(`[ee/replies] AI classification failed for target ${targetId}, falling back to deterministic STOP`, e);
     if (replyId && channel === "email") {
       db.prepare("UPDATE email_replies SET classification_error = ? WHERE id = ?").run(String(e), replyId);
