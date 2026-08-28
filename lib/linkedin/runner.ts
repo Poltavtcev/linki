@@ -8,7 +8,7 @@ import { sendConnectionRequest, WeeklyLimitError, AlreadyConnectedError, Pending
 import { sendMessage, NotConnectedError } from "@/lib/linkedin/message";
 import { shouldSyncAccepted, syncAcceptedConnections } from "@/lib/linkedin/sync-accepted";
 import { sendEmail } from "@/lib/email/sender";
-import { shouldSyncEmailInbox, syncEmailInbox } from "@/lib/email/inbox";
+import { shouldSyncEmailInbox, syncEmailInbox, IMAP_POLL_INTERVAL_MS, accountJitterMs } from "@/lib/email/inbox";
 import { enrichProfile } from "@/lib/linkedin/enrich";
 import { matchPerson } from "@/lib/apollo";
 import { premium } from "@/lib/premium";
@@ -18,6 +18,8 @@ import { decryptSecret } from "@/lib/crypto";
 const SALES_NAV_ENRICH_MIN_GAP_MS = 5 * 60 * 1000;
 // Per-account timestamp of last ensureSalesNavEnriched execution
 const lastSalesNavEnrichAt: Record<string, number> = {};
+const lastLinkedinSync = new Map<string, number>();
+const activeLinkedinSyncs = new Set<string>();
 
 // Accounts that reported "No InMail credits left" today (Jul 2026 incident — LinkedIn's
 // own credit balance, distinct from daily_inmail_limit; without this, a depleted account
@@ -1014,20 +1016,30 @@ async function tick(db: ReturnType<typeof getDb>): Promise<void> {
     const acc = db.prepare("SELECT is_authenticated FROM accounts WHERE id = ?").get(accountId) as { is_authenticated: number } | undefined;
     if (acc && acc.is_authenticated) {
 
-      try {
-        console.log(`[runner] Starting LinkedIn inbox sync for account ${accountId}`);
-        
-        const syncResult = await syncLinkedInInboxReadOnly({ accountId, source: new LinkedInNetworkObserver() });
-        const replies = syncResult.captured;
+      const lastSync = lastLinkedinSync.get(accountId) || 0;
+      const dueAfterMs = IMAP_POLL_INTERVAL_MS + accountJitterMs(accountId);
+      const isDue = Date.now() - lastSync >= dueAfterMs;
 
-        console.log(`[runner] LinkedIn inbox sync complete — ${replies} new repl${replies === 1 ? "y" : "ies"}`);
-        if (replies > 0) {
-          for (const r of activeRuns.filter(x => x.account_id === accountId)) {
-            log(db, r.run_id, null, "info", `LinkedIn inbox sync: ${replies} new repl${replies === 1 ? "y" : "ies"} detected`);
+      if (isDue && !activeLinkedinSyncs.has(accountId)) {
+        activeLinkedinSyncs.add(accountId);
+        try {
+          console.log(`[runner] Starting LinkedIn inbox sync for account ${accountId}`);
+          
+          const syncResult = await syncLinkedInInboxReadOnly({ accountId, source: new LinkedInNetworkObserver() });
+          const replies = syncResult.captured;
+
+          console.log(`[runner] LinkedIn inbox sync complete — ${replies} new repl${replies === 1 ? "y" : "ies"}`);
+          if (replies > 0) {
+            for (const r of activeRuns.filter(x => x.account_id === accountId)) {
+              log(db, r.run_id, null, "info", `LinkedIn inbox sync: ${replies} new repl${replies === 1 ? "y" : "ies"} detected`);
+            }
           }
+        } catch (e) {
+          console.warn("[runner] LinkedIn inbox sync error:", e instanceof Error ? e.message : e);
+        } finally {
+          lastLinkedinSync.set(accountId, Date.now());
+          activeLinkedinSyncs.delete(accountId);
         }
-      } catch (e) {
-        console.warn("[runner] LinkedIn inbox sync error:", e instanceof Error ? e.message : e);
       }
     }
   }

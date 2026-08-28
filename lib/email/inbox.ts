@@ -5,7 +5,7 @@ import { getDb } from "@/lib/db";
 import { premium } from "@/lib/premium";
 import { decryptSecret } from "@/lib/crypto";
 
-const IMAP_POLL_INTERVAL_MS = 2 * 60 * 60 * 1000; // 2 hours
+export const IMAP_POLL_INTERVAL_MS = 2 * 60 * 60 * 1000; // 2 hours
 // Jul 2026 incident: all email accounts became "due" in the same tick and synced
 // back-to-back (one 20-account burst ran 3 minutes straight, one account alone took
 // 85s), which lined up with NocoDB/n8n healthcheck failures on the shared host. A
@@ -13,7 +13,7 @@ const IMAP_POLL_INTERVAL_MS = 2 * 60 * 60 * 1000; // 2 hours
 // apart over successive cycles instead of staying clustered together forever.
 const IMAP_POLL_JITTER_MS = 30 * 60 * 1000; // 30 min
 
-function accountJitterMs(accountId: string): number {
+export function accountJitterMs(accountId: string): number {
   let h = 0;
   for (let i = 0; i < accountId.length; i++) h = (h * 31 + accountId.charCodeAt(i)) >>> 0;
   return h % IMAP_POLL_JITTER_MS;
