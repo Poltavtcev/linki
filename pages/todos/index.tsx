@@ -43,7 +43,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
 };
 
 function GlobalTodoModal({ targets, onClose, onSave }: { targets: TargetOption[], onClose: () => void, onSave: (t: Todo) => void }) {
-  const [targetId, setTargetId] = useState(targets[0]?.id || "");
+  const [targetId, setTargetId] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [dueDate, setDueDate] = useState("");
@@ -77,65 +77,54 @@ function GlobalTodoModal({ targets, onClose, onSave }: { targets: TargetOption[]
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-base-300/40">
           <h2 className="text-sm font-semibold text-base-content">New todo</h2>
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg text-base-content/40 hover:text-base-content hover:bg-base-300/50 transition-colors">
-            <RiCloseLine size={16} />
+            <svg stroke="currentColor" fill="currentColor" strokeWidth="0" viewBox="0 0 24 24" height="16" width="16" xmlns="http://www.w3.org/2000/svg"><path d="M11.9997 10.5865L16.9495 5.63672L18.3637 7.05093L13.4139 12.0007L18.3637 16.9504L16.9495 18.3646L11.9997 13.4149L7.04996 18.3646L5.63574 16.9504L10.5855 12.0007L5.63574 7.05093L7.04996 5.63672L11.9997 10.5865Z"></path></svg>
           </button>
         </div>
-        <div className="px-6 py-5 flex flex-col gap-4">
-          <select 
-            value={targetId} 
-            onChange={e => setTargetId(e.target.value)}
-            className="w-full bg-base-200 border border-base-300/40 text-sm font-medium text-base-content focus:outline-none rounded-xl p-2.5"
-          >
-            <option value="" disabled>Select contact...</option>
-            {targets.map(t => (
-              <option key={t.id} value={t.id}>
-                {t.first_name} {t.last_name} {t.company_name ? `(${t.company_name})` : ""}
-              </option>
-            ))}
-          </select>
-
-          <input
-            ref={titleRef}
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") save(); }}
-            placeholder="Task title"
-            className="w-full bg-transparent text-base font-medium text-base-content placeholder-base-content/25 focus:outline-none border-b border-base-300/30 pb-3"
-          />
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Add details... (optional)"
-            className="w-full bg-transparent text-sm text-base-content/70 placeholder-base-content/25 focus:outline-none resize-none min-h-[80px]"
-          />
-          <div className="flex items-center gap-3">
-            <input
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-              className="px-3 py-1.5 bg-base-200 text-base-content/70 text-xs font-medium rounded-lg border border-base-300/50 focus:outline-none"
-            />
+        <div className="px-6 py-5 flex flex-col gap-5">
+          <div>
+            <input ref={titleRef} placeholder="Task title" className="w-full bg-transparent text-base font-medium text-base-content placeholder-base-content/25 focus:outline-none" type="text" value={title} onChange={e => setTitle(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") save(); }} />
+          </div>
+          <div>
+            <textarea placeholder="Add a description..." rows={4} className="w-full bg-base-200/60 border border-base-300/40 rounded-xl px-4 py-3 text-sm text-base-content/80 placeholder-base-content/25 leading-relaxed focus:outline-none focus:border-base-300/80 resize-none transition-colors" value={description} onChange={e => setDescription(e.target.value)}></textarea>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] text-base-content/40 uppercase tracking-wide mb-1.5">Contact</label>
+              <div className="relative">
+                <svg stroke="currentColor" fill="currentColor" strokeWidth="0" viewBox="0 0 24 24" className="absolute left-3 top-1/2 -translate-y-1/2 text-base-content/30 pointer-events-none" height="13" width="13" xmlns="http://www.w3.org/2000/svg"><path d="M4 22C4 17.5817 7.58172 14 12 14C16.4183 14 20 17.5817 20 22H18C18 18.6863 15.3137 16 12 16C8.68629 16 6 18.6863 6 22H4ZM12 13C8.685 13 6 10.315 6 7C6 3.685 8.685 1 12 1C15.315 1 18 3.685 18 7C18 10.315 15.315 13 12 13ZM12 11C14.21 11 16 9.21 16 7C16 4.79 14.21 3 12 3C9.79 3 8 4.79 8 7C8 9.21 9.79 11 12 11Z"></path></svg>
+                <select value={targetId} onChange={e => setTargetId(e.target.value)} className="w-full pl-8 pr-3 py-2 bg-base-200/60 border border-base-300/40 rounded-xl text-sm text-base-content/80 focus:outline-none focus:border-base-300/80 appearance-none transition-colors">
+                  <option value="" disabled>Select contact...</option>
+                  {targets.map(t => (
+                    <option key={t.id} value={t.id}>
+                      {t.first_name} {t.last_name} {t.company_name ? `(${t.company_name})` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="block text-[11px] text-base-content/40 uppercase tracking-wide mb-1.5">Due date</label>
+              <div className="relative">
+                <svg stroke="currentColor" fill="currentColor" strokeWidth="0" viewBox="0 0 24 24" className="absolute left-3 top-1/2 -translate-y-1/2 text-base-content/30 pointer-events-none" height="13" width="13" xmlns="http://www.w3.org/2000/svg"><path d="M9 1V3H15V1H17V3H21C21.5523 3 22 3.44772 22 4V20C22 20.5523 21.5523 21 21 21H3C2.44772 21 2 20.5523 2 20V4C2 3.44772 2.44772 3 3 3H7V1H9ZM20 11H4V19H20V11ZM7 5H4V9H20V5H17V7H15V5H9V7H7V5Z"></path></svg>
+                <input value={dueDate} onChange={e => setDueDate(e.target.value)} className="w-full pl-8 pr-3 py-2 bg-base-200/60 border border-base-300/40 rounded-xl text-sm text-base-content/80 focus:outline-none focus:border-base-300/80 transition-colors" type="date" />
+              </div>
+            </div>
           </div>
         </div>
-        <div className="px-6 py-4 bg-base-200/50 border-t border-base-300/40 flex justify-end">
-          <button
-            onClick={save}
-            disabled={saving || !title.trim() || !targetId}
-            className="px-4 py-2 bg-base-content text-base-100 text-sm font-medium rounded-xl hover:bg-base-content/90 transition-colors disabled:opacity-50"
-          >
-            {saving ? "Saving..." : "Create todo"}
-          </button>
+        <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-base-300/40">
+          <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-base-content/50 hover:text-base-content hover:bg-base-300/40 transition-colors">Cancel</button>
+          <button onClick={save} disabled={saving || !title.trim() || !targetId} className="px-4 py-2 rounded-xl text-sm font-medium bg-primary/90 text-primary-content hover:bg-primary disabled:opacity-40 disabled:cursor-not-allowed transition-colors">{saving ? "Saving..." : "Create todo"}</button>
         </div>
       </div>
     </div>
   );
 }
 
-function GlobalTodoDetailModal({ todo, onClose, onSave, onDelete }: { todo: Todo, onClose: () => void, onSave: (t: Todo) => void, onDelete: (id: string) => void }) {
+function GlobalTodoDetailModal({ todo, targets, onClose, onSave, onDelete }: { todo: Todo, targets: TargetOption[], onClose: () => void, onSave: (t: Todo) => void, onDelete: (id: string) => void }) {
   const [title, setTitle] = useState(todo.title);
   const [description, setDescription] = useState(todo.description ?? "");
   const [dueDate, setDueDate] = useState(todo.due_date ?? "");
+  const [targetId, setTargetId] = useState(todo.target_id);
   const [saving, setSaving] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
 
@@ -147,12 +136,12 @@ function GlobalTodoDetailModal({ todo, onClose, onSave, onDelete }: { todo: Todo
   }, [onClose]);
 
   async function save() {
-    if (!title.trim()) return;
+    if (!title.trim() || !targetId) return;
     setSaving(true);
     const res = await fetch(`/api/todos/${todo.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: title.trim(), description: description.trim() || null, due_date: dueDate || null }),
+      body: JSON.stringify({ target_id: targetId, title: title.trim(), description: description.trim() || null, due_date: dueDate || null }),
     });
     setSaving(false);
     if (!res.ok) { toast.error("Failed to save"); return; }
@@ -173,48 +162,46 @@ function GlobalTodoDetailModal({ todo, onClose, onSave, onDelete }: { todo: Todo
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-base-300/40">
           <h2 className="text-sm font-semibold text-base-content">Edit todo</h2>
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg text-base-content/40 hover:text-base-content hover:bg-base-300/50 transition-colors">
-            <RiCloseLine size={16} />
+            <svg stroke="currentColor" fill="currentColor" strokeWidth="0" viewBox="0 0 24 24" height="16" width="16" xmlns="http://www.w3.org/2000/svg"><path d="M11.9997 10.5865L16.9495 5.63672L18.3637 7.05093L13.4139 12.0007L18.3637 16.9504L16.9495 18.3646L11.9997 13.4149L7.04996 18.3646L5.63574 16.9504L10.5855 12.0007L5.63574 7.05093L7.04996 5.63672L11.9997 10.5865Z"></path></svg>
           </button>
         </div>
-        <div className="px-6 py-5 flex flex-col gap-4">
-          <input
-            ref={titleRef}
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") save(); }}
-            placeholder="Task title"
-            className="w-full bg-transparent text-base font-medium text-base-content placeholder-base-content/25 focus:outline-none border-b border-base-300/30 pb-3"
-          />
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Add details... (optional)"
-            className="w-full bg-transparent text-sm text-base-content/70 placeholder-base-content/25 focus:outline-none resize-none min-h-[80px]"
-          />
-          <div className="flex items-center gap-3">
-            <input
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-              className="px-3 py-1.5 bg-base-200 text-base-content/70 text-xs font-medium rounded-lg border border-base-300/50 focus:outline-none"
-            />
+        <div className="px-6 py-5 flex flex-col gap-5">
+          <div>
+            <input ref={titleRef} placeholder="Task title" className="w-full bg-transparent text-base font-medium text-base-content placeholder-base-content/25 focus:outline-none" type="text" value={title} onChange={e => setTitle(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") save(); }} />
+          </div>
+          <div>
+            <textarea placeholder="Add a description..." rows={4} className="w-full bg-base-200/60 border border-base-300/40 rounded-xl px-4 py-3 text-sm text-base-content/80 placeholder-base-content/25 leading-relaxed focus:outline-none focus:border-base-300/80 resize-none transition-colors" value={description} onChange={e => setDescription(e.target.value)}></textarea>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] text-base-content/40 uppercase tracking-wide mb-1.5">Contact</label>
+              <div className="relative">
+                <svg stroke="currentColor" fill="currentColor" strokeWidth="0" viewBox="0 0 24 24" className="absolute left-3 top-1/2 -translate-y-1/2 text-base-content/30 pointer-events-none" height="13" width="13" xmlns="http://www.w3.org/2000/svg"><path d="M4 22C4 17.5817 7.58172 14 12 14C16.4183 14 20 17.5817 20 22H18C18 18.6863 15.3137 16 12 16C8.68629 16 6 18.6863 6 22H4ZM12 13C8.685 13 6 10.315 6 7C6 3.685 8.685 1 12 1C15.315 1 18 3.685 18 7C18 10.315 15.315 13 12 13ZM12 11C14.21 11 16 9.21 16 7C16 4.79 14.21 3 12 3C9.79 3 8 4.79 8 7C8 9.21 9.79 11 12 11Z"></path></svg>
+                <select value={targetId} onChange={e => setTargetId(e.target.value)} className="w-full pl-8 pr-3 py-2 bg-base-200/60 border border-base-300/40 rounded-xl text-sm text-base-content/80 focus:outline-none focus:border-base-300/80 appearance-none transition-colors">
+                  <option value="" disabled>Select contact...</option>
+                  {targets.map(t => (
+                    <option key={t.id} value={t.id}>
+                      {t.first_name} {t.last_name} {t.company_name ? `(${t.company_name})` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="block text-[11px] text-base-content/40 uppercase tracking-wide mb-1.5">Due date</label>
+              <div className="relative">
+                <svg stroke="currentColor" fill="currentColor" strokeWidth="0" viewBox="0 0 24 24" className="absolute left-3 top-1/2 -translate-y-1/2 text-base-content/30 pointer-events-none" height="13" width="13" xmlns="http://www.w3.org/2000/svg"><path d="M9 1V3H15V1H17V3H21C21.5523 3 22 3.44772 22 4V20C22 20.5523 21.5523 21 21 21H3C2.44772 21 2 20.5523 2 20V4C2 3.44772 2.44772 3 3 3H7V1H9ZM20 11H4V19H20V11ZM7 5H4V9H20V5H17V7H15V5H9V7H7V5Z"></path></svg>
+                <input value={dueDate} onChange={e => setDueDate(e.target.value)} className="w-full pl-8 pr-3 py-2 bg-base-200/60 border border-base-300/40 rounded-xl text-sm text-base-content/80 focus:outline-none focus:border-base-300/80 transition-colors" type="date" />
+              </div>
+            </div>
           </div>
         </div>
-        <div className="px-6 py-4 bg-base-200/50 border-t border-base-300/40 flex justify-between">
-          <button
-            onClick={del}
-            className="px-4 py-2 bg-error/10 text-error text-sm font-medium rounded-xl hover:bg-error/20 transition-colors"
-          >
-            Delete
-          </button>
-          <button
-            onClick={save}
-            disabled={saving || !title.trim()}
-            className="px-4 py-2 bg-base-content text-base-100 text-sm font-medium rounded-xl hover:bg-base-content/90 transition-colors disabled:opacity-50"
-          >
-            {saving ? "Saving..." : "Save changes"}
-          </button>
+        <div className="flex items-center justify-between gap-2 px-6 py-4 border-t border-base-300/40">
+          <button onClick={del} className="px-4 py-2 rounded-xl text-sm text-error/80 hover:text-error hover:bg-error/10 transition-colors">Delete</button>
+          <div className="flex gap-2">
+            <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-base-content/50 hover:text-base-content hover:bg-base-300/40 transition-colors">Cancel</button>
+            <button onClick={save} disabled={saving || !title.trim() || !targetId} className="px-4 py-2 rounded-xl text-sm font-medium bg-primary/90 text-primary-content hover:bg-primary disabled:opacity-40 disabled:cursor-not-allowed transition-colors">{saving ? "Saving..." : "Save changes"}</button>
+          </div>
         </div>
       </div>
     </div>
@@ -316,8 +303,9 @@ export default function TodosPage({ initialTodos, targets }: { initialTodos: Tod
 
             <div className="flex flex-col divide-y divide-base-300/30">
               {filteredTodos.length === 0 ? (
-                <div className="py-12 text-center text-base-content/40 text-sm">
-                  No todos found.
+                <div className="text-center py-20">
+                  <div className="text-base-content/20 text-sm mb-2">No todos</div>
+                  <button onClick={() => setShowModal(true)} className="text-xs text-base-content/30 hover:text-primary transition-colors">+ Create one</button>
                 </div>
               ) : (
                 filteredTodos.map(todo => {
@@ -330,7 +318,7 @@ export default function TodosPage({ initialTodos, targets }: { initialTodos: Tod
                         onClick={() => toggleTodo(todo)}
                         className={`mt-0.5 shrink-0 transition-colors ${isDone ? "text-success" : "text-base-content/20 hover:text-base-content/60"}`}
                       >
-                        {isDone ? <RiCheckboxCircleFill size={17} /> : <RiCheckboxBlankCircleLine size={17} />}
+                        {isDone ? <svg stroke="currentColor" fill="currentColor" strokeWidth="0" viewBox="0 0 24 24" height="17" width="17" xmlns="http://www.w3.org/2000/svg"><path d="M4 12C4 7.58172 7.58172 4 12 4C16.4183 4 20 7.58172 20 12C20 16.4183 16.4183 20 12 20C7.58172 20 4 16.4183 4 12ZM12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2ZM17.4571 9.45711L16.0429 8.04289L11 13.0858L8.20711 10.2929L6.79289 11.7071L11 15.9142L17.4571 9.45711Z"></path></svg> : <RiCheckboxBlankCircleLine size={17} />}
                       </button>
                       <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setSelectedTodo(todo)}>
                         <p className={`text-sm leading-snug ${isDone ? "line-through text-base-content/40" : "text-base-content"}`}>
@@ -376,7 +364,7 @@ export default function TodosPage({ initialTodos, targets }: { initialTodos: Tod
       )}
 
       {selectedTodo && (
-        <GlobalTodoDetailModal
+        <GlobalTodoDetailModal targets={targets}
           todo={selectedTodo}
           onClose={() => setSelectedTodo(null)}
           onSave={(updated) => {
