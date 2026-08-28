@@ -70,7 +70,11 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 
   if (req.method === "DELETE") {
-    db.prepare("DELETE FROM email_accounts WHERE id = ?").run(id);
+    db.transaction(() => {
+      // Unlink from runs to satisfy FOREIGN KEY constraint
+      db.prepare("UPDATE runs SET email_account_id = NULL WHERE email_account_id = ?").run(id);
+      db.prepare("DELETE FROM email_accounts WHERE id = ?").run(id);
+    })();
     return res.json({ ok: true });
   }
 
