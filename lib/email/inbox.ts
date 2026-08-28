@@ -254,14 +254,24 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
           lastUid = 0;
         }
 
+        const isFirstSync = (lastUid === 0);
         let highestUidProcessed = lastUid;
         let incrementalSuccess = true;
 
         await new Promise<void>((resRangeSearch) => {
-          const fetchRange = `${lastUid + 1}:*`;
-          console.log(`[runner-trace] IMAP incremental range=${fetchRange}`);
+          let searchCriteria: any[];
+          if (isFirstSync) {
+            const d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+            const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            const imapDate = `${d.getUTCDate()}-${months[d.getUTCMonth()]}-${d.getUTCFullYear()}`;
+            searchCriteria = [["SINCE", imapDate]];
+            console.log(`[runner-trace] IMAP first-sync range=SINCE ${imapDate}`);
+          } else {
+            searchCriteria = [["UID", `${lastUid + 1}:*`]];
+            console.log(`[runner-trace] IMAP incremental range=UID ${lastUid + 1}:*`);
+          }
 
-          imap.search([["UID", fetchRange]], async (searchErr, uids) => {
+          imap.search(searchCriteria, async (searchErr, uids) => {
             if (searchErr || !uids || uids.length === 0) {
               console.log(`[runner-trace] IMAP fetched=0 messages`);
               resRangeSearch();
@@ -371,10 +381,18 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
           });
         });
 
-        if (incrementalSuccess && highestUidProcessed > lastUid) {
-          db.prepare("UPDATE email_accounts SET inbox_last_uid = ?, inbox_uidvalidity = ? WHERE id = ?")
-            .run(highestUidProcessed, newUidValidity, emailAccountId);
-          console.log(`[runner-trace] Checkpoint updated to UID=${highestUidProcessed}, UIDVALIDITY=${newUidValidity}`);
+        if (incrementalSuccess) {
+          // First sync safety: force checkpoint to the mailbox's current high-water mark 
+          // so we don't re-scan old emails in the next run, even if we found nothing recently.
+          if (isFirstSync && box.uidnext) {
+            highestUidProcessed = Math.max(highestUidProcessed, box.uidnext - 1);
+          }
+
+          if (highestUidProcessed > lastUid || isFirstSync) {
+            db.prepare("UPDATE email_accounts SET inbox_last_uid = ?, inbox_uidvalidity = ? WHERE id = ?")
+              .run(highestUidProcessed, newUidValidity, emailAccountId);
+            console.log(`[runner-trace] Checkpoint updated to UID=${highestUidProcessed}, UIDVALIDITY=${newUidValidity}`);
+          }
         }
 
 // ── Bounce detection: scan last 50 messages for mailer-daemon ─────────
