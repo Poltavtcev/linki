@@ -13,6 +13,8 @@ export interface EmailMessage {
   text: string;
   html: string | null;
   messageId: string | null;
+  inReplyTo: string | null;
+  references: string[];
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -44,9 +46,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const targetEmail = target.email.toLowerCase();
 
   try {
+    
+    const legacyRows = db.prepare("SELECT received_at FROM email_replies WHERE target_id = ? AND message_id IS NULL").all(targetId) as { received_at: string }[];
+    const legacyTimes = new Set(legacyRows.map(r => new Date(r.received_at).getTime()));
+    
+    const knownIdsRows = db.prepare(`
+      SELECT last_email_message_id AS msg_id FROM run_profile_tracks rt
+      JOIN run_profiles rp ON rp.id = rt.run_profile_id
+      WHERE rp.target_id = ? AND rt.last_email_message_id IS NOT NULL
+      UNION
+      SELECT message_id AS msg_id FROM email_replies WHERE target_id = ? AND message_id IS NOT NULL
+    `).all(targetId, targetId) as { msg_id: string }[];
+    const knownMessageIds = new Set(knownIdsRows.map(r => r.msg_id.trim().replace(/^<|>$/g, '')));
+    const ownerEmail = account.username.toLowerCase();
+
     const messages = await fetchThread(
       { host: account.imap_host, port: account.imap_port ?? 993, user: imapUser, password: imapPass },
-      targetEmail
+      targetEmail,
+      ownerEmail,
+      knownMessageIds,
+      legacyTimes
     );
     return res.json({ messages });
   } catch (err) {
@@ -57,7 +76,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
 interface ImapConfig { host: string; port: number; user: string; password: string; }
 
-async function fetchThread(cfg: ImapConfig, contactEmail: string): Promise<EmailMessage[]> {
+async function fetchThread(cfg: ImapConfig, contactEmail: string, ownerEmail: string, knownMessageIds: Set<string>, legacyTimes: Set<number>): Promise<EmailMessage[]> {
   return new Promise((resolve, reject) => {
     const imap = new Imap({
       host: cfg.host,
@@ -115,6 +134,8 @@ async function fetchThread(cfg: ImapConfig, contactEmail: string): Promise<Email
                       text: parsed.text ?? "",
                       html: parsed.html || null,
                       messageId: parsed.messageId ?? null,
+                      inReplyTo: parsed.inReplyTo ?? null,
+                      references: typeof parsed.references === 'string' ? parsed.references.split(/\s+/) : (parsed.references || []),
                     });
                   } catch { /* skip malformed */ }
                   res2();
@@ -130,9 +151,46 @@ async function fetchThread(cfg: ImapConfig, contactEmail: string): Promise<Email
           fetch.once("error", (fetchErr: Error) => done(fetchErr));
           fetch.once("end", async () => {
             await Promise.allSettled(pending);
-            messages.sort((a, b) => a.date.localeCompare(b.date));
-            resolve(messages);
+            
+            // Build thread graph to filter out irrelevant emails (Bug B fix)
+            const isSelfTest = contactEmail === ownerEmail;
+            let finalMessages = messages;
+
+            if (isSelfTest) {
+              const connected = new Set<string>();
+              for (const id of knownMessageIds) connected.add(id);
+              
+              let changed = true;
+              while (changed) {
+                changed = false;
+                for (const m of messages) {
+                  if (!m.messageId) continue;
+                  const mId = m.messageId.replace(/^<|>$/g, '');
+                  if (connected.has(mId)) continue;
+
+                  let linked = false;
+                  // Try to find if this message replies to a connected message
+                  // We don't have parsed.inReplyTo in EmailMessage yet, so we'll need to parse it or just rely on the DB
+                  // Actually, without parsing inReplyTo in fetchThread, we can't easily link.
+                  // But since we just need a simple filter: if it's a self-test, ONLY include messages that match knownMessageIds!
+                  
+                  // Check if it links to a known message
+                  const refs = [m.inReplyTo, ...(m.references || [])].filter(Boolean).map(r => r.replace(/^<|>$/g, ''));
+                  if (knownMessageIds.has(mId) || refs.some(r => connected.has(r))) {
+                    connected.add(mId);
+                    linked = true;
+                    changed = true;
+                  }
+  
+                }
+              }
+              finalMessages = messages.filter(m => m.messageId && connected.has(m.messageId.replace(/^<|>$/g, '')));
+            }
+
+            finalMessages.sort((a, b) => a.date.localeCompare(b.date));
+            resolve(finalMessages);
             done();
+
           });
         });
       });

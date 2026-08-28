@@ -64,6 +64,7 @@ export function captureReplyBody(
   imap: Imap,
   db: ReturnType<typeof getDb>,
   targetId: string,
+  runId: string | null,
   fromEmail: string,
   uid: number,
 ): Promise<string | null> {
@@ -93,6 +94,8 @@ export function captureReplyBody(
           const parsedFrom =
             parsed.from?.value?.[0]?.address?.toLowerCase().trim() || fromEmail.toLowerCase();
           const receivedAt = parsed.date ? parsed.date.toISOString() : new Date().toISOString();
+          const messageId = parsed.messageId ?? null;
+          const inReplyTo = parsed.inReplyTo ?? null;
 
           // Prefer decoded plain text; fall back to stripping the HTML part.
           const rawText =
@@ -108,27 +111,30 @@ export function captureReplyBody(
           if (!bodyText) { resolve(null); return; }
 
           // Dedup: skip if we already have a row for this target with the same received_at
-          const existing = db.prepare(
-            "SELECT id FROM email_replies WHERE target_id = ? AND received_at = ?"
-          ).get(targetId, receivedAt) as { id: string } | undefined;
-
+          let existing;
+          if (messageId) {
+            existing = db.prepare("SELECT id FROM email_replies WHERE target_id = ? AND message_id = ?").get(targetId, messageId);
+          }
+          if (!existing) {
+            existing = db.prepare("SELECT id FROM email_replies WHERE target_id = ? AND received_at = ?").get(targetId, receivedAt);
+          }
           if (existing) { resolve(null); return; }
 
-          // Look up the most recent active run for this target — the dispatcher needs
-          // it to find the email track to reschedule / enroll a substitute into.
-          const runRow = db.prepare(
-            `SELECT r.id FROM runs r
-             JOIN run_profiles rp ON rp.run_id = r.id
-             WHERE rp.target_id = ? AND r.status IN ('running', 'paused')
-             ORDER BY r.created_at DESC LIMIT 1`
-          ).get(targetId) as { id: string } | undefined;
-
           const replyId = randomUUID();
-          db.prepare(
-            `INSERT INTO email_replies (id, target_id, run_id, from_email, subject, body_text, received_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`
-          ).run(replyId, targetId, runRow?.id ?? null, parsedFrom, subject, bodyText, receivedAt);
-          resolve(replyId);
+          try {
+            db.prepare(
+              `INSERT INTO email_replies (id, target_id, run_id, message_id, in_reply_to, from_email, subject, body_text, received_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            ).run(replyId, targetId, runId, messageId, inReplyTo, parsedFrom, subject, bodyText, receivedAt);
+            resolve(replyId);
+          } catch (insertErr: any) {
+            if (insertErr.message && insertErr.message.includes('UNIQUE constraint failed')) {
+              // Concurrent process beat us to the INSERT. Safely resolve null to block duplicate AI classification.
+              resolve(null);
+              return;
+            }
+            throw insertErr;
+          }
         } catch (err) {
           console.warn(`[email-inbox] captureReplyBody parse/insert failed:`, err);
           resolve(null);
@@ -170,7 +176,7 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
 
   // Leads that were emailed via this account and haven't replied yet
   const pendingTargets = db.prepare(`
-    SELECT DISTINCT t.id, t.email, rt.state, rt.track, t.email_replied_at, rt.last_email_message_id
+    SELECT DISTINCT t.id, t.email, rt.state, rt.track, t.email_replied_at, rt.last_email_message_id, rp.run_id
     FROM targets t
     JOIN run_profiles rp ON rp.target_id = t.id
     JOIN run_profile_tracks rt ON rt.run_profile_id = rp.id
@@ -181,7 +187,7 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
       AND rt.state NOT IN ('pending')
       AND (rt.last_email_subject IS NOT NULL OR rt.last_email_body IS NOT NULL)
       AND rp.email_account_id = ?
-  `).all(emailAccountId) as { id: string; email: string; state: string; track: string; email_replied_at: string | null , last_email_message_id: string | null }[];
+  `).all(emailAccountId) as { id: string; email: string; state: string; track: string; email_replied_at: string | null , last_email_message_id: string | null, run_id: string }[];
 
 
   if (pendingTargets.length === 0) {
@@ -226,15 +232,15 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
         
         // ── Incremental IMAP Reply Detection ──────────────────────────────
         const emailToTargetId = new Map<string, string>();
-        const msgIdToTargetId = new Map<string, string>();
+        const msgIdToContext = new Map<string, { targetId: string, runId: string }>();
         for (const pt of pendingTargets) {
           if (pt.email) {
             emailToTargetId.set(pt.email.trim().toLowerCase(), pt.id);
           }
           if (pt.last_email_message_id) {
             const msgId = pt.last_email_message_id.trim();
-            msgIdToTargetId.set(msgId, pt.id);
-            msgIdToTargetId.set(msgId.replace(/^<|>$/g, ''), pt.id);
+            msgIdToContext.set(msgId, { targetId: pt.id, runId: pt.run_id });
+            msgIdToContext.set(msgId.replace(/^<|>$/g, ''), { targetId: pt.id, runId: pt.run_id });
           }
         }
 
@@ -309,20 +315,25 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
                     const references = referencesStr.split(/\s+/).filter(Boolean).map(r => r.trim());
 
                     let targetId: string | undefined;
+                    let runId: string | null = null;
 
                     // Priority 1: Correlation by Message-ID thread
-                    if (inReplyTo && msgIdToTargetId.has(inReplyTo)) {
-                      targetId = msgIdToTargetId.get(inReplyTo);
-                    } else if (inReplyTo && msgIdToTargetId.has(inReplyTo.replace(/^<|>$/g, ''))) {
-                      targetId = msgIdToTargetId.get(inReplyTo.replace(/^<|>$/g, ''));
+                    if (inReplyTo && msgIdToContext.has(inReplyTo)) {
+                      const ctx = msgIdToContext.get(inReplyTo)!;
+                      targetId = ctx.targetId; runId = ctx.runId;
+                    } else if (inReplyTo && msgIdToContext.has(inReplyTo.replace(/^<|>$/g, ''))) {
+                      const ctx = msgIdToContext.get(inReplyTo.replace(/^<|>$/g, ''))!;
+                      targetId = ctx.targetId; runId = ctx.runId;
                     }
                     if (!targetId) {
                       for (const ref of references) {
-                        if (msgIdToTargetId.has(ref)) {
-                          targetId = msgIdToTargetId.get(ref);
+                        if (msgIdToContext.has(ref)) {
+                          const ctx = msgIdToContext.get(ref)!;
+                          targetId = ctx.targetId; runId = ctx.runId;
                           break;
-                        } else if (msgIdToTargetId.has(ref.replace(/^<|>$/g, ''))) {
-                          targetId = msgIdToTargetId.get(ref.replace(/^<|>$/g, ''));
+                        } else if (msgIdToContext.has(ref.replace(/^<|>$/g, ''))) {
+                          const ctx = msgIdToContext.get(ref.replace(/^<|>$/g, ''))!;
+                          targetId = ctx.targetId; runId = ctx.runId;
                           break;
                         }
                       }
@@ -331,6 +342,7 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
                     // Priority 2: Correlation by FROM email
                     if (!targetId && fromEmail) {
                       targetId = emailToTargetId.get(fromEmail);
+                      if (targetId) console.log(`[email-inbox] run_id unresolved for ${fromEmail} (matched via Priority 2)`);
                     }
 
                     if (targetId) {
@@ -339,7 +351,7 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
                       replies++;
 
                       try {
-                        const replyId = await captureReplyBody(imap, db, targetId, fromEmail, msg.uid);
+                        const replyId = await captureReplyBody(imap, db, targetId, runId, fromEmail, msg.uid);
                         if (replyId && premium?.replies) {
                           await premium.replies.classifyAndDispatch(replyId);
                         }
