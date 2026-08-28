@@ -167,8 +167,8 @@ async function fetchThread(cfg: ImapConfig, contactEmail: string, ownerEmail: st
               const addEdge = (u: string, v: string) => {
                 if (!graph.has(u)) graph.set(u, new Set());
                 if (!graph.has(v)) graph.set(v, new Set());
-                graph.get(u).add(v);
-                graph.get(v).add(u);
+                graph.get(u)!.add(v);
+                graph.get(v)!.add(u);
               };
 
               for (const m of messages) {
@@ -185,11 +185,11 @@ async function fetchThread(cfg: ImapConfig, contactEmail: string, ownerEmail: st
               const queue = [...knownMessageIds];
               
               while (queue.length > 0) {
-                const curr = queue.pop();
+                const curr = queue.pop()!;
                 if (connected.has(curr)) continue;
                 connected.add(curr);
                 if (graph.has(curr)) {
-                  for (const neighbor of graph.get(curr)) {
+                  for (const neighbor of graph.get(curr)!) {
                     if (!connected.has(neighbor)) queue.push(neighbor);
                   }
                 }
