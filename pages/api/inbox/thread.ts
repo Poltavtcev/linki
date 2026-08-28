@@ -152,45 +152,55 @@ async function fetchThread(cfg: ImapConfig, contactEmail: string, ownerEmail: st
           fetch.once("end", async () => {
             await Promise.allSettled(pending);
             
-            // Build thread graph to filter out irrelevant emails (Bug B fix)
-            const isSelfTest = contactEmail === ownerEmail;
+            // Build undirected thread graph to isolate conversation
             let finalMessages = messages;
+            
+            // Step 1: Promote legacy IMAP messages to root nodes if their timestamps match legacy DB records
+            for (const m of messages) {
+              if (m.messageId && legacyTimes.has(new Date(m.date).getTime())) {
+                knownMessageIds.add(m.messageId.replace(/^<|>$/g, ''));
+              }
+            }
 
-            if (isSelfTest) {
+            if (knownMessageIds.size > 0) {
+              const graph = new Map<string, Set<string>>();
+              const addEdge = (u: string, v: string) => {
+                if (!graph.has(u)) graph.set(u, new Set());
+                if (!graph.has(v)) graph.set(v, new Set());
+                graph.get(u).add(v);
+                graph.get(v).add(u);
+              };
+
+              for (const m of messages) {
+                if (!m.messageId) continue;
+                const u = m.messageId.replace(/^<|>$/g, '');
+                const rawRefs = [m.inReplyTo, ...(m.references || [])];
+                const refs = rawRefs
+                  .filter((r): r is string => typeof r === 'string')
+                  .map(r => r.replace(/^<|>$/g, ''));
+                for (const v of refs) addEdge(u, v);
+              }
+
               const connected = new Set<string>();
-              for (const id of knownMessageIds) connected.add(id);
+              const queue = [...knownMessageIds];
               
-              let changed = true;
-              while (changed) {
-                changed = false;
-                for (const m of messages) {
-                  if (!m.messageId) continue;
-                  const mId = m.messageId.replace(/^<|>$/g, '');
-                  if (connected.has(mId)) continue;
-
-                  let linked = false;
-                  // Try to find if this message replies to a connected message
-                  // We don't have parsed.inReplyTo in EmailMessage yet, so we'll need to parse it or just rely on the DB
-                  // Actually, without parsing inReplyTo in fetchThread, we can't easily link.
-                  // But since we just need a simple filter: if it's a self-test, ONLY include messages that match knownMessageIds!
-                  
-                  // Check if it links to a known message
-                  const refs = [m.inReplyTo, ...(m.references || [])].filter(Boolean).map(r => r.replace(/^<|>$/g, ''));
-                  if (knownMessageIds.has(mId) || refs.some(r => connected.has(r))) {
-                    connected.add(mId);
-                    linked = true;
-                    changed = true;
+              while (queue.length > 0) {
+                const curr = queue.pop();
+                if (connected.has(curr)) continue;
+                connected.add(curr);
+                if (graph.has(curr)) {
+                  for (const neighbor of graph.get(curr)) {
+                    if (!connected.has(neighbor)) queue.push(neighbor);
                   }
-  
                 }
               }
+              
               finalMessages = messages.filter(m => m.messageId && connected.has(m.messageId.replace(/^<|>$/g, '')));
             }
 
             finalMessages.sort((a, b) => a.date.localeCompare(b.date));
             resolve(finalMessages);
             done();
-
           });
         });
       });
