@@ -343,13 +343,11 @@ export default function TodosPage({ initialTodos, targets }: { initialTodos: Tod
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (confirm("Delete this todo?")) {
-                              fetch(`/api/todos/${todo.id}`, { method: "DELETE" })
+                            fetch(`/api/todos/${todo.id}`, { method: "DELETE" })
                                 .then(() => {
                                   setTodos(prev => prev.filter(t => t.id !== todo.id));
                                   toast.success("Todo deleted");
                                 });
-                            }
                           }}
                           className="opacity-0 group-hover:opacity-100 text-base-content/25 hover:text-error/70 transition-all"
                         >
