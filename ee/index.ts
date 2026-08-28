@@ -186,6 +186,13 @@ export async function processReply(targetId: string, channel: "email" | "linkedi
     } else {
       db.prepare("UPDATE targets SET last_replied_at = COALESCE(last_replied_at, ?) WHERE id = ?").run(now, targetId);
     }
+
+    db.prepare(`
+      UPDATE run_profile_tracks 
+      SET state = 'skipped', error_message = 'Lead replied'
+      WHERE run_profile_id IN (SELECT id FROM run_profiles WHERE target_id = ?)
+        AND state NOT IN ('completed', 'failed', 'skipped')
+    `).run(targetId);
   };
 
   if (process.env.AI_REPLY_INTELLIGENCE !== "true") {
