@@ -29,14 +29,14 @@ interface TargetOption {
 export const getServerSideProps: GetServerSideProps = async (context) => {
   const db = getDb();
   const todos = db.prepare(`
-    SELECT todos.*, targets.first_name, targets.last_name, targets.company_name 
+    SELECT todos.*, targets.first_name, targets.last_name, targets.company as company_name 
     FROM todos 
     JOIN targets ON todos.target_id = targets.id 
     ORDER BY todos.status ASC, todos.due_date ASC, todos.created_at DESC
   `).all() as Todo[];
 
   const targets = db.prepare(`
-    SELECT id, first_name, last_name, company_name FROM targets ORDER BY created_at DESC LIMIT 1000
+    SELECT id, first_name, last_name, company as company_name FROM targets ORDER BY created_at DESC LIMIT 1000
   `).all() as TargetOption[];
 
   return { props: { initialTodos: todos, targets } };

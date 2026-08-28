@@ -28,7 +28,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     db.prepare(`UPDATE todos SET ${sets.join(", ")} WHERE id = ?`).run(...params);
 
     const todo = db.prepare(`
-      SELECT todos.*, targets.first_name, targets.last_name, targets.company_name 
+      SELECT todos.*, targets.first_name, targets.last_name, targets.company as company_name 
       FROM todos 
       JOIN targets ON todos.target_id = targets.id 
       WHERE todos.id = ?

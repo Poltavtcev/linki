@@ -10,7 +10,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       SELECT todos.*, 
              targets.first_name, 
              targets.last_name, 
-             targets.company_name
+             targets.company as company_name
       FROM todos
       JOIN targets ON todos.target_id = targets.id
       ORDER BY todos.status ASC, todos.due_date ASC, todos.created_at DESC
@@ -31,7 +31,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     `).run(id, target_id, title.trim(), description?.trim() || null, due_date || null);
 
     const todo = db.prepare(`
-      SELECT todos.*, targets.first_name, targets.last_name, targets.company_name 
+      SELECT todos.*, targets.first_name, targets.last_name, targets.company as company_name 
       FROM todos 
       JOIN targets ON todos.target_id = targets.id 
       WHERE todos.id = ?
