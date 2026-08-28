@@ -289,16 +289,13 @@ export default function TodosPage({ initialTodos, targets }: { initialTodos: Tod
                   Done
                 </button>
               </div>
-              <div className="flex-1 relative">
-                <input
-                  placeholder="Filter by title, contact or company..."
-                  className="w-full px-3 py-2 pl-9 bg-base-200 border border-base-300/40 rounded-xl text-xs text-base-content/80 placeholder-base-content/30 focus:outline-none focus:border-base-300/70 transition-colors"
+              <input
+                  placeholder="Filter by contact or company..."
+                  className="flex-1 px-3 py-2 bg-base-200 border border-base-300/40 rounded-xl text-xs text-base-content/80 placeholder-base-content/30 focus:outline-none focus:border-base-300/70 transition-colors"
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
-                <RiSearchLine className="absolute left-3 top-1/2 -translate-y-1/2 text-base-content/30" size={14} />
-              </div>
             </div>
 
             <div className="flex flex-col divide-y divide-base-300/30">
@@ -331,8 +328,8 @@ export default function TodosPage({ initialTodos, targets }: { initialTodos: Tod
                         )}
                         <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                           <a href={`/contacts/${todo.target_id}`} className="inline-flex items-center gap-1 text-xs text-base-content/40 hover:text-primary transition-colors" onClick={e => e.stopPropagation()}>
-                            <RiBuildingLine size={11} />
-                            {todo.first_name} {todo.last_name} {todo.company_name ? `(${todo.company_name})` : ""}
+                            <svg stroke="currentColor" fill="currentColor" strokeWidth="0" viewBox="0 0 24 24" height="11" width="11" xmlns="http://www.w3.org/2000/svg"><path d="M4 22C4 17.5817 7.58172 14 12 14C16.4183 14 20 17.5817 20 22H18C18 18.6863 15.3137 16 12 16C8.68629 16 6 18.6863 6 22H4ZM12 13C8.685 13 6 10.315 6 7C6 3.685 8.685 1 12 1C15.315 1 18 3.685 18 7C18 10.315 15.315 13 12 13ZM12 11C14.21 11 16 9.21 16 7C16 4.79 14.21 3 12 3C9.79 3 8 4.79 8 7C8 9.21 9.79 11 12 11Z"></path></svg>
+                            {todo.first_name || ""} {todo.last_name || ""}
                           </a>
                           {todo.due_date && (
                             <span className={`inline-flex items-center gap-1 text-xs ${isOverdue ? "text-error" : "text-base-content/40"}`}>
@@ -341,6 +338,23 @@ export default function TodosPage({ initialTodos, targets }: { initialTodos: Tod
                             </span>
                           )}
                         </div>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (confirm("Delete this todo?")) {
+                              fetch(`/api/todos/${todo.id}`, { method: "DELETE" })
+                                .then(() => {
+                                  setTodos(prev => prev.filter(t => t.id !== todo.id));
+                                  toast.success("Todo deleted");
+                                });
+                            }
+                          }}
+                          className="opacity-0 group-hover:opacity-100 text-base-content/25 hover:text-error/70 transition-all"
+                        >
+                          <svg stroke="currentColor" fill="currentColor" strokeWidth="0" viewBox="0 0 24 24" height="14" width="14" xmlns="http://www.w3.org/2000/svg"><path d="M17 6H22V8H20V21C20 21.5523 19.5523 22 19 22H5C4.44772 22 4 21.5523 4 21V8H2V6H7V3C7 2.44772 7.44772 2 8 2H16C16.5523 2 17 2.44772 17 3V6ZM18 8H6V20H18V8ZM9 11H11V17H9V11ZM13 11H15V17H13V11ZM9 4V6H15V4H9Z"></path></svg>
+                        </button>
                       </div>
                     </div>
                   );
