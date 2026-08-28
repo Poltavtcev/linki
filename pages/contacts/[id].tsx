@@ -1192,8 +1192,8 @@ export default function ContactDetailPage({
           </div>
         )}
 
-        {/* Todos — premium (ee/); hidden in the public build */}
-        {hasPremium && (
+        {/* Todos restored */}
+        {true && (
         <div className="bg-base-200 border border-base-300/50 rounded-xl p-5 mb-4">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">

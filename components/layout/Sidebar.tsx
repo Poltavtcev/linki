@@ -31,11 +31,11 @@ const mainNav = [
   { href: "/workflows", label: "Campaigns", icon: RiFlowChart, color: "#f4b740", tour: "nav-workflows" },
   { href: "/inbox", label: "Inbox", icon: RiInboxLine, color: "#38bdf8", tour: "nav-inbox" },
   { href: "/email-health", label: "Email Health", icon: RiMailCheckLine, color: "#f4b740", tour: "nav-email-health" },
+  { href: "/todos", label: "Todos", icon: RiCheckboxCircleLine, color: "#fb923c", tour: "nav-todos" },
 ];
 
 // Nav items that only exist in the commercial build (ee/). Filtered out when premium absent.
-const premiumNav = [
-  { href: "/todos", label: "Todos", icon: RiCheckboxCircleLine, color: "#fb923c", tour: "nav-todos" },
+const premiumNav: any[] = [
 ];
 
 export const SIDEBAR_WIDTH_EXPANDED = 52;
