@@ -364,6 +364,7 @@ function runMigrations(db: Database.Database) {
       error_message TEXT,
       last_email_subject TEXT,
       last_email_body TEXT,
+      last_email_message_id TEXT,
       last_linkedin_message TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       UNIQUE(run_profile_id, track)
@@ -427,6 +428,9 @@ function runMigrations(db: Database.Database) {
     // One-shot OOO reply context for the AI follow-up writer — set by the dispatcher,
     // read + cleared by the runner on the next email send. Distinct from last_email_body
     // (which holds the last email WE sent, used for follow-up threading).
+    "ALTER TABLE email_accounts ADD COLUMN inbox_last_uid INTEGER",
+    "ALTER TABLE email_accounts ADD COLUMN inbox_uidvalidity INTEGER",
+    "ALTER TABLE run_profile_tracks ADD COLUMN last_email_message_id TEXT",
     "ALTER TABLE run_profile_tracks ADD COLUMN pending_reply_context TEXT",
     // Removed the in-app chat agent (replaced by the hosted MCP endpoint at /api/mcp) — drop its tables.
     "DROP TABLE IF EXISTS chat_messages",
@@ -877,6 +881,8 @@ function initDb(db: Database.Database) {
       working_days TEXT DEFAULT '1,2,3,4,5',
       is_verified INTEGER DEFAULT 0,
       inbox_synced_at TEXT,
+      inbox_last_uid INTEGER,
+      inbox_uidvalidity INTEGER,
       created_at TEXT DEFAULT (datetime('now'))
     );
   `);

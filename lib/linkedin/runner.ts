@@ -245,13 +245,13 @@ function trFail(db: ReturnType<typeof getDb>, tr: TrackRun, reason: string) {
   db.prepare("UPDATE run_profile_tracks SET state = 'failed', error_message = ? WHERE id = ?").run(reason, tr.id);
 }
 
-function trRecordContext(db: ReturnType<typeof getDb>, tr: TrackRun, ctx: { linkedinMessage?: string; emailSubject?: string; emailBody?: string }) {
+function trRecordContext(db: ReturnType<typeof getDb>, tr: TrackRun, ctx: { linkedinMessage?: string; emailSubject?: string; emailBody?: string; emailMessageId?: string }) {
   if (ctx.linkedinMessage !== undefined) {
     db.prepare("UPDATE run_profile_tracks SET last_linkedin_message = ? WHERE id = ?").run(ctx.linkedinMessage, tr.id);
   }
-  if (ctx.emailSubject !== undefined || ctx.emailBody !== undefined) {
-    db.prepare("UPDATE run_profile_tracks SET last_email_subject = ?, last_email_body = ? WHERE id = ?")
-      .run(ctx.emailSubject ?? null, ctx.emailBody ?? null, tr.id);
+  if (ctx.emailSubject !== undefined || ctx.emailBody !== undefined || ctx.emailMessageId !== undefined) {
+    db.prepare("UPDATE run_profile_tracks SET last_email_subject = COALESCE(?, last_email_subject), last_email_body = COALESCE(?, last_email_body), last_email_message_id = COALESCE(?, last_email_message_id) WHERE id = ?")
+      .run(ctx.emailSubject ?? null, ctx.emailBody ?? null, ctx.emailMessageId ?? null, tr.id);
   }
 }
 
@@ -898,8 +898,8 @@ async function executeStep(
       const finalEmailBody = sig ? `${emailBody}\n\n--\n${sig}` : emailBody;
       db.prepare("UPDATE run_profile_tracks SET last_step_at = datetime('now') WHERE id = ?").run(tr.id);
       log(db, runId, target.id, "info", `Sending email to ${name} <${freshTarget.email}>`);
-      await sendEmail({ ...emailAccount, password: decryptSecret(emailAccount.password)! }, freshTarget.email, emailSubject, finalEmailBody);
-      trRecordContext(db, tr, { emailSubject, emailBody });
+      const messageId = await sendEmail({ ...emailAccount, password: decryptSecret(emailAccount.password)! }, freshTarget.email, emailSubject, finalEmailBody);
+      trRecordContext(db, tr, { emailSubject, emailBody, emailMessageId: messageId });
       trAdvance(db, tr, steps);
       log(db, runId, target.id, "info", `Email sent to ${name}`);
     }

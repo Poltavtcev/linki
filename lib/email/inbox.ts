@@ -51,6 +51,8 @@ interface EmailAccount {
   imap_username: string | null;
   imap_password: string | null;
   inbox_synced_at: string | null;
+  inbox_last_uid: number | null;
+  inbox_uidvalidity: number | null;
 }
 
 /**
@@ -159,7 +161,7 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
   const db = getDb();
 
   const account = db
-    .prepare("SELECT id, imap_host, imap_port, username, password, imap_username, imap_password, inbox_synced_at FROM email_accounts WHERE id = ?")
+    .prepare("SELECT id, imap_host, imap_port, username, password, imap_username, imap_password, inbox_synced_at, inbox_last_uid, inbox_uidvalidity FROM email_accounts WHERE id = ?")
     .get(emailAccountId) as EmailAccount | undefined;
 
   console.log(`[runner-trace] ACCOUNT imapHost=${account?.imap_host || "none"}`);
@@ -172,7 +174,7 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
 
   // Leads that were emailed via this account and haven't replied yet
   const pendingTargets = db.prepare(`
-    SELECT DISTINCT t.id, t.email, rt.state, rt.track, t.email_replied_at
+    SELECT DISTINCT t.id, t.email, rt.state, rt.track, t.email_replied_at, rt.last_email_message_id
     FROM targets t
     JOIN run_profiles rp ON rp.target_id = t.id
     JOIN run_profile_tracks rt ON rt.run_profile_id = rp.id
@@ -183,7 +185,7 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
       AND rt.state NOT IN ('pending')
       AND (rt.last_email_subject IS NOT NULL OR rt.last_email_body IS NOT NULL)
       AND rp.email_account_id = ?
-  `).all(emailAccountId) as { id: string; email: string; state: string; track: string; email_replied_at: string | null }[];
+  `).all(emailAccountId) as { id: string; email: string; state: string; track: string; email_replied_at: string | null , last_email_message_id: string | null }[];
 
   console.log(`[runner-trace] TARGETS COUNT=${pendingTargets.length}`);
 
@@ -230,50 +232,152 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
         
         console.log(`[runner-trace] IMAP INBOX OPEN total=${box?.messages?.total}`);
         
-        // ── Reply detection: one FROM search per lead ──────────────────────────
-        // Run sequentially — the imap library serialises commands over one TCP connection
-        for (const target of pendingTargets) {
-          await new Promise<void>((resSearch) => {
-            const criteria = [["FROM", target.email]];
-            console.log(`[runner-trace] IMAP SEARCH target=${target.id} email=${target.email}`);
-            imap.search(criteria, async (searchErr, uids) => {
-              if (searchErr) { 
-                console.log(`[runner-trace] IMAP SEARCH ERROR target=${target.id}`);
-                resSearch(); 
-                return; 
-              }
-              
-              console.log(`[runner-trace] IMAP SEARCH RESULT target=${target.id} uids=${uids.length}`);
-              
-              if (uids.length > 0) {
-                const latestUid = uids[uids.length - 1];
-                console.log(`[runner-trace] REPLY UID FOUND target=${target.id} uid=${latestUid}`);
-                console.log(`[email-inbox] Reply detected for ${target.email} (target ${target.id})`);
-                replies++;
-
-                // Capture the body, then let the classifier+dispatcher decide the action.
-                // We no longer eagerly stamp email_replied_at here — the dispatcher does it
-                // for skip-buckets (call_task / human_reply / not_interested) but leaves it
-                // unset for OOO follow-ups so the runner keeps the contact enrolled.
-                // On any failure the contact stays enrolled (safe fallback, plan §3.2).
-                try {
-                  const replyId = await captureReplyBody(imap, db, target.id, target.email, latestUid);
-                  // The reply is always STORED (open-core). AI classification + auto-followup
-                  // is a premium feature — skipped cleanly when ee/ is absent.
-                  if (replyId && premium?.replies) {
-                    console.log(`[runner-trace] AI CLASSIFICATION START replyId=${replyId}`);
-                    await premium.replies.classifyAndDispatch(replyId);
-                  }
-                } catch (err) {
-                  console.warn(`[email-inbox] Failed to capture/dispatch reply for ${target.email}:`, err);
-                }
-              }
-              resSearch();
-            });
-          });
+        
+        // ── Incremental IMAP Reply Detection ──────────────────────────────
+        const emailToTargetId = new Map<string, string>();
+        const msgIdToTargetId = new Map<string, string>();
+        for (const pt of pendingTargets) {
+          if (pt.email) {
+            emailToTargetId.set(pt.email.trim().toLowerCase(), pt.id);
+          }
+          if (pt.last_email_message_id) {
+            const msgId = pt.last_email_message_id.trim();
+            msgIdToTargetId.set(msgId, pt.id);
+            msgIdToTargetId.set(msgId.replace(/^<|>$/g, ''), pt.id);
+          }
         }
 
-        // ── Bounce detection: scan last 50 messages for mailer-daemon ─────────
+        let lastUid = account.inbox_last_uid || 0;
+        let newUidValidity = box.uidvalidity;
+        if (account.inbox_uidvalidity && account.inbox_uidvalidity !== box.uidvalidity) {
+          console.log(`[runner-trace] UIDVALIDITY changed from ${account.inbox_uidvalidity} to ${box.uidvalidity}. Resetting last_uid.`);
+          lastUid = 0;
+        }
+
+        let highestUidProcessed = lastUid;
+        let incrementalSuccess = true;
+
+        await new Promise<void>((resRangeSearch) => {
+          const fetchRange = `${lastUid + 1}:*`;
+          console.log(`[runner-trace] IMAP incremental range=${fetchRange}`);
+
+          imap.search([["UID", fetchRange]], async (searchErr, uids) => {
+            if (searchErr || !uids || uids.length === 0) {
+              console.log(`[runner-trace] IMAP fetched=0 messages`);
+              resRangeSearch();
+              return;
+            }
+
+            console.log(`[runner-trace] IMAP fetched=${uids.length} messages`);
+
+            const fetchHeaders = imap.fetch(uids, {
+              bodies: ["HEADER.FIELDS (FROM TO DATE MESSAGE-ID IN-REPLY-TO REFERENCES SUBJECT)"],
+              struct: false,
+            });
+
+            type HeaderMsg = { uid: number; header: string };
+            const headersList: HeaderMsg[] = [];
+
+            fetchHeaders.on("message", (msg) => {
+              const entry: HeaderMsg = { uid: 0, header: "" };
+              msg.on("attributes", (attrs) => { entry.uid = attrs.uid; });
+              msg.on("body", (stream) => {
+                const chunks: Buffer[] = [];
+                stream.on("data", (c: Buffer) => chunks.push(c));
+                stream.once("end", () => { entry.header = Buffer.concat(chunks).toString(); });
+              });
+              msg.once("end", () => headersList.push(entry));
+            });
+
+            fetchHeaders.once("error", (err) => {
+              console.warn(`[email-inbox] IMAP fetch headers error:`, err.message);
+              incrementalSuccess = false;
+              resRangeSearch();
+            });
+
+            fetchHeaders.once("end", () => {
+              void (async () => {
+                let matchedCount = 0;
+                let ignoredCount = 0;
+
+                for (const msg of headersList) {
+                  try {
+                    const fromRaw = parseHeaderValue(msg.header, "From");
+                    const emailMatch = fromRaw.match(/<([^>]+)>/) ?? fromRaw.match(/([^\s]+@[^\s]+)/);
+                    const fromEmail = emailMatch?.[1]?.toLowerCase().trim() || "";
+
+                    const inReplyTo = parseHeaderValue(msg.header, "In-Reply-To").trim();
+                    const referencesStr = parseHeaderValue(msg.header, "References");
+                    const references = referencesStr.split(/\s+/).filter(Boolean).map(r => r.trim());
+
+                    let targetId: string | undefined;
+
+                    // Priority 1: Correlation by Message-ID thread
+                    if (inReplyTo && msgIdToTargetId.has(inReplyTo)) {
+                      targetId = msgIdToTargetId.get(inReplyTo);
+                    } else if (inReplyTo && msgIdToTargetId.has(inReplyTo.replace(/^<|>$/g, ''))) {
+                      targetId = msgIdToTargetId.get(inReplyTo.replace(/^<|>$/g, ''));
+                    }
+                    if (!targetId) {
+                      for (const ref of references) {
+                        if (msgIdToTargetId.has(ref)) {
+                          targetId = msgIdToTargetId.get(ref);
+                          break;
+                        } else if (msgIdToTargetId.has(ref.replace(/^<|>$/g, ''))) {
+                          targetId = msgIdToTargetId.get(ref.replace(/^<|>$/g, ''));
+                          break;
+                        }
+                      }
+                    }
+
+                    // Priority 2: Correlation by FROM email
+                    if (!targetId && fromEmail) {
+                      targetId = emailToTargetId.get(fromEmail);
+                    }
+
+                    if (targetId) {
+                      matchedCount++;
+                      console.log(`[runner-trace] REPLY UID FOUND target=${targetId} uid=${msg.uid} (from=${fromEmail})`);
+                      console.log(`[email-inbox] Reply detected for ${fromEmail} (target ${targetId})`);
+                      replies++;
+
+                      try {
+                        const replyId = await captureReplyBody(imap, db, targetId, fromEmail, msg.uid);
+                        if (replyId && premium?.replies) {
+                          console.log(`[runner-trace] AI CLASSIFICATION START replyId=${replyId}`);
+                          await premium.replies.classifyAndDispatch(replyId);
+                        }
+                      } catch (err) {
+                        console.warn(`[email-inbox] Failed to capture/dispatch reply for ${fromEmail}:`, err);
+                        // We still consider the batch successful up to this point because errors in one target shouldn't break checkpointing of others.
+                      }
+                    } else {
+                      ignoredCount++;
+                    }
+
+                    if (msg.uid > highestUidProcessed) {
+                      highestUidProcessed = msg.uid;
+                    }
+                  } catch (e) {
+                    console.warn(`[email-inbox] Error processing msg uid=${msg.uid}`, e);
+                  }
+                }
+
+                console.log(`[runner-trace] IMAP matched=${matchedCount} relevant replies`);
+                console.log(`[runner-trace] IMAP ignored=${ignoredCount} irrelevant messages`);
+                resRangeSearch();
+              })();
+            });
+          });
+        });
+
+        if (incrementalSuccess && highestUidProcessed > lastUid) {
+          db.prepare("UPDATE email_accounts SET inbox_last_uid = ?, inbox_uidvalidity = ? WHERE id = ?")
+            .run(highestUidProcessed, newUidValidity, emailAccountId);
+          console.log(`[runner-trace] Checkpoint updated to UID=${highestUidProcessed}, UIDVALIDITY=${newUidValidity}`);
+        }
+
+// ── Bounce detection: scan last 50 messages for mailer-daemon ─────────
         if (box.messages.total > 0) {
           const total = box.messages.total;
           const start = Math.max(1, total - 49);

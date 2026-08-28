@@ -18,7 +18,7 @@ export async function sendEmail(
   to: string,
   subject: string,
   body: string
-): Promise<void> {
+): Promise<string> {
   const transporter = nodemailer.createTransport({
     host: account.smtp_host,
     port: account.smtp_port,
@@ -35,10 +35,11 @@ export async function sendEmail(
     ? `"${account.from_name}" <${account.from_email}>`
     : account.from_email;
 
-  await transporter.sendMail({
+  const info = await transporter.sendMail({
     from, to, subject, text: body,
     ...(account.reply_to ? { replyTo: account.reply_to } : {}),
   });
+  return info.messageId;
 }
 
 /**
