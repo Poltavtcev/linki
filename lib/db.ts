@@ -218,7 +218,7 @@ function runMigrations(db: Database.Database) {
 
   // Migration: Add ON DELETE CASCADE to target references
   try {
-    const tableInfo = db.prepare("PRAGMA foreign_key_list(run_profiles)").all();
+    const tableInfo = db.prepare("PRAGMA foreign_key_list(run_profiles)").all() as { table: string; on_delete: string }[];
     const hasCascade = tableInfo.some(fk => fk.table === 'targets' && fk.on_delete === 'CASCADE');
     if (!hasCascade) {
       db.exec(`
