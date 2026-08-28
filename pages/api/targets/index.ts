@@ -146,11 +146,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
       return res.status(400).json({ error: "target_ids must be a non-empty array" });
     }
     const placeholders = target_ids.map(() => "?").join(",");
-    // run_profiles/logs have no ON DELETE CASCADE — clear them first so the FK
-    // constraint doesn't block the delete. run_profile_tracks cascade off run_profiles.
     const result = db.transaction(() => {
-      db.prepare(`DELETE FROM run_profiles WHERE target_id IN (${placeholders})`).run(...target_ids);
-      db.prepare(`DELETE FROM logs WHERE target_id IN (${placeholders})`).run(...target_ids);
       return db.prepare(`DELETE FROM targets WHERE id IN (${placeholders})`).run(...target_ids);
     })();
     return res.json({ deleted: result.changes });

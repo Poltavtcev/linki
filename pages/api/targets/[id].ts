@@ -50,11 +50,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === "DELETE") {
     const target = db.prepare("SELECT id FROM targets WHERE id = ?").get(id);
     if (!target) return res.status(404).json({ error: "Not found" });
-    // Some references (run_profiles, logs) have no ON DELETE CASCADE — clear them first so the
-    // FK constraint doesn't block the delete. run_profile_tracks cascade off run_profiles.
     db.transaction(() => {
-      db.prepare("DELETE FROM run_profiles WHERE target_id = ?").run(id);
-      db.prepare("DELETE FROM logs WHERE target_id = ?").run(id);
       db.prepare("DELETE FROM targets WHERE id = ?").run(id);
     })();
     return res.json({ ok: true });

@@ -200,7 +200,7 @@ function dropDeprecatedRunProfileColumns(db: Database.Database) {
       CREATE TABLE run_profiles_new (
         id TEXT PRIMARY KEY,
         run_id TEXT REFERENCES runs(id) ON DELETE CASCADE,
-        target_id TEXT REFERENCES targets(id),
+        target_id TEXT REFERENCES targets(id) ON DELETE CASCADE,
         email_account_id TEXT,
         created_at TEXT DEFAULT (datetime('now')),
         UNIQUE(run_id, target_id)
@@ -215,6 +215,61 @@ function dropDeprecatedRunProfileColumns(db: Database.Database) {
 }
 
 function runMigrations(db: Database.Database) {
+
+  // Migration: Add ON DELETE CASCADE to target references
+  try {
+    const tableInfo = db.prepare("PRAGMA foreign_key_list(run_profiles)").all();
+    const hasCascade = tableInfo.some(fk => fk.table === 'targets' && fk.on_delete === 'CASCADE');
+    if (!hasCascade) {
+      db.exec(`
+        PRAGMA foreign_keys = OFF;
+        
+        CREATE TABLE run_profiles_new (
+          id TEXT PRIMARY KEY,
+          run_id TEXT REFERENCES runs(id) ON DELETE CASCADE,
+          target_id TEXT REFERENCES targets(id) ON DELETE CASCADE,
+          email_account_id TEXT,
+          created_at TEXT DEFAULT (datetime('now')),
+          UNIQUE(run_id, target_id)
+        );
+        INSERT INTO run_profiles_new (id, run_id, target_id, email_account_id, created_at)
+          SELECT id, run_id, target_id, email_account_id, created_at FROM run_profiles;
+        DROP TABLE run_profiles;
+        ALTER TABLE run_profiles_new RENAME TO run_profiles;
+        
+        CREATE TABLE logs_new (
+          id TEXT PRIMARY KEY,
+          run_id TEXT REFERENCES runs(id) ON DELETE CASCADE,
+          target_id TEXT REFERENCES targets(id) ON DELETE CASCADE,
+          level TEXT DEFAULT 'info' CHECK(level IN ('info', 'warn', 'error')),
+          message TEXT NOT NULL,
+          created_at TEXT DEFAULT (datetime('now'))
+        );
+        INSERT INTO logs_new SELECT * FROM logs;
+        DROP TABLE logs;
+        ALTER TABLE logs_new RENAME TO logs;
+        
+        CREATE TABLE agent_sessions_new (
+          id TEXT PRIMARY KEY,
+          run_id TEXT REFERENCES runs(id) ON DELETE SET NULL,
+          target_id TEXT REFERENCES targets(id) ON DELETE CASCADE,
+          step_id TEXT,
+          model TEXT,
+          input_tokens INTEGER,
+          output_tokens INTEGER,
+          cost_usd REAL,
+          prompt TEXT,
+          generated_text TEXT,
+          created_at TEXT DEFAULT (datetime('now'))
+        );
+        INSERT INTO agent_sessions_new SELECT * FROM agent_sessions;
+        DROP TABLE agent_sessions;
+        ALTER TABLE agent_sessions_new RENAME TO agent_sessions;
+        
+        PRAGMA foreign_keys = ON;
+      `);
+    }
+  } catch (e) { console.error("Migration error (cascade):", e); }
   // Add columns introduced after initial schema — safe to run on existing DBs
   const migrations = [
     "ALTER TABLE targets ADD COLUMN degree INTEGER",
@@ -763,7 +818,7 @@ function initDb(db: Database.Database) {
     CREATE TABLE IF NOT EXISTS run_profiles (
       id TEXT PRIMARY KEY,
       run_id TEXT REFERENCES runs(id) ON DELETE CASCADE,
-      target_id TEXT REFERENCES targets(id),
+      target_id TEXT REFERENCES targets(id) ON DELETE CASCADE,
       state TEXT DEFAULT 'pending' CHECK(state IN ('pending', 'in_progress', 'completed', 'failed', 'skipped')),
       current_step INTEGER DEFAULT 0,
       last_step_at TEXT,
@@ -776,7 +831,7 @@ function initDb(db: Database.Database) {
     CREATE TABLE IF NOT EXISTS logs (
       id TEXT PRIMARY KEY,
       run_id TEXT REFERENCES runs(id) ON DELETE CASCADE,
-      target_id TEXT REFERENCES targets(id),
+      target_id TEXT REFERENCES targets(id) ON DELETE CASCADE,
       level TEXT DEFAULT 'info' CHECK(level IN ('info', 'warn', 'error')),
       message TEXT NOT NULL,
       created_at TEXT DEFAULT (datetime('now'))
@@ -819,8 +874,8 @@ function initDb(db: Database.Database) {
 
     CREATE TABLE IF NOT EXISTS agent_sessions (
       id TEXT PRIMARY KEY,
-      run_id TEXT,
-      target_id TEXT,
+      run_id TEXT REFERENCES runs(id) ON DELETE SET NULL,
+      target_id TEXT REFERENCES targets(id) ON DELETE CASCADE,
       step_id TEXT,
       model TEXT,
       input_tokens INTEGER,
