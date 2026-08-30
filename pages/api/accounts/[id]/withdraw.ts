@@ -7,9 +7,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method !== "POST") return res.status(405).end();
   const { id } = req.query;
   const { olderThanDays } = req.body;
+  console.log("[withdraw] API hit:", { id, olderThanDays });
   
   if (typeof id !== "string") return res.status(400).json({ error: "Invalid ID" });
-  if (typeof olderThanDays !== "number") return res.status(400).json({ error: "Invalid days" });
+  if (typeof olderThanDays !== "number") {
+    console.error("[withdraw] Invalid days:", olderThanDays);
+    return res.status(400).json({ error: "Invalid days" });
+  }
   
   const db = getDb();
   

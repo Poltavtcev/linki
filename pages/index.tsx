@@ -39,6 +39,7 @@ interface AccountRow {
   li_pending: number | null;
   li_profile_views: number | null;
   li_stats_synced_at: string | null;
+  withdraw_invites_after_days: number | null;
 }
 
 // ── Animated counter ──────────────────────────────────────────────────────────
@@ -288,11 +289,12 @@ function ActivityChart({
 interface LiStats { connections: number; pending: number; profile_views: number }
 
 function LinkedInCard({
-  accountId, cachedStats, cachedSyncedAt,
+  accountId, cachedStats, cachedSyncedAt, initialWithdrawDays,
 }: {
   accountId?: string;
   cachedStats?: LiStats | null;
   cachedSyncedAt?: string | null;
+  initialWithdrawDays?: number | null;
 }) {
   const [syncing, setSyncing] = useState(false);
   const [liStats, setLiStats] = useState<LiStats | null>(cachedStats ?? null);
@@ -300,7 +302,7 @@ function LinkedInCard({
   const [syncError, setSyncError] = useState<string | null>(null);
 
   const [showWithdraw, setShowWithdraw] = useState(false);
-  const [withdrawDays, setWithdrawDays] = useState(14);
+  const [withdrawDays, setWithdrawDays] = useState(initialWithdrawDays ?? 14);
   const [withdrawing, setWithdrawing] = useState(false);
 
   async function handleSync() {
@@ -747,6 +749,7 @@ export default function Dashboard() {
               profile_views: account.li_profile_views!,
             } : null}
             cachedSyncedAt={account?.li_stats_synced_at}
+            initialWithdrawDays={account?.withdraw_invites_after_days}
           />
 
           {/* AI usage mini */}
