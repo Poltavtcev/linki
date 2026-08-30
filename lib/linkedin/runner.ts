@@ -3,6 +3,7 @@ import { syncLinkedInInboxReadOnly } from "./inbox-sync";
 import { getDb } from "@/lib/db";
 import { randomUUID } from "crypto";
 import { getSessionPage, saveSessionState, getSessionContext } from "@/lib/linkedin/session";
+import { isBreakerTripped, recordSuccess, recordFailure } from "./circuit-breaker";
 import { visitProfile } from "@/lib/linkedin/visit";
 import { sendConnectionRequest, WeeklyLimitError, AlreadyConnectedError, PendingInviteError } from "@/lib/linkedin/connect";
 import { sendMessage, NotConnectedError } from "@/lib/linkedin/message";
@@ -509,7 +510,7 @@ async function executeStep(
       const linkedinUrl = await getLinkedinUrl(db, target, accountId);
       const page = await getSessionPage(accountId);
       let visitResult: { isFirstDegree: boolean; messagingUrn: string | null };
-      try { visitResult = await visitProfile(page, linkedinUrl); } finally { await page.close(); }
+      try { visitResult = await visitProfile(page, linkedinUrl); recordSuccess('visit'); } catch(e) { recordFailure('visit', (e as Error).message); throw e; } finally { await page.close(); }
       await saveSessionState(accountId);
       if (visitResult.isFirstDegree && target.degree !== 1) {
         db.prepare("UPDATE targets SET degree = 1, connected_at = COALESCE(connected_at, ?) WHERE id = ?").run(nowIso(), target.id);
@@ -550,7 +551,7 @@ async function executeStep(
       log(db, runId, target.id, "info", `Sending connection request to ${name}`);
       const linkedinUrl = await getLinkedinUrl(db, target, accountId);
       const page = await getSessionPage(accountId);
-      try { await sendConnectionRequest(page, linkedinUrl); } finally { await page.close(); }
+      try { await sendConnectionRequest(page, linkedinUrl); recordSuccess('connect'); } catch(e) { recordFailure('connect', (e as Error).message); throw e; } finally { await page.close(); }
       await saveSessionState(accountId);
       db.prepare("UPDATE targets SET connection_requested_at = ? WHERE id = ?").run(nowIso(), target.id);
       trWait(db, tr, CONNECTION_RECHECK_HOURS);
@@ -643,10 +644,12 @@ async function executeStep(
       try {
         if (!target.full_name) throw new Error(`Target ${target.id} has no full_name — cannot search messaging`);
         const result = await sendMessage(page, target.full_name, messageText, messageLinkedinUrl, freshTarget.messaging_urn);
+        recordSuccess('message');
         if (result.messagingUrn) {
           db.prepare("UPDATE targets SET messaging_urn = COALESCE(messaging_urn, ?) WHERE id = ?").run(result.messagingUrn, target.id);
         }
       } catch (err) {
+        recordFailure('message', (err as Error).message);
         if (err instanceof NotConnectedError) {
           await saveSessionState(accountId);
           db.prepare("UPDATE targets SET degree = NULL, connected_at = NULL WHERE id = ?").run(target.id);
@@ -911,6 +914,7 @@ async function executeStep(
     }
 
   } catch (err) {
+        recordFailure('message', (err as Error).message);
     const msg = err instanceof Error ? err.message : String(err);
     if (err instanceof WeeklyLimitError) {
       log(db, runId, target.id, "error", `Weekly connection limit reached — pausing run`);
@@ -961,6 +965,7 @@ async function globalLoop(): Promise<void> {
       try {
         await tickSync(db);
       } catch (err) {
+        recordFailure('message', (err as Error).message);
         console.error("[runner] Sync tick error:", err instanceof Error ? err.message : err);
       }
       await sleep(5 * 60 * 1000); // 5 min
@@ -972,12 +977,14 @@ async function globalLoop(): Promise<void> {
       try {
         await tickActions(db);
       } catch (err) {
+        recordFailure('message', (err as Error).message);
         console.error("[runner] Action tick error:", err instanceof Error ? err.message : err);
       }
       try {
         const { processScheduledImports } = await import("@/lib/import-jobs");
         await processScheduledImports(db);
       } catch (err) {
+        recordFailure('message', (err as Error).message);
         console.error("[runner] Import scheduler error:", err instanceof Error ? err.message : err);
       }
       await sleep(POLL_INTERVAL_MS);
@@ -988,6 +995,7 @@ async function globalLoop(): Promise<void> {
 }
 
 async function tickSync(db: ReturnType<typeof getDb>): Promise<void> {
+  if (isBreakerTripped()) return;
   try {
     const premium = require("@/ee").premium;
     if (premium?.replies?.retryFailed) {
@@ -1017,9 +1025,11 @@ async function tickSync(db: ReturnType<typeof getDb>): Promise<void> {
         try {
           const page = await getSessionPage(accountId);
           await withdrawOldInvitations(page, accountId, account.withdraw_invites_after_days, null);
+          recordSuccess('withdraw');
           await page.close();
         } catch (e) {
           console.warn("[runner] Withdraw old invites error:", e instanceof Error ? e.message : e);
+          recordFailure('withdraw', e instanceof Error ? e.message : String(e));
         }
       }
     }
@@ -1083,6 +1093,7 @@ async function tickSync(db: ReturnType<typeof getDb>): Promise<void> {
 }
 
 async function tickActions(db: ReturnType<typeof getDb>): Promise<void> {
+  if (isBreakerTripped()) return;
   const activeRuns = db.prepare(`
     SELECT r.id as run_id, r.workflow_id, r.account_id, r.email_account_id,
            a.daily_connection_limit, a.daily_message_limit, a.daily_inmail_limit,
