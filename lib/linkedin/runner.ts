@@ -7,6 +7,7 @@ import { visitProfile } from "@/lib/linkedin/visit";
 import { sendConnectionRequest, WeeklyLimitError, AlreadyConnectedError, PendingInviteError } from "@/lib/linkedin/connect";
 import { sendMessage, NotConnectedError } from "@/lib/linkedin/message";
 import { shouldSyncAccepted, syncAcceptedConnections } from "@/lib/linkedin/sync-accepted";
+import { withdrawOldInvitations } from "@/lib/linkedin/withdraw";
 import { sendEmail } from "@/lib/email/sender";
 import { shouldSyncEmailInbox, syncEmailInbox, IMAP_POLL_INTERVAL_MS, accountJitterMs } from "@/lib/email/inbox";
 import { enrichProfile } from "@/lib/linkedin/enrich";
@@ -20,6 +21,7 @@ const SALES_NAV_ENRICH_MIN_GAP_MS = 5 * 60 * 1000;
 const lastSalesNavEnrichAt: Record<string, number> = {};
 const lastLinkedinSync = new Map<string, number>();
 const activeLinkedinSyncs = new Set<string>();
+const withdrawSyncs = new Map<string, number>();
 
 // Accounts that reported "No InMail credits left" today (Jul 2026 incident — LinkedIn's
 // own credit balance, distinct from daily_inmail_limit; without this, a depleted account
@@ -193,7 +195,7 @@ interface Template { id: string; body: string; }
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
-function log(db: ReturnType<typeof getDb>, runId: string, targetId: string | null, level: "info" | "warn" | "error", message: string) {
+export function log(db: ReturnType<typeof getDb>, runId: string, targetId: string | null, level: "info" | "warn" | "error", message: string) {
   db.prepare("INSERT INTO logs (id, run_id, target_id, level, message) VALUES (?, ?, ?, ?, ?)").run(randomUUID(), runId, targetId, level, message);
   console.log(`[runner] [${level}] run=${runId} target=${targetId ?? "-"} ${message}`);
 }
@@ -1001,10 +1003,27 @@ async function tickSync(db: ReturnType<typeof getDb>): Promise<void> {
     WHERE r.status = 'running' AND a.is_authenticated = 1
   `).all() as Array<{ run_id: string; workflow_id: string; account_id: string; email_account_id: string | null } & AccountLimits>;
 
-  const allAuthenticatedAccounts = db.prepare("SELECT id FROM accounts WHERE is_authenticated = 1").all() as { id: string }[];
+  const allAuthenticatedAccounts = db.prepare("SELECT id, withdraw_invites_after_days FROM accounts WHERE is_authenticated = 1").all() as { id: string, withdraw_invites_after_days: number | null }[];
   const allAccountIds = allAuthenticatedAccounts.map(a => a.id);
 
-  for (const accountId of allAccountIds) {
+  for (const account of allAuthenticatedAccounts) {
+    const accountId = account.id;
+    
+    // Withdraw old invitations once a day (if enabled)
+    if (account.withdraw_invites_after_days) {
+      const lastWithdraw = withdrawSyncs.get(accountId) || 0;
+      if (Date.now() - lastWithdraw >= 24 * 60 * 60 * 1000) {
+        withdrawSyncs.set(accountId, Date.now());
+        try {
+          const page = await getSessionPage(accountId);
+          await withdrawOldInvitations(page, accountId, account.withdraw_invites_after_days, "system");
+          await page.close();
+        } catch (e) {
+          console.warn("[runner] Withdraw old invites error:", e instanceof Error ? e.message : e);
+        }
+      }
+    }
+
     if (shouldSyncAccepted(accountId)) {
       try {
         const stamped = await syncAcceptedConnections(accountId);

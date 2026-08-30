@@ -760,6 +760,7 @@ function initDb(db: Database.Database) {
       email TEXT NOT NULL UNIQUE,
       cookies_json TEXT,
       is_authenticated INTEGER DEFAULT 0,
+      withdraw_invites_after_days INTEGER DEFAULT 14,
       daily_connection_limit INTEGER DEFAULT 20,
       daily_message_limit INTEGER DEFAULT 50,
       daily_inmail_limit INTEGER DEFAULT 15,
