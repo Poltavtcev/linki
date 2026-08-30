@@ -24,15 +24,28 @@ export async function withdrawOldInvitations(
     console.log(`[withdraw] Page scan attempt ${scrollAttempts + 1}...`);
     
     const targetToWithdraw = await page.evaluate((olderThan) => {
-      const elements = Array.from(document.querySelectorAll("*"));
-      const withdrawButtons = elements.filter(el => el.getAttribute("aria-label")?.toLowerCase().startsWith("withdraw") || el.getAttribute("aria-label")?.toLowerCase().startsWith("відкликати") || el.getAttribute("aria-label")?.toLowerCase().startsWith("отозвать"));
+      const withdrawButtons = Array.from(document.querySelectorAll("[aria-label^='Withdraw'], [aria-label^='withdraw'], [aria-label^='Відкликати'], [aria-label^='відкликати'], [aria-label^='Отозвать'], [aria-label^='отозвать']"));
       
       const debugScanned: any[] = [];
       let foundTarget = null;
       
       for (let i = 0; i < withdrawButtons.length; i++) {
         const btn = withdrawButtons[i];
-        const container = btn.closest("li");
+        let container = null;
+        let cur = btn.parentElement;
+        while(cur) {
+          const links = cur.querySelectorAll("a[href*='/in/']");
+          if (links.length > 0 && links.length <= 3) {
+             const txt = cur.textContent?.toLowerCase() || "";
+             if (txt.includes("ago") || txt.includes("тому") || txt.includes("назад") || txt.includes("sent") || txt.includes("відправлено") || txt.includes("отправлено")) {
+                container = cur;
+                break;
+             }
+          }
+          if (links.length > 3) break;
+          cur = cur.parentElement;
+        }
+        
         if (!container) continue;
         
         const textSpans = Array.from(container.querySelectorAll("span")).map(s => s.textContent);
