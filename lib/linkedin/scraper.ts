@@ -189,14 +189,14 @@ async function enrichWithFlagshipUrls(
             },
           });
           clearTimeout(timer);
-          return { status: resp.status, body: await resp.text() };
+          return { status: resp.status, body: await resp.text(), retryAfter: resp.headers.get("retry-after") };
         } catch (e: unknown) {
-          return { status: -1, body: (e as Error).message };
+          return { status: -1, body: (e as Error).message, retryAfter: null };
         }
       }, { url: apiUrl, csrfToken: jsessionid });
 
-      const timeoutPromise = new Promise<{ status: number; body: string }>((resolve) =>
-        setTimeout(() => resolve({ status: -1, body: 'timeout' }), 15000)
+      const timeoutPromise = new Promise<{ status: number; body: string; retryAfter: string | null }>((resolve) =>
+        setTimeout(() => resolve({ status: -1, body: 'timeout', retryAfter: null }), 15000)
       );
       const result = await Promise.race([evaluatePromise, timeoutPromise]);
 
@@ -213,8 +213,10 @@ async function enrichWithFlagshipUrls(
         break;
       } else if (result.status === 429) {
         attempts++;
-        console.log(`[scraper] 429 rate limit — waiting 30s before retry (attempt ${attempts}/3)`);
-        await page.waitForTimeout(30000);
+        const retryAfterSec = result.retryAfter ? parseInt(result.retryAfter, 10) : 30;
+        const waitMs = (!isNaN(retryAfterSec) && retryAfterSec > 0 ? retryAfterSec : 30) * 1000;
+        console.log(`[scraper] 429 rate limit — waiting ${waitMs/1000}s based on Retry-After (attempt ${attempts}/3)`);
+        await page.waitForTimeout(waitMs);
       } else {
         const reason = result.body === 'timeout' ? 'timeout' : result.status;
         console.log(`[scraper] enrichment ${reason} for ${el.fullName ?? el.entityUrn.substring(0, 30)} — skipping`);
@@ -298,7 +300,11 @@ export async function scrapeNavigatorList(
           if (response.status() === 429) {
             isDone = true;
             clearTimeout(timeout);
-            reject(new Error("429 Rate Limit"));
+            const headers = response.headers();
+            const retryAfterStr = headers["retry-after"];
+            const retryAfterSec = retryAfterStr ? parseInt(retryAfterStr, 10) : 30;
+            const waitSec = !isNaN(retryAfterSec) && retryAfterSec > 0 ? retryAfterSec : 30;
+            reject(new Error(`429 Rate Limit - Retry-After: ${waitSec}s`));
           } else if (response.status() === 200) {
             try {
               const data = await response.json() as FlatResponse;
@@ -343,10 +349,28 @@ export async function scrapeNavigatorList(
     await page.waitForTimeout(delayMs);
     if (isCanceled && (await isCanceled())) break;
 
-    let pageData = await waitForIntercept(buildUrl(pageNum), 15000);
-    if (!pageData || (pageData.elements?.length ?? 0) === 0) {
-      console.log(`[scraper] page ${pageNum} empty on first try — retrying with 15s wait`);
+    let pageData = null;
+    try {
       pageData = await waitForIntercept(buildUrl(pageNum), 15000);
+      if (!pageData || (pageData.elements?.length ?? 0) === 0) {
+        console.log(`[scraper] page ${pageNum} empty on first try — retrying with 15s wait`);
+        pageData = await waitForIntercept(buildUrl(pageNum), 15000);
+      }
+    } catch (e: any) {
+      if (e.message && e.message.includes("429 Rate Limit")) {
+        const waitSecMatch = e.message.match(/Retry-After: (\d+)s/);
+        const waitSec = waitSecMatch ? parseInt(waitSecMatch[1], 10) : 30;
+        console.log(`[scraper] Got 429 on page ${pageNum}. Backing off for ${waitSec}s before retrying...`);
+        await page.waitForTimeout(waitSec * 1000);
+        try {
+          pageData = await waitForIntercept(buildUrl(pageNum), 15000);
+        } catch (e2) {
+          console.log(`[scraper] 2nd attempt failed on 429. Aborting scrape.`);
+          break;
+        }
+      } else {
+        throw e;
+      }
     }
     if (pageData) {
       for (const el of pageData.elements ?? []) {
@@ -407,7 +431,11 @@ export async function scrapeSavedSearch(
           if (response.status() === 429) {
             isDone = true;
             clearTimeout(timeout);
-            reject(new Error("429 Rate Limit"));
+            const headers = response.headers();
+            const retryAfterStr = headers["retry-after"];
+            const retryAfterSec = retryAfterStr ? parseInt(retryAfterStr, 10) : 30;
+            const waitSec = !isNaN(retryAfterSec) && retryAfterSec > 0 ? retryAfterSec : 30;
+            reject(new Error(`429 Rate Limit - Retry-After: ${waitSec}s`));
           } else if (response.status() === 200) {
             try {
               const data = await response.json() as FlatResponse;
@@ -450,10 +478,28 @@ export async function scrapeSavedSearch(
     await page.waitForTimeout(delayMs);
     if (isCanceled && (await isCanceled())) break;
 
-    let pageData = await waitForIntercept(buildUrl(pageNum), 15000);
-    if (!pageData || (pageData.elements?.length ?? 0) === 0) {
-      console.log(`[scraper:saved-search] page ${pageNum} empty on first try — retrying with 15s wait`);
+    let pageData = null;
+    try {
       pageData = await waitForIntercept(buildUrl(pageNum), 15000);
+      if (!pageData || (pageData.elements?.length ?? 0) === 0) {
+        console.log(`[scraper:saved-search] page ${pageNum} empty on first try — retrying with 15s wait`);
+        pageData = await waitForIntercept(buildUrl(pageNum), 15000);
+      }
+    } catch (e: any) {
+      if (e.message && e.message.includes("429 Rate Limit")) {
+        const waitSecMatch = e.message.match(/Retry-After: (\d+)s/);
+        const waitSec = waitSecMatch ? parseInt(waitSecMatch[1], 10) : 30;
+        console.log(`[scraper:saved-search] Got 429 on page ${pageNum}. Backing off for ${waitSec}s before retrying...`);
+        await page.waitForTimeout(waitSec * 1000);
+        try {
+          pageData = await waitForIntercept(buildUrl(pageNum), 15000);
+        } catch (e2) {
+          console.log(`[scraper:saved-search] 2nd attempt failed on 429. Aborting scrape.`);
+          break;
+        }
+      } else {
+        throw e;
+      }
     }
     if (pageData) {
       for (const el of pageData.elements ?? []) {
