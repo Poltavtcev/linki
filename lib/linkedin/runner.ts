@@ -979,18 +979,17 @@ async function tick(db: ReturnType<typeof getDb>): Promise<void> {
     WHERE r.status = 'running' AND a.is_authenticated = 1
   `).all() as Array<{ run_id: string; workflow_id: string; account_id: string; email_account_id: string | null } & AccountLimits>;
 
-  if (activeRuns.length === 0) return;
-
-  console.log(`[runner] Tick — ${activeRuns.length} active run(s)`);
-
-  const seenAccounts = new Set<string>();
-  for (const run of activeRuns) {
-    if (seenAccounts.has(run.account_id)) continue;
-    seenAccounts.add(run.account_id);
+  if (activeRuns.length > 0) {
+    console.log(`[runner] Tick — ${activeRuns.length} active run(s)`);
   }
 
+  // Get ALL authenticated accounts for account-level syncs (inbox, accepted connections)
+  // These must run even if all campaigns are paused/completed, because replies can come later!
+  const allAuthenticatedAccounts = db.prepare("SELECT id FROM accounts WHERE is_authenticated = 1").all() as { id: string }[];
+  const allAccountIds = allAuthenticatedAccounts.map(a => a.id);
+
   // Daily sync: stamp accepted connections from invitation manager (once per 23h per account)
-  for (const accountId of seenAccounts) {
+  for (const accountId of allAccountIds) {
     if (shouldSyncAccepted(accountId)) {
       try {
         console.log(`[runner] Starting accepted-connections sync for account ${accountId}`);
@@ -1010,7 +1009,7 @@ async function tick(db: ReturnType<typeof getDb>): Promise<void> {
   // LinkedIn inbox reply detection (messaging GraphQL) — once per 15min per
   // account. Sets targets.last_replied_at so the runner auto-unenrolls repliers.
   // LinkedIn reply detection is a premium feature (AI classifier layer) — no-op without ee/.
-  for (const accountId of seenAccounts) {
+  for (const accountId of allAccountIds) {
     
     // Check if account has cookies (is authenticated), then we can sync inbox
     const acc = db.prepare("SELECT is_authenticated FROM accounts WHERE id = ?").get(accountId) as { is_authenticated: number } | undefined;

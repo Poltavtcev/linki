@@ -29,9 +29,13 @@ export function captureSdrInboundMessage(db: Database.Database, msg: SdrInboundM
   }
 
   // Resolve active run
-  const activeRun = db.prepare(
-    "SELECT run_id FROM run_profiles WHERE target_id = ? AND state IN ('pending', 'in_progress')"
-  ).get(msg.targetId) as { run_id: string } | undefined;
+  const activeRun = db.prepare(`
+    SELECT rp.run_id 
+    FROM run_profiles rp
+    JOIN run_profile_tracks rpt ON rpt.run_profile_id = rp.id
+    WHERE rp.target_id = ? AND rpt.state IN ('pending', 'in_progress')
+    LIMIT 1
+  `).get(msg.targetId) as { run_id: string } | undefined;
 
   db.prepare(`
     INSERT INTO email_replies (

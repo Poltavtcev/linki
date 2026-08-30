@@ -407,12 +407,16 @@ export function captureLinkedInInboxObservations(
     const key = observationKey(value);
     const normalized = normalizeObservation(value);
     if ("reason" in normalized) {
+      console.log(`[inbox-sync] Skipped (normalize): ${normalized.reason} - ${JSON.stringify(value)}`);
       result.skipped.push({ ...key, reason: normalized.reason });
       continue;
     }
 
     const resolution = resolveTarget(db, accountId, normalized);
     if ("reason" in resolution) {
+      if (resolution.reason !== "unmatched_target" && resolution.reason !== "identity_conflict") {
+        console.log(`[inbox-sync] Skipped (resolve): ${resolution.reason} - ${JSON.stringify(normalized)}`);
+      }
       result.skipped.push({ ...key, reason: resolution.reason });
       continue;
     }
@@ -422,11 +426,34 @@ export function captureLinkedInInboxObservations(
         db,
         toSdrEvent(accountId, resolution.targetId, normalized, resolution.identityMode),
       );
-      if (captured.duplicate) result.duplicates++;
-      else result.captured++;
+      if (captured.duplicate) {
+        result.duplicates++;
+      } else {
+        result.captured++;
+        // Trigger AI classification for the newly captured reply
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const premium = require("../../ee").premium;
+          if (premium?.replies) {
+            // Run in background without blocking the sync loop
+            premium.replies.classifyAndDispatch(captured.messageId).catch((err: any) => {
+              console.warn(`[inbox-sync] Failed AI classification for LinkedIn reply ${captured.messageId}:`, err);
+            });
+          }
+        } catch (e) {
+          // No premium module
+        }
+      }
     } catch (error) {
-      result.skipped.push({ ...key, reason: repositoryErrorReason(error) });
+      const reason = repositoryErrorReason(error);
+      const errMsg = error instanceof Error ? error.message : String(error);
+      console.log(`[inbox-sync] Skipped message: ${reason} (DB ERROR: ${errMsg}) - ${JSON.stringify(normalized)}`);
+      result.skipped.push({ ...key, reason });
     }
+  }
+  
+  if (result.skipped.length > 0) {
+    console.log(`[inbox-sync] Total skipped in this batch: ${result.skipped.length}`);
   }
 
   return result;

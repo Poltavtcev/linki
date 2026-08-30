@@ -44,75 +44,64 @@ export async function sendMessage(
   }
 
   const resolved = await visitProfile(page, linkedinUrl);
-  if (resolved.messagingUrn) {
-    const opened = await openComposeByUrn(page, resolved.messagingUrn);
-    if (opened) {
-      await sendFromComposeBox(page, text);
-      return resolved;
-    }
-  }
+  console.log(`[message] visitProfile resolved for ${fullName}:`, resolved);
+  
   if (!resolved.isFirstDegree) {
     throw new NotConnectedError(`${fullName} is not a 1st-degree connection — refusing to message`);
   }
 
-  // Connected, but no message link could be resolved live (unusual layout) —
-  // last-resort fallback to name search.
-  await sendMessageViaTypeahead(page, fullName, text);
+  if (!resolved.messagingUrn) {
+    throw new Error(`Failed to resolve messaging URN for ${fullName} via profile visit. Refusing to guess via name search.`);
+  }
+
+  const opened = await openComposeByUrn(page, resolved.messagingUrn);
+  if (!opened) {
+    throw new Error(`Failed to open compose box for URN ${resolved.messagingUrn}`);
+  }
+
+  await sendFromComposeBox(page, text);
   return resolved;
 }
 
 async function openComposeByUrn(page: Page, messagingUrn: string): Promise<boolean> {
   try {
-    const recipientId = messagingUrn.split(":").pop();
-    const composeUrl = `https://www.linkedin.com/messaging/compose/?profileUrn=${encodeURIComponent(messagingUrn)}&recipient=${recipientId}`;
-    await page.goto(composeUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
-    await page.waitForTimeout(1500 + Math.random() * 1000);
-    const msgInput = page.locator("div.msg-form__contenteditable").first();
-    await msgInput.waitFor({ timeout: 8000 });
-    return true;
-  } catch {
+    if (page.url().includes('/in/')) {
+      const mainArea = page.locator("main").first();
+      
+      // Step 1: Check if Message button is directly visible
+      let msgBtn = mainArea.locator('button.message-anywhere-button, a[href*="/messaging/compose"], button[aria-label^="Message"], button[aria-label^="Повідомлення"], button:has-text("Message"), button:has-text("Повідомлення"), a:has-text("Message"), a:has-text("Повідомлення")').filter({ hasNot: page.locator('span:has-text("More")') }).first();
+      
+      if (await msgBtn.count() === 0 || !(await msgBtn.isVisible())) {
+        console.log(`[message] Message button not immediately visible in main. Trying 'More' dropdown.`);
+        const moreBtn = mainArea.locator('button[aria-label^="More"], button[aria-label^="Більше"], button.artdeco-dropdown__trigger').filter({ hasText: /More|Більше|\.\.\./i }).first();
+        if (await moreBtn.count() > 0 && await moreBtn.isVisible()) {
+          await moreBtn.click();
+          await page.waitForTimeout(1000);
+          msgBtn = mainArea.locator('div.artdeco-dropdown__content button:has-text("Message"), div.artdeco-dropdown__content button:has-text("Повідомлення"), div.artdeco-dropdown__content a:has-text("Message"), div.artdeco-dropdown__content a:has-text("Повідомлення")').first();
+        }
+      }
+      
+      if (await msgBtn.count() > 0) {
+        console.log(`[message] Clicking profile Message button...`);
+        await msgBtn.click({ force: true });
+        
+        const msgInput = page.locator("div.msg-form__contenteditable").first();
+        try {
+          await msgInput.waitFor({ timeout: 10000 });
+          return true;
+        } catch (timeoutErr) {
+          console.log(`[message] Timeout waiting for compose box to appear after clicking Message button.`);
+          throw timeoutErr;
+        }
+      }
+    }
+    
+    console.log(`[message] Message button completely missing from UI.`);
+    return false;
+  } catch (e) {
+    console.error(`[message] Failed to open compose for ${messagingUrn}:`, e);
     return false;
   }
-}
-
-async function sendMessageViaTypeahead(page: Page, fullName: string, text: string): Promise<void> {
-  await page.goto("https://www.linkedin.com/messaging/thread/new/", {
-    waitUntil: "domcontentloaded",
-    timeout: 30000,
-  });
-  await page.waitForTimeout(1500 + Math.random() * 1000);
-
-  // Search for recipient by name
-  const searchField = page.locator("input.msg-connections-typeahead__search-field").first();
-  await searchField.waitFor({ timeout: 10000 });
-  await searchField.click();
-  await searchField.type(fullName, { delay: 60 + Math.random() * 40 });
-  await page.waitForTimeout(1500);
-
-  // Select first result — but verify it's actually the intended person first.
-  // This search only returns 1st-degree connections; if the real target isn't
-  // connected, LinkedIn will still happily return a same/similar-named
-  // connection as the top result, and we'd silently message a stranger.
-  const firstResult = page.locator('div[class*="msg-connections-typeahead__search-result-row"]').first();
-  await firstResult.waitFor({ timeout: 8000 });
-  const resultText = (await firstResult.innerText().catch(() => "")).trim();
-  if (!resultNameMatches(resultText, fullName)) {
-    throw new Error(
-      `Typeahead search for "${fullName}" returned a non-matching result ("${resultText.replace(/\s+/g, " ")}") — refusing to send to avoid messaging the wrong person`
-    );
-  }
-  await firstResult.click({ delay: 100 });
-  await page.waitForTimeout(800);
-
-  await sendFromComposeBox(page, text);
-}
-
-function resultNameMatches(resultText: string, fullName: string): boolean {
-  const normalize = (s: string) =>
-    s.toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/[^a-z\s]/g, " ").replace(/\s+/g, " ").trim();
-  const target = normalize(fullName);
-  if (!target) return false;
-  return normalize(resultText).includes(target);
 }
 
 async function sendFromComposeBox(page: Page, text: string): Promise<void> {
@@ -120,14 +109,8 @@ async function sendFromComposeBox(page: Page, text: string): Promise<void> {
   const msgInput = page.locator("div.msg-form__contenteditable").first();
   await msgInput.waitFor({ timeout: 8000 });
   await msgInput.click();
-  try {
-    await page.evaluate((t) => navigator.clipboard.writeText(t), text);
-    await page.waitForTimeout(300);
-    await msgInput.press("Control+V");
-  } catch {
-    // Clipboard blocked in headless — fall back to keyboard typing
-    await msgInput.pressSequentially(text, { delay: 20 });
-  }
+  // Type text directly (simulates real keystrokes, triggering React onChange events)
+  await msgInput.pressSequentially(text, { delay: 10 });
   await page.waitForTimeout(500);
 
   // Send

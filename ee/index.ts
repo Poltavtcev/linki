@@ -123,7 +123,7 @@ async function generateContent(params: CommunityAiParams) {
       params.runId ?? null,
       params.targetId ?? null,
       params.stepId ?? null,
-      params.model,
+      params.model || "gpt-4o-mini",
       inputTokens,
       outputTokens,
       null, // cost not calculated natively in MVP
@@ -222,7 +222,7 @@ export async function processReply(targetId: string, channel: "email" | "linkedi
       temperature: 0,
       messages: [
         { role: "system", content: "You classify a single sales reply. The reply may be written in any language. Classify its meaning, not specific keywords. Do not assume English. Respond with ONLY a compact JSON object and nothing else. Keys: kind (exactly one of: ooo_followup, substitute, call_task, human_reply, not_interested)." },
-        { role: "user", content: text.slice(0, 12000) }
+        { role: "user", content: Array.from(text).slice(0, 12000).join('') }
       ],
       response_format: { type: "json_object" }
     });
@@ -233,7 +233,7 @@ export async function processReply(targetId: string, channel: "email" | "linkedi
        const kind = obj.kind;
        console.log(`[email-inbox] Reply classified as ${kind}`);
        
-       if (replyId && channel === "email") {
+       if (replyId) {
          db.prepare("UPDATE email_replies SET classification_json = ?, classified_at = ?, classification_error = NULL WHERE id = ?").run(JSON.stringify(obj), now, replyId);
        }
        
@@ -241,17 +241,17 @@ export async function processReply(targetId: string, channel: "email" | "linkedi
           stopBasic();
        }
     } else {
-      if (replyId && channel === "email") {
+      if (replyId) {
         db.prepare("UPDATE email_replies SET classification_error = ? WHERE id = ?").run("Empty response", replyId);
       }
-      stopBasic(); // Fallback on empty response
+      throw new Error("Empty response from AI"); // Do not stopBasic() here
     }
   } catch (e) {
-    console.warn(`[ee/replies] AI classification failed for target ${targetId}, falling back to deterministic STOP`, e);
-    if (replyId && channel === "email") {
+    console.warn(`[ee/replies] AI classification failed for target ${targetId}, skipping deterministic STOP`, e);
+    if (replyId) {
       db.prepare("UPDATE email_replies SET classification_error = ? WHERE id = ?").run(String(e), replyId);
     }
-    stopBasic();
+    // Removed stopBasic() to allow retries
   }
 }
 
@@ -269,8 +269,10 @@ const replies = {
     
     const targetId = String(reply.target_id);
     const text = `${reply.subject || ""}\n${reply.body_text || ""}`.trim();
+    const fromEmail = String(reply.from_email || "");
+    const channel = fromEmail.startsWith("urn:li:") ? "linkedin" : "email";
     
-    await processReply(targetId, "email", text, replyId);
+    await processReply(targetId, channel, text, replyId);
   },
 
   shouldSyncInbox: () => false,

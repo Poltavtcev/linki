@@ -46,8 +46,8 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
   // the email_replies source to keep scheduled follow-ups visible.
   let channelFilter =
     "AND (t.email_replied_at IS NOT NULL OR t.last_replied_at IS NOT NULL OR er.id IS NOT NULL)";
-  if (channel === "email") channelFilter = "AND (t.email_replied_at IS NOT NULL OR er.id IS NOT NULL)";
-  if (channel === "linkedin") channelFilter = "AND t.last_replied_at IS NOT NULL";
+  if (channel === "email") channelFilter = "AND (t.email_replied_at IS NOT NULL OR (er.id IS NOT NULL AND er.from_email NOT LIKE 'urn:li:%'))";
+  if (channel === "linkedin") channelFilter = "AND (t.last_replied_at IS NOT NULL OR (er.id IS NOT NULL AND er.from_email LIKE 'urn:li:%'))";
 
   const rows = db.prepare(`
     SELECT
@@ -60,8 +60,8 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
       t.email_replied_at,
       t.last_replied_at,
       CASE
-        WHEN (t.email_replied_at IS NOT NULL OR er.id IS NOT NULL) AND t.last_replied_at IS NOT NULL THEN 'both'
-        WHEN t.email_replied_at IS NOT NULL OR er.id IS NOT NULL THEN 'email'
+        WHEN (t.email_replied_at IS NOT NULL OR (er.id IS NOT NULL AND er.from_email NOT LIKE 'urn:li:%')) AND t.last_replied_at IS NOT NULL THEN 'both'
+        WHEN t.email_replied_at IS NOT NULL OR (er.id IS NOT NULL AND er.from_email NOT LIKE 'urn:li:%') THEN 'email'
         ELSE 'linkedin'
       END AS channel,
       MAX(

@@ -279,7 +279,7 @@ function ReplyModal({ reply, onClose, onActionDone, hasPremium }: ReplyModalProp
             </div>
           ) : messages.length === 0 ? (
             <div className="text-center text-base-content/30 text-sm py-10">
-              {canReply ? "No messages found in thread" : "No email account linked to this reply"}
+              {reply.channel === "linkedin" ? "LinkedIn messages could not be loaded." : (canReply ? "No messages found in thread" : "No email account linked to this reply")}
             </div>
           ) : (
             messages.map((msg, i) => {

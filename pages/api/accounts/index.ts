@@ -22,15 +22,24 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 
   if (req.method === "POST") {
-    const { name, email, daily_connection_limit = 20, daily_message_limit = 50, daily_inmail_limit = 15 } = req.body;
+    const { 
+      name, email, 
+      daily_connection_limit = 20, 
+      daily_message_limit = 50, 
+      daily_inmail_limit = 15,
+      active_hours_start = 9,
+      active_hours_end = 18,
+      timezone = "UTC",
+      working_days = "1,2,3,4,5"
+    } = req.body;
     if (!name || !email) return res.status(400).json({ error: "name and email required" });
     try {
       const id = randomUUID();
       db
         .prepare(
-          "INSERT INTO accounts (id, name, email, daily_connection_limit, daily_message_limit, daily_inmail_limit) VALUES (?, ?, ?, ?, ?, ?)"
+          "INSERT INTO accounts (id, name, email, daily_connection_limit, daily_message_limit, daily_inmail_limit, active_hours_start, active_hours_end, timezone, working_days) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         )
-        .run(id, name, email, daily_connection_limit, daily_message_limit, daily_inmail_limit);
+        .run(id, name, email, daily_connection_limit, daily_message_limit, daily_inmail_limit, active_hours_start, active_hours_end, timezone, working_days);
       const account = db.prepare(`SELECT ${ACCOUNT_COLUMNS} FROM accounts a WHERE a.id = ?`).get(id);
       return res.status(201).json(account);
     } catch {

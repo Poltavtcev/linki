@@ -63,7 +63,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const ownerEmail = account?.username?.toLowerCase() ?? "";
 
     
-    const dbMessagesRows = db.prepare("SELECT * FROM email_replies WHERE target_id = ? AND from_email LIKE 'urn:li:member:%'").all(targetId) as any[];
+    const dbMessagesRows = db.prepare("SELECT * FROM email_replies WHERE target_id = ? AND from_email LIKE 'urn:li:%'").all(targetId) as any[];
     const linkedinMessages: EmailMessage[] = dbMessagesRows.map((r, idx) => ({
       uid: -idx - 1,
       from: r.subject || r.from_email,

@@ -274,33 +274,43 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
 
             if (uids.length > 0) console.log(`[email-inbox] Incremental sync: fetched ${uids.length} new messages`);
 
-            const fetchHeaders = imap.fetch(uids, {
-              bodies: ["HEADER.FIELDS (FROM TO DATE MESSAGE-ID IN-REPLY-TO REFERENCES SUBJECT)"],
-              struct: false,
-            });
-
             type HeaderMsg = { uid: number; header: string };
             const headersList: HeaderMsg[] = [];
+            let fetchFailed = false;
 
-            fetchHeaders.on("message", (msg) => {
-              const entry: HeaderMsg = { uid: 0, header: "" };
-              msg.on("attributes", (attrs) => { entry.uid = attrs.uid; });
-              msg.on("body", (stream) => {
-                const chunks: Buffer[] = [];
-                stream.on("data", (c: Buffer) => chunks.push(c));
-                stream.once("end", () => { entry.header = Buffer.concat(chunks).toString(); });
+            for (let i = 0; i < uids.length; i += 500) {
+              const batch = uids.slice(i, i + 500);
+              await new Promise<void>((resolveBatch) => {
+                const fetchHeaders = imap.fetch(batch, {
+                  bodies: ["HEADER.FIELDS (FROM TO DATE MESSAGE-ID IN-REPLY-TO REFERENCES SUBJECT)"],
+                  struct: false,
+                });
+
+                fetchHeaders.on("message", (msg) => {
+                  const entry: HeaderMsg = { uid: 0, header: "" };
+                  msg.on("attributes", (attrs) => { entry.uid = attrs.uid; });
+                  msg.on("body", (stream) => {
+                    const chunks: Buffer[] = [];
+                    stream.on("data", (c: Buffer) => chunks.push(c));
+                    stream.once("end", () => { entry.header = Buffer.concat(chunks).toString(); });
+                  });
+                  msg.once("end", () => headersList.push(entry));
+                });
+
+                fetchHeaders.once("error", (err) => {
+                  console.warn(`[email-inbox] IMAP fetch headers error in batch:`, err.message);
+                  incrementalSuccess = false;
+                  fetchFailed = true;
+                  resolveBatch();
+                });
+
+                fetchHeaders.once("end", () => resolveBatch());
               });
-              msg.once("end", () => headersList.push(entry));
-            });
+              
+              if (fetchFailed) break;
+            }
 
-            fetchHeaders.once("error", (err) => {
-              console.warn(`[email-inbox] IMAP fetch headers error:`, err.message);
-              incrementalSuccess = false;
-              resRangeSearch();
-            });
-
-            fetchHeaders.once("end", () => {
-              void (async () => {
+            void (async () => {
                 let matchedCount = 0;
                 let ignoredCount = 0;
 
@@ -373,7 +383,6 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
 
                 resRangeSearch();
               })();
-            });
           });
         });
 

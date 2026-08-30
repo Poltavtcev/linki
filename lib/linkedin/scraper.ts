@@ -159,7 +159,7 @@ async function enrichWithFlagshipUrls(
   const urlMap = new Map<string, string>(); // entityUrn → flagshipProfileUrl
 
   const cookies = await page.context().cookies("https://www.linkedin.com");
-  const jsessionid = cookies.find(c => c.name === "JSESSIONID")?.value?.replace(/"/g, "") ?? "";
+  const jsessionid = cookies.find(c => c.name === "JSESSIONID" && c.domain.includes("linkedin.com"))?.value?.replace(/"/g, "") ?? "";
   if (!jsessionid) {
     console.log("[scraper] JSESSIONID not found — skipping flagshipProfileUrl enrichment");
     return urlMap;
@@ -281,17 +281,35 @@ export async function scrapeNavigatorList(
   let intercepted: FlatResponse | null = null;
 
   const waitForIntercept = async (url: string, waitMs: number): Promise<FlatResponse | null> => {
-    intercepted = null;
-    page.removeAllListeners("response");
-    page.on("response", async (response) => {
-      if (intercepted) return;
-      if (response.url().includes("salesApiPeopleSearch") && response.status() === 200) {
-        try { intercepted = await response.json() as FlatResponse; } catch { /* ignore */ }
-      }
+    let timeout: NodeJS.Timeout;
+    const interceptPromise = new Promise<FlatResponse | null>((resolve, reject) => {
+      let isDone = false;
+      timeout = setTimeout(() => {
+        if (!isDone) { isDone = true; resolve(null); }
+      }, waitMs);
+
+      page.removeAllListeners("response");
+      page.on("response", async (response) => {
+        if (isDone) return;
+        if (response.url().includes("salesApiPeopleSearch")) {
+          if (response.status() === 429) {
+            isDone = true;
+            clearTimeout(timeout);
+            reject(new Error("429 Rate Limit"));
+          } else if (response.status() === 200) {
+            try {
+              const data = await response.json() as FlatResponse;
+              isDone = true;
+              clearTimeout(timeout);
+              resolve(data);
+            } catch { /* ignore */ }
+          }
+        }
+      });
     });
+
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
-    await page.waitForTimeout(waitMs);
-    return intercepted;
+    return interceptPromise;
   };
 
   // First page of the window
@@ -368,17 +386,35 @@ export async function scrapeSavedSearch(
   let knownTotal = 0;
 
   const waitForIntercept = async (url: string, waitMs: number): Promise<FlatResponse | null> => {
-    let intercepted: FlatResponse | null = null;
-    page.removeAllListeners("response");
-    page.on("response", async (response) => {
-      if (intercepted) return;
-      if (response.url().includes("salesApiLeadSearch") && response.status() === 200) {
-        try { intercepted = await response.json() as FlatResponse; } catch { /* ignore */ }
-      }
+    let timeout: NodeJS.Timeout;
+    const interceptPromise = new Promise<FlatResponse | null>((resolve, reject) => {
+      let isDone = false;
+      timeout = setTimeout(() => {
+        if (!isDone) { isDone = true; resolve(null); }
+      }, waitMs);
+
+      page.removeAllListeners("response");
+      page.on("response", async (response) => {
+        if (isDone) return;
+        if (response.url().includes("salesApiLeadSearch")) {
+          if (response.status() === 429) {
+            isDone = true;
+            clearTimeout(timeout);
+            reject(new Error("429 Rate Limit"));
+          } else if (response.status() === 200) {
+            try {
+              const data = await response.json() as FlatResponse;
+              isDone = true;
+              clearTimeout(timeout);
+              resolve(data);
+            } catch { /* ignore */ }
+          }
+        }
+      });
     });
+
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
-    await page.waitForTimeout(waitMs);
-    return intercepted;
+    return interceptPromise;
   };
 
   // First page of the window
