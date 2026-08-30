@@ -953,23 +953,45 @@ async function globalLoop(): Promise<void> {
   console.log("[runner] Global loop started");
   const db = getDb();
 
-  while (true) {
-    try {
-      await tick(db);
-    } catch (err) {
-      console.error("[runner] Tick error:", err instanceof Error ? err.message : err);
+  // Run the inbox sync logic in a separate parallel loop so it's not starved by action delays
+  const syncLoop = async () => {
+    while (true) {
+      try {
+        await tickSync(db);
+      } catch (err) {
+        console.error("[runner] Sync tick error:", err instanceof Error ? err.message : err);
+      }
+      await sleep(5 * 60 * 1000); // 5 min
     }
-    try {
-      const { processScheduledImports } = await import("@/lib/import-jobs");
-      await processScheduledImports(db);
-    } catch (err) {
-      console.error("[runner] Import scheduler error:", err instanceof Error ? err.message : err);
+  };
+
+  const actionLoop = async () => {
+    while (true) {
+      try {
+        await tickActions(db);
+      } catch (err) {
+        console.error("[runner] Action tick error:", err instanceof Error ? err.message : err);
+      }
+      try {
+        const { processScheduledImports } = await import("@/lib/import-jobs");
+        await processScheduledImports(db);
+      } catch (err) {
+        console.error("[runner] Import scheduler error:", err instanceof Error ? err.message : err);
+      }
+      await sleep(POLL_INTERVAL_MS);
     }
-    await sleep(POLL_INTERVAL_MS);
-  }
+  };
+
+  Promise.all([syncLoop(), actionLoop()]).catch(e => console.error(e));
 }
 
-async function tick(db: ReturnType<typeof getDb>): Promise<void> {
+async function tickSync(db: ReturnType<typeof getDb>): Promise<void> {
+  try {
+    const premium = require("@/ee").premium;
+    if (premium?.replies?.retryFailed) {
+      await premium.replies.retryFailed();
+    }
+  } catch (e) {}
   const activeRuns = db.prepare(`
     SELECT r.id as run_id, r.workflow_id, r.account_id, r.email_account_id,
            a.daily_connection_limit, a.daily_message_limit, a.daily_inmail_limit,
@@ -979,42 +1001,22 @@ async function tick(db: ReturnType<typeof getDb>): Promise<void> {
     WHERE r.status = 'running' AND a.is_authenticated = 1
   `).all() as Array<{ run_id: string; workflow_id: string; account_id: string; email_account_id: string | null } & AccountLimits>;
 
-  if (activeRuns.length > 0) {
-    console.log(`[runner] Tick — ${activeRuns.length} active run(s)`);
-  }
-
-  // Get ALL authenticated accounts for account-level syncs (inbox, accepted connections)
-  // These must run even if all campaigns are paused/completed, because replies can come later!
   const allAuthenticatedAccounts = db.prepare("SELECT id FROM accounts WHERE is_authenticated = 1").all() as { id: string }[];
   const allAccountIds = allAuthenticatedAccounts.map(a => a.id);
 
-  // Daily sync: stamp accepted connections from invitation manager (once per 23h per account)
   for (const accountId of allAccountIds) {
     if (shouldSyncAccepted(accountId)) {
       try {
-        console.log(`[runner] Starting accepted-connections sync for account ${accountId}`);
         const stamped = await syncAcceptedConnections(accountId);
-        if (stamped > 0) {
-          for (const r of activeRuns.filter(x => x.account_id === accountId)) {
-            log(db, r.run_id, null, "info", `Accepted-connections sync: ${stamped} contact${stamped === 1 ? "" : "s"} marked as connected`);
-          }
-        }
-        console.log(`[runner] Accepted-connections sync complete — ${stamped} stamped`);
       } catch (e) {
         console.warn("[runner] Accepted-connections sync error:", e instanceof Error ? e.message : e);
       }
     }
   }
 
-  // LinkedIn inbox reply detection (messaging GraphQL) — once per 15min per
-  // account. Sets targets.last_replied_at so the runner auto-unenrolls repliers.
-  // LinkedIn reply detection is a premium feature (AI classifier layer) — no-op without ee/.
   for (const accountId of allAccountIds) {
-    
-    // Check if account has cookies (is authenticated), then we can sync inbox
     const acc = db.prepare("SELECT is_authenticated FROM accounts WHERE id = ?").get(accountId) as { is_authenticated: number } | undefined;
     if (acc && acc.is_authenticated) {
-
       const lastSync = lastLinkedinSync.get(accountId) || 0;
       const dueAfterMs = IMAP_POLL_INTERVAL_MS + accountJitterMs(accountId);
       const isDue = Date.now() - lastSync >= dueAfterMs;
@@ -1022,17 +1024,7 @@ async function tick(db: ReturnType<typeof getDb>): Promise<void> {
       if (isDue && !activeLinkedinSyncs.has(accountId)) {
         activeLinkedinSyncs.add(accountId);
         try {
-          console.log(`[runner] Starting LinkedIn inbox sync for account ${accountId}`);
-          
           const syncResult = await syncLinkedInInboxReadOnly({ accountId, source: new LinkedInNetworkObserver() });
-          const replies = syncResult.captured;
-
-          console.log(`[runner] LinkedIn inbox sync complete — ${replies} new repl${replies === 1 ? "y" : "ies"}`);
-          if (replies > 0) {
-            for (const r of activeRuns.filter(x => x.account_id === accountId)) {
-              log(db, r.run_id, null, "info", `LinkedIn inbox sync: ${replies} new repl${replies === 1 ? "y" : "ies"} detected`);
-            }
-          }
         } catch (e) {
           console.warn("[runner] LinkedIn inbox sync error:", e instanceof Error ? e.message : e);
         } finally {
@@ -1043,7 +1035,6 @@ async function tick(db: ReturnType<typeof getDb>): Promise<void> {
     }
   }
 
-  // Sync email IMAP inboxes for each unique email account in active run profiles
   const activeRunIds = activeRuns.map(r => r.run_id);
   const activeEmailAccountIds: string[] = activeRunIds.length > 0
     ? [...new Set(
@@ -1063,20 +1054,27 @@ async function tick(db: ReturnType<typeof getDb>): Promise<void> {
     seenEmailAccounts.add(emailAccId);
     if (shouldSyncEmailInbox(emailAccId)) {
       try {
-        console.log(`[runner] Starting IMAP sync for email account ${emailAccId}`);
-        const { replies, bounces } = await syncEmailInbox(emailAccId);
-        console.log(`[runner] IMAP sync complete — ${replies} replies, ${bounces} bounces`);
-        for (const runId of activeRunIds) {
-          if (replies > 0) log(db, runId, null, "info", `Email inbox sync: ${replies} new repl${replies === 1 ? "y" : "ies"} detected`);
-          if (bounces > 0) log(db, runId, null, "warn", `Email inbox sync: ${bounces} bounce${bounces === 1 ? "" : "s"} detected — contacts marked invalid and unenrolled`);
-        }
+        await syncEmailInbox(emailAccId);
       } catch (e) {
         console.warn("[runner] Email inbox sync error:", e instanceof Error ? e.message : e);
       }
-      // Space out back-to-back IMAP syncs — a 20-account burst with zero gap
-      // between them held the host busy for minutes straight (Jul 2026 incident).
       await sleep(2000);
     }
+  }
+}
+
+async function tickActions(db: ReturnType<typeof getDb>): Promise<void> {
+  const activeRuns = db.prepare(`
+    SELECT r.id as run_id, r.workflow_id, r.account_id, r.email_account_id,
+           a.daily_connection_limit, a.daily_message_limit, a.daily_inmail_limit,
+           a.active_hours_start, a.active_hours_end, a.timezone, a.working_days
+    FROM runs r
+    JOIN accounts a ON a.id = r.account_id
+    WHERE r.status = 'running' AND a.is_authenticated = 1
+  `).all() as Array<{ run_id: string; workflow_id: string; account_id: string; email_account_id: string | null } & AccountLimits>;
+
+  if (activeRuns.length > 0) {
+    console.log(`[runner] Tick — ${activeRuns.length} active run(s)`);
   }
 
   // Auto-complete runs where ALL track-runs across all profiles are terminal

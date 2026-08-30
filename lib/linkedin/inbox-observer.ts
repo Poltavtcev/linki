@@ -6,7 +6,7 @@ export class LinkedInNetworkObserver implements LinkedInInboxObservationSource {
     const observations: LinkedInInboxObservation[] = [];
 
     // Set up XHR interception before navigating
-    page.on("response", async (response) => {
+    const responseHandler = async (response: any) => {
       const url = response.url();
       
       // Handle legacy format
@@ -37,7 +37,7 @@ export class LinkedInNetworkObserver implements LinkedInInboxObservationSource {
               }
             }
           }
-        } catch (err) {}
+        } catch (err) { console.error("[observer] Error parsing legacy XHR", err); }
       }
 
       // Handle new GraphQL format
@@ -90,15 +90,20 @@ export class LinkedInNetworkObserver implements LinkedInInboxObservationSource {
           console.error("[observer] Error parsing GraphQL", err);
         }
       }
-    });
+    };
+    page.on("response", responseHandler);
 
-    console.log(`[observer] Navigating to messaging...`);
-    await page.goto("https://www.linkedin.com/messaging/", { waitUntil: "domcontentloaded" });
+    try {
+      console.log(`[observer] Navigating to messaging...`);
+      await page.goto("https://www.linkedin.com/messaging/", { waitUntil: "domcontentloaded" });
     
     // Wait for GraphQL to complete
     await page.waitForTimeout(5000);
 
-    console.log(`[observer] Captured ${observations.length} observations from network.`);
-    return observations;
+      console.log(`[observer] Captured ${observations.length} observations from network.`);
+      return observations;
+    } finally {
+      page.off("response", responseHandler);
+    }
   }
 }

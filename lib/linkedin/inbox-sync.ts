@@ -300,9 +300,9 @@ function resolveTarget(
   db: Database.Database,
   accountId: string,
   normalized: NormalizedObservation,
+  scoped: ScopedTarget[],
+  allTargets: ScopedTarget[]
 ): TargetResolution | { reason: LinkedInInboxSkipReason } {
-  const scoped = loadScopedTargets(db, accountId);
-  const allTargets = loadAllTargets(db);
   const urnIds = normalized.senderMessagingUrn ? idsForMessagingUrn(scoped, normalized.senderMessagingUrn) : [];
   const vanityIds = normalized.senderVanity ? idsForVanity(scoped, normalized.senderVanity) : [];
   const globalUrnIds = normalized.senderMessagingUrn ? idsForMessagingUrn(allTargets, normalized.senderMessagingUrn) : [];
@@ -354,9 +354,7 @@ function safeMetadata(
 }
 
 function boundedEventId(accountId: string, threadId: string, messageId: string, providerEventId: string | null): string {
-  const candidate = providerEventId
-    ? `linkedin:${accountId}:provider:${providerEventId}`
-    : `linkedin:${accountId}:${threadId}:${messageId}`;
+  const candidate = `linkedin:${accountId}:${threadId}:${messageId}`;
   if (candidate.length <= MAX_EVENT_ID_LENGTH) return candidate;
   const digest = createHash("sha256").update(candidate, "utf8").digest("hex");
   return `linkedin:event:${digest}`;
@@ -402,6 +400,8 @@ export function captureLinkedInInboxObservations(
 ): LinkedInInboxCaptureResult {
   accountIsReady(db, accountId);
   const result: LinkedInInboxCaptureResult = { captured: 0, duplicates: 0, skipped: [] };
+  const scopedTargets = loadScopedTargets(db, accountId);
+  const allTargets = loadAllTargets(db);
 
   for (const value of observations) {
     const key = observationKey(value);
@@ -412,7 +412,7 @@ export function captureLinkedInInboxObservations(
       continue;
     }
 
-    const resolution = resolveTarget(db, accountId, normalized);
+    const resolution = resolveTarget(db, accountId, normalized, scopedTargets, allTargets);
     if ("reason" in resolution) {
       if (resolution.reason !== "unmatched_target" && resolution.reason !== "identity_conflict") {
         console.log(`[inbox-sync] Skipped (resolve): ${resolution.reason} - ${JSON.stringify(normalized)}`);

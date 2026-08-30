@@ -1,3 +1,4 @@
+import * as cheerio from "cheerio";
 import Imap from "imap";
 import { simpleParser } from "mailparser";
 import { randomUUID } from "crypto";
@@ -68,7 +69,7 @@ export function captureReplyBody(
   fromEmail: string,
   uid: number,
 ): Promise<string | null> {
-  return new Promise<string | null>((resolve) => {
+  return new Promise<string | null>((resolve, reject) => {
     // Fetch the full raw RFC822 message — mailparser handles MIME multipart,
     // base64 / quoted-printable transfer encodings, and charset decoding. The
     // old HEADER+TEXT regex approach stored raw base64 / =XX escapes for the
@@ -77,13 +78,19 @@ export function captureReplyBody(
 
     const chunks: Buffer[] = [];
 
+    let totalSize = 0;
     fetch.on("message", (msg) => {
       msg.on("body", (stream) => {
-        stream.on("data", (c: Buffer) => chunks.push(c));
+        stream.on("data", (c: Buffer) => {
+          if (totalSize < 1024 * 1024 * 2) { // Cap at 2MB to prevent OOM on giant attachments
+            chunks.push(c);
+            totalSize += c.length;
+          }
+        });
       });
     });
 
-    fetch.once("error", () => resolve(null));
+    fetch.once("error", (err) => reject(err));
     fetch.once("end", () => {
       void (async () => {
         try {
@@ -98,9 +105,18 @@ export function captureReplyBody(
           const inReplyTo = parsed.inReplyTo ?? null;
 
           // Prefer decoded plain text; fall back to stripping the HTML part.
-          const rawText =
-            parsed.text ??
-            (parsed.html ? parsed.html.replace(/<[^>]+>/g, " ") : "");
+          let rawText = parsed.text ?? "";
+          if (!rawText && parsed.html) {
+            const $ = cheerio.load(parsed.html);
+            // Remove CSS, scripts, and common quote blocks to prevent AI hallucination
+            $("style, script, head, title, meta, blockquote, .gmail_quote, .yahoo_quoted, [id*='quote']").remove();
+            rawText = $.text() || "";
+          } else if (rawText) {
+            // Even if plain text is present, we should attempt to strip quotes if possible
+            // A simple heuristic for plain text quotes is splitting by "> " or "On ... wrote:"
+            rawText = rawText.split(/^On .* wrote:$/m)[0] || rawText;
+            rawText = rawText.split(/\n> /)[0] || rawText;
+          }
           const bodyText = rawText
             .replace(/\r\n/g, "\n")
             .replace(/\n{3,}/g, "\n\n")

@@ -278,7 +278,10 @@ export async function scrapeNavigatorList(
 
   const page = await ctx.newPage();
   let knownTotal = 0;
-  let intercepted: FlatResponse | null = null;
+  let lastPage = startPage;
+  let totalPages = startPage;
+  try {
+    let intercepted: FlatResponse | null = null;
 
   const waitForIntercept = async (url: string, waitMs: number): Promise<FlatResponse | null> => {
     let timeout: NodeJS.Timeout;
@@ -329,9 +332,8 @@ export async function scrapeNavigatorList(
   }
   console.log(`[scraper] page ${startPage}: ${allElements.length} elements, total=${knownTotal}`);
 
-  const totalPages = Math.ceil(knownTotal / PAGE_SIZE);
+  totalPages = Math.ceil(knownTotal / PAGE_SIZE);
   const endPage = Math.min(totalPages, startPage + maxPages - 1);
-  let lastPage = startPage;
   onProgress?.({ phase: 'scraping', page: startPage, totalPages: endPage, count: allElements.length, total: knownTotal });
 
   for (let pageNum = startPage + 1; pageNum <= endPage; pageNum++) {
@@ -358,7 +360,9 @@ export async function scrapeNavigatorList(
     onProgress?.({ phase: 'scraping', page: pageNum, totalPages: endPage, count: allElements.length, total: knownTotal });
   }
 
-  await page.close();
+  } finally {
+    await page.close().catch(() => {});
+  }
   return {
     profiles: allElements.map(el => profileToResult(el, null)),
     lastPage,
@@ -384,6 +388,9 @@ export async function scrapeSavedSearch(
 
   const page = await ctx.newPage();
   let knownTotal = 0;
+  let lastPage = startPage;
+  let totalPages = startPage;
+  try {
 
   const waitForIntercept = async (url: string, waitMs: number): Promise<FlatResponse | null> => {
     let timeout: NodeJS.Timeout;
@@ -432,9 +439,8 @@ export async function scrapeSavedSearch(
   }
   console.log(`[scraper:saved-search] page ${startPage}: ${allElements.length} elements, total=${knownTotal}`);
 
-  const totalPages = Math.ceil(knownTotal / PAGE_SIZE);
+  totalPages = Math.ceil(knownTotal / PAGE_SIZE);
   const endPage = Math.min(totalPages, startPage + maxPages - 1);
-  let lastPage = startPage;
   onProgress?.({ phase: 'scraping', page: startPage, totalPages: endPage, count: allElements.length, total: knownTotal });
 
   for (let pageNum = startPage + 1; pageNum <= endPage; pageNum++) {
@@ -461,7 +467,9 @@ export async function scrapeSavedSearch(
     onProgress?.({ phase: 'scraping', page: pageNum, totalPages: endPage, count: allElements.length, total: knownTotal });
   }
 
-  await page.close();
+  } finally {
+    await page.close().catch(() => {});
+  }
   return {
     profiles: allElements.map(el => profileToResult(el, null)),
     lastPage,

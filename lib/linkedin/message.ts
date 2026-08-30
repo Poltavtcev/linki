@@ -69,14 +69,14 @@ async function openComposeByUrn(page: Page, messagingUrn: string): Promise<boole
       const mainArea = page.locator("main").first();
       
       // Step 1: Check if Message button is directly visible
-      let msgBtn = mainArea.locator('button.message-anywhere-button, a[href*="/messaging/compose"], button[aria-label^="Message"], button[aria-label^="Повідомлення"], button:has-text("Message"), button:has-text("Повідомлення"), a:has-text("Message"), a:has-text("Повідомлення")').filter({ hasNot: page.locator('span:has-text("More")') }).first();
+      let msgBtn = mainArea.locator('button.message-anywhere-button, a[href*="/messaging/compose"], button[aria-label^="Message"], button[aria-label^="Повідомлення"], button[aria-label^="Mensaje"], button[aria-label^="Mensagem"], button:has-text("Message"), button:has-text("Повідомлення"), button:has-text("Mensaje"), button:has-text("Mensagem"), a:has-text("Message"), a:has-text("Повідомлення"), a:has-text("Mensaje"), a:has-text("Mensagem")').filter({ hasNot: page.locator('span:has-text("More")') }).first();
       
       if (await msgBtn.count() === 0 || !(await msgBtn.isVisible())) {
         console.log(`[message] Message button not immediately visible in main. Trying 'More' dropdown.`);
         const moreBtn = mainArea.locator('button[aria-label^="More"], button[aria-label^="Більше"], button.artdeco-dropdown__trigger').filter({ hasText: /More|Більше|\.\.\./i }).first();
         if (await moreBtn.count() > 0 && await moreBtn.isVisible()) {
           await moreBtn.click();
-          await page.waitForTimeout(1000);
+          await mainArea.locator('div.artdeco-dropdown__content, div[role="menu"]').first().waitFor({ state: "visible", timeout: 5000 }).catch(() => {});
           msgBtn = mainArea.locator('div.artdeco-dropdown__content button:has-text("Message"), div.artdeco-dropdown__content button:has-text("Повідомлення"), div.artdeco-dropdown__content a:has-text("Message"), div.artdeco-dropdown__content a:has-text("Повідомлення")').first();
         }
       }
@@ -85,7 +85,7 @@ async function openComposeByUrn(page: Page, messagingUrn: string): Promise<boole
         console.log(`[message] Clicking profile Message button...`);
         await msgBtn.click({ force: true });
         
-        const msgInput = page.locator("div.msg-form__contenteditable").first();
+        const msgInput = page.locator("div.msg-form__contenteditable, div[role='textbox'][aria-label*='Message'], div[role='textbox'][aria-label*='Mensaje'], div[role='textbox'][aria-label*='Mensagem'], div[role='textbox'][aria-label*='Повідомлення']").first();
         try {
           await msgInput.waitFor({ timeout: 10000 });
           return true;
@@ -106,7 +106,7 @@ async function openComposeByUrn(page: Page, messagingUrn: string): Promise<boole
 
 async function sendFromComposeBox(page: Page, text: string): Promise<void> {
   // Paste message into compose area
-  const msgInput = page.locator("div.msg-form__contenteditable").first();
+  const msgInput = page.locator("div.msg-form__contenteditable, div[role='textbox'][aria-label*='Message'], div[role='textbox'][aria-label*='Mensaje'], div[role='textbox'][aria-label*='Mensagem'], div[role='textbox'][aria-label*='Повідомлення']").first();
   await msgInput.waitFor({ timeout: 8000 });
   await msgInput.click();
   // Type text directly (simulates real keystrokes, triggering React onChange events)
@@ -114,7 +114,7 @@ async function sendFromComposeBox(page: Page, text: string): Promise<void> {
   await page.waitForTimeout(500);
 
   // Send
-  const sendBtn = page.locator("button.msg-form__send-button:visible").first();
+  const sendBtn = page.locator("button.msg-form__send-button:visible, button[type='submit']:visible").first();
   await sendBtn.waitFor({ timeout: 5000 });
   await sendBtn.click({ delay: 100 });
   await page.waitForTimeout(2000);
