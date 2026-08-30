@@ -9,24 +9,8 @@ export interface SendMessageResult {
 }
 
 /**
- * Sends a message to a LinkedIn 1st-degree connection.
- *
- * Self-contained URN resolution — does NOT depend on a prior 'visit' workflow
- * step. If messagingUrn is already cached, it's used directly (no extra page
- * load). Otherwise this does its own live profile check (the same top-card-
- * scoped logic as the 'visit' step, see visit.ts) to fetch a fresh URN and
- * verify the target is still actually connected, immediately before sending.
- * Only if that live check finds no URN despite confirming 1st-degree does it
- * fall back to the connections-only name-search typeahead — a rare last
- * resort now, not the default path for every contact that lacks a cached URN.
- *
- * Throws NotConnectedError if the live check finds the target is NOT 1st-
- * degree, instead of guessing via typeahead search (which can silently hit
- * an unrelated connection with a similar/truncated name — see CLAUDE.md /
- * memory for the Jul 2026 incident this replaced).
- *
- * Returns the resolved { messagingUrn, isFirstDegree } so the caller can
- * persist it to the target record, same as the 'visit' step does.
+ * Sends a message to a LinkedIn 1st-degree connection using the Voyager API.
+ * Eliminates fragile DOM typing and language-specific button matching.
  */
 export async function sendMessage(
   page: Page,
@@ -35,87 +19,86 @@ export async function sendMessage(
   linkedinUrl: string,
   messagingUrn?: string | null
 ): Promise<SendMessageResult> {
-  if (messagingUrn) {
-    const opened = await openComposeByUrn(page, messagingUrn);
-    if (opened) {
-      await sendFromComposeBox(page, text);
-      return { messagingUrn, isFirstDegree: true };
-    }
-  }
+  // If we don't have the URN cached, we must resolve it.
+  // We use visitProfile as it securely resolves the URN and checks 1st-degree status.
+  let resolvedUrn = messagingUrn;
+  let isFirstDegree = true;
 
-  const resolved = await visitProfile(page, linkedinUrl);
-  console.log(`[message] visitProfile resolved for ${fullName}:`, resolved);
-  
-  if (!resolved.isFirstDegree) {
-    throw new NotConnectedError(`${fullName} is not a 1st-degree connection — refusing to message`);
-  }
-
-  if (!resolved.messagingUrn) {
-    throw new Error(`Failed to resolve messaging URN for ${fullName} via profile visit. Refusing to guess via name search.`);
-  }
-
-  const opened = await openComposeByUrn(page, resolved.messagingUrn);
-  if (!opened) {
-    throw new Error(`Failed to open compose box for URN ${resolved.messagingUrn}`);
-  }
-
-  await sendFromComposeBox(page, text);
-  return resolved;
-}
-
-async function openComposeByUrn(page: Page, messagingUrn: string): Promise<boolean> {
-  try {
-    if (page.url().includes('/in/')) {
-      const mainArea = page.locator("main").first();
-      
-      // Step 1: Check if Message button is directly visible
-      let msgBtn = mainArea.locator('button.message-anywhere-button, a[href*="/messaging/compose"], button[aria-label^="Message"], button[aria-label^="Повідомлення"], button[aria-label^="Mensaje"], button[aria-label^="Mensagem"], button:has-text("Message"), button:has-text("Повідомлення"), button:has-text("Mensaje"), button:has-text("Mensagem"), a:has-text("Message"), a:has-text("Повідомлення"), a:has-text("Mensaje"), a:has-text("Mensagem")').filter({ hasNot: page.locator('span:has-text("More")') }).first();
-      
-      if (await msgBtn.count() === 0 || !(await msgBtn.isVisible())) {
-        console.log(`[message] Message button not immediately visible in main. Trying 'More' dropdown.`);
-        const moreBtn = mainArea.locator('button[aria-label^="More"], button[aria-label^="Більше"], button.artdeco-dropdown__trigger').filter({ hasText: /More|Більше|\.\.\./i }).first();
-        if (await moreBtn.count() > 0 && await moreBtn.isVisible()) {
-          await moreBtn.click();
-          await mainArea.locator('div.artdeco-dropdown__content, div[role="menu"]').first().waitFor({ state: "visible", timeout: 5000 }).catch(() => {});
-          msgBtn = mainArea.locator('div.artdeco-dropdown__content button:has-text("Message"), div.artdeco-dropdown__content button:has-text("Повідомлення"), div.artdeco-dropdown__content a:has-text("Message"), div.artdeco-dropdown__content a:has-text("Повідомлення")').first();
-        }
-      }
-      
-      if (await msgBtn.count() > 0) {
-        console.log(`[message] Clicking profile Message button...`);
-        await msgBtn.click({ force: true });
-        
-        const msgInput = page.locator("div.msg-form__contenteditable, div[role='textbox'][aria-label*='Message'], div[role='textbox'][aria-label*='Mensaje'], div[role='textbox'][aria-label*='Mensagem'], div[role='textbox'][aria-label*='Повідомлення']").first();
-        try {
-          await msgInput.waitFor({ timeout: 10000 });
-          return true;
-        } catch (timeoutErr) {
-          console.log(`[message] Timeout waiting for compose box to appear after clicking Message button.`);
-          throw timeoutErr;
-        }
-      }
-    }
+  if (!resolvedUrn) {
+    const resolved = await visitProfile(page, linkedinUrl);
+    console.log(`[message] visitProfile resolved for ${fullName}:`, resolved);
     
-    console.log(`[message] Message button completely missing from UI.`);
-    return false;
-  } catch (e) {
-    console.error(`[message] Failed to open compose for ${messagingUrn}:`, e);
-    return false;
+    if (!resolved.isFirstDegree) {
+      throw new NotConnectedError(`${fullName} is not a 1st-degree connection — refusing to message`);
+    }
+
+    if (!resolved.messagingUrn) {
+      throw new Error(`Failed to resolve messaging URN for ${fullName} via profile visit. Refusing to guess via name search.`);
+    }
+
+    resolvedUrn = resolved.messagingUrn;
+    isFirstDegree = resolved.isFirstDegree;
   }
-}
 
-async function sendFromComposeBox(page: Page, text: string): Promise<void> {
-  // Paste message into compose area
-  const msgInput = page.locator("div.msg-form__contenteditable, div[role='textbox'][aria-label*='Message'], div[role='textbox'][aria-label*='Mensaje'], div[role='textbox'][aria-label*='Mensagem'], div[role='textbox'][aria-label*='Повідомлення']").first();
-  await msgInput.waitFor({ timeout: 8000 });
-  await msgInput.click();
-  // Type text directly (simulates real keystrokes, triggering React onChange events)
-  await msgInput.pressSequentially(text, { delay: 10 });
-  await page.waitForTimeout(500);
+  // Ensure we are on a valid linkedin.com page so fetch() inherits the origin and cookies
+  if (!page.url().includes("linkedin.com")) {
+     await page.goto("https://www.linkedin.com/feed/", { waitUntil: "domcontentloaded" });
+  }
 
-  // Send
-  const sendBtn = page.locator("button.msg-form__send-button:visible, button[type='submit']:visible").first();
-  await sendBtn.waitFor({ timeout: 5000 });
-  await sendBtn.click({ delay: 100 });
-  await page.waitForTimeout(2000);
+  const payload = {
+    keyVersion: 'LEGACY_INBOX',
+    conversationCreate: {
+      eventCreate: {
+        value: {
+          'com.linkedin.voyager.messaging.create.MessageCreate': {
+            attributedBody: {
+              text: text,
+              attributes: [],
+            },
+            attachments: [],
+          },
+        },
+      },
+      subtype: 'MEMBER_TO_MEMBER',
+      recipients: [resolvedUrn],
+    },
+  };
+
+  const result = await page.evaluate(async (payload) => {
+    // Extract CSRF token inside the browser context
+    const cookies = document.cookie.split("; ").reduce((a: Record<string, string>, c) => {
+      const i = c.indexOf("=");
+      if (i > 0) a[c.slice(0, i)] = c.slice(i + 1);
+      return a;
+    }, {});
+    const csrf = (cookies["JSESSIONID"] || "").replace(/"/g, "");
+
+    try {
+      const res = await fetch("https://www.linkedin.com/voyager/api/messaging/conversations?action=create", {
+        method: "POST",
+        headers: {
+          "csrf-token": csrf,
+          "accept": "application/vnd.linkedin.normalized+json+2.1",
+          "x-restli-protocol-version": "2.0.0",
+          "x-li-lang": "en_US",
+          "content-type": "application/json"
+        },
+        credentials: "include",
+        body: JSON.stringify(payload)
+      });
+      
+      const bodyText = await res.text();
+      return { status: res.status, ok: res.ok, body: bodyText };
+    } catch (e) {
+      return { status: 0, ok: false, body: e instanceof Error ? e.message : String(e) };
+    }
+  }, payload);
+
+  if (!result.ok) {
+    throw new Error(`Voyager API messaging failed with HTTP ${result.status}: ${result.body}`);
+  }
+
+  console.log(`[message] Successfully sent message via API to ${resolvedUrn}. HTTP ${result.status}`);
+
+  return { messagingUrn: resolvedUrn, isFirstDegree };
 }
