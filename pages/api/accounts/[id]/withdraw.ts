@@ -24,7 +24,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   void (async () => {
     try {
       const page = await getSessionPage(id);
-      await withdrawOldInvitations(page, id, olderThanDays, "manual");
+      await withdrawOldInvitations(page, id, olderThanDays, null);
       await page.close();
     } catch (e) {
       console.error("[withdraw] Manual trigger failed:", e);

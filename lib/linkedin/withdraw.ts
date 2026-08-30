@@ -6,7 +6,7 @@ export async function withdrawOldInvitations(
   page: Page,
   accountId: string,
   olderThanDays: number,
-  runId: string
+  runId: string | null
 ) {
   const db = getDb();
   console.log(`[withdraw] Starting check for account=${accountId}, olderThan=${olderThanDays} days. Run=${runId}`);
@@ -114,7 +114,7 @@ export async function withdrawOldInvitations(
             if (target.url) {
               const vanity = target.url.match(/\/in\/([^/?#]+)/)?.[1]?.toLowerCase();
               if (vanity) {
-                 db.prepare("UPDATE targets SET degree = NULL, connected_at = NULL, connection_requested_at = NULL WHERE linkedin_url LIKE ? AND account_id = ?").run(`%${vanity}%`, accountId);
+                 db.prepare("UPDATE targets SET degree = NULL, connected_at = NULL, connection_requested_at = NULL WHERE linkedin_url LIKE ?").run(`%${vanity}%`);
               }
             }
             scrollAttempts = 0;

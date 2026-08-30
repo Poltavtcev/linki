@@ -195,7 +195,7 @@ interface Template { id: string; body: string; }
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
-export function log(db: ReturnType<typeof getDb>, runId: string, targetId: string | null, level: "info" | "warn" | "error", message: string) {
+export function log(db: ReturnType<typeof getDb>, runId: string | null, targetId: string | null, level: "info" | "warn" | "error", message: string) {
   db.prepare("INSERT INTO logs (id, run_id, target_id, level, message) VALUES (?, ?, ?, ?, ?)").run(randomUUID(), runId, targetId, level, message);
   console.log(`[runner] [${level}] run=${runId} target=${targetId ?? "-"} ${message}`);
 }
@@ -1016,7 +1016,7 @@ async function tickSync(db: ReturnType<typeof getDb>): Promise<void> {
         withdrawSyncs.set(accountId, Date.now());
         try {
           const page = await getSessionPage(accountId);
-          await withdrawOldInvitations(page, accountId, account.withdraw_invites_after_days, "system");
+          await withdrawOldInvitations(page, accountId, account.withdraw_invites_after_days, null);
           await page.close();
         } catch (e) {
           console.warn("[runner] Withdraw old invites error:", e instanceof Error ? e.message : e);
