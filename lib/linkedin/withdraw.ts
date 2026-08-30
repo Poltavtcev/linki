@@ -21,13 +21,9 @@ export async function withdrawOldInvitations(
   let scrollAttempts = 0;
   
   while (scrollAttempts < 50) {
-    console.log(`[withdraw] Page scan attempt ${scrollAttempts + 1}...`);
-    
-    const targetToWithdraw = await page.evaluate((olderThan) => {
+        
+        const targetToWithdraw = await page.evaluate((olderThan) => {
       const withdrawButtons = Array.from(document.querySelectorAll("[aria-label^='Withdraw'], [aria-label^='withdraw'], [aria-label^='Відкликати'], [aria-label^='відкликати'], [aria-label^='Отозвать'], [aria-label^='отозвать']"));
-      
-      const debugScanned: any[] = [];
-      let foundTarget = null;
       
       for (let i = 0; i < withdrawButtons.length; i++) {
         const btn = withdrawButtons[i];
@@ -49,19 +45,15 @@ export async function withdrawOldInvitations(
         if (!container) continue;
         
         const textSpans = Array.from(container.querySelectorAll("span")).map(s => s.textContent);
-        
-        // Debug: get all text just in case we miss the keyword
-        const rawText = container.textContent?.replace(/\s+/g, ' ') || "";
         const link = container.querySelector("a[href*='/in/']");
         const url = link ? link.getAttribute("href") : null;
         
-        // Find time string by looking for time units (English, Ukrainian, Russian)
         const sentSpan = textSpans.find(t => {
           const l = t?.toLowerCase() || "";
           return l.includes("ago") || l.includes("тому") || l.includes("назад");
         });
         
-        let ageDays: number | null = null;
+        let ageDays = null;
         if (sentSpan) {
           const l = sentSpan.toLowerCase();
           const match = l.match(/(\d+)\s*(hour|day|week|month|year|год|дн|тиж|нед|міс|мес|рік|рок|лет)/i);
@@ -77,25 +69,18 @@ export async function withdrawOldInvitations(
           }
         }
         
-        debugScanned.push({ url, rawText, sentSpan, ageDays });
-        
-        if (ageDays !== null && ageDays >= olderThan && !foundTarget) {
-           foundTarget = { index: i, url, ageDays };
+        if (ageDays !== null && ageDays >= olderThan) {
+           return { index: i, url, ageDays };
         }
       }
-      return { foundTarget, debugScanned };
+      return null;
     }, olderThanDays);
 
     // Print what we saw on this pass
-    console.log(`[withdraw] Scanned ${targetToWithdraw.debugScanned.length} items on current screen.`);
-    for (const item of targetToWithdraw.debugScanned) {
-       console.log(`[withdraw] -> URL: ${item.url} | Age parsed: ${item.ageDays} | Raw: ${item.rawText} | Span: ${item.sentSpan}`);
-    }
-
-    if (targetToWithdraw.foundTarget) {
-      const target = targetToWithdraw.foundTarget;
-      console.log(`[withdraw] ---> MATCHED target for withdrawal: ${target.url} (Age: ${target.ageDays} days)`);
-      log(db, runId, null, "info", `Withdrawing invitation to ${target.url} (Age: ${target.ageDays} days)`);
+    
+    if (targetToWithdraw) {
+      const target = targetToWithdraw;
+            log(db, runId, null, "info", `Withdrawing invitation to ${target.url} (Age: ${target.ageDays} days)`);
       
       const withdrawBtn = page.locator("[aria-label^='Withdraw'], [aria-label^='withdraw'], [aria-label^='Відкликати'], [aria-label^='Отозвать']").nth(target.index);
       
@@ -109,8 +94,7 @@ export async function withdrawOldInvitations(
             await confirmBtn.click();
             await page.waitForTimeout(2000);
             withdrawnCount++;
-            console.log(`[withdraw] ---> Successfully clicked confirm for ${target.url}`);
-            
+                        
             if (target.url) {
               const vanity = target.url.match(/\/in\/([^/?#]+)/)?.[1]?.toLowerCase();
               if (vanity) {
@@ -120,15 +104,14 @@ export async function withdrawOldInvitations(
             scrollAttempts = 0;
             continue; 
          } else {
-            console.log(`[withdraw] ---> ERROR: Confirm button not found in modal!`);
+            console.warn(`[withdraw] ---> ERROR: Confirm button not found in modal!`);
             await page.keyboard.press("Escape");
          }
       } else {
-         console.log(`[withdraw] ---> ERROR: Withdraw button not found on page despite DOM match!`);
+         console.warn(`[withdraw] ---> ERROR: Withdraw button not found on page despite DOM match!`);
       }
     } else {
-      console.log(`[withdraw] No targets older than ${olderThanDays} days found in current view. Scrolling down...`);
-    }
+          }
     
     const countBefore = await page.evaluate(() => document.querySelectorAll("[aria-label^='Withdraw'], [aria-label^='withdraw'], [aria-label^='Відкликати'], [aria-label^='Отозвать']").length);
     
@@ -141,11 +124,9 @@ export async function withdrawOldInvitations(
     await page.waitForTimeout(2000);
     const countAfter = await page.evaluate(() => document.querySelectorAll("[aria-label^='Withdraw'], [aria-label^='withdraw'], [aria-label^='Відкликати'], [aria-label^='Отозвать']").length);
     
-    console.log(`[withdraw] Scroll result: UI had ${countBefore} items, now has ${countAfter} items.`);
-    
+        
     if (countAfter === countBefore) {
-       console.log(`[withdraw] Reached the end of the list. Stopping.`);
-       break;
+              break;
     }
     
     scrollAttempts++;
