@@ -86,13 +86,14 @@ export async function withdrawOldInvitations(
       
       if (await withdrawBtn.count() > 0) {
          await withdrawBtn.scrollIntoViewIfNeeded();
+         await page.waitForTimeout(Math.floor(Math.random() * 1000) + 500);
          await withdrawBtn.click();
-         await page.waitForTimeout(1500);
+         await page.waitForTimeout(Math.floor(Math.random() * 1000) + 1000);
          
          const confirmBtn = page.locator('[role="dialog"] button, dialog button').filter({ hasText: /(Withdraw|Відкликати|Отозвать)/i }).first();
          if (await confirmBtn.count() > 0) {
             await confirmBtn.click();
-            await page.waitForTimeout(2000);
+            await page.waitForTimeout(Math.floor(Math.random() * 2000) + 1500);
             withdrawnCount++;
                         
             if (target.url) {
@@ -102,6 +103,7 @@ export async function withdrawOldInvitations(
               }
             }
             scrollAttempts = 0;
+            await page.waitForTimeout(Math.floor(Math.random() * 1000) + 1000);
             continue; 
          } else {
             console.warn(`[withdraw] ---> ERROR: Confirm button not found in modal!`);
