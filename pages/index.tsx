@@ -1,6 +1,6 @@
 import Head from "next/head";
 import { useEffect, useState, useRef } from "react";
-import { FiUserPlus, FiMessageSquare, FiEye, FiRepeat, FiUsers, FiRefreshCw } from "react-icons/fi";
+import { FiUserPlus, FiMessageSquare, FiEye, FiRepeat, FiUsers, FiRefreshCw, FiTrash2 } from "react-icons/fi";
 import { RiMailSendLine, RiReplyLine, RiRobot2Line, RiLinkedinBoxLine, RiFilterLine } from "react-icons/ri";
 
 interface DashboardStats {
@@ -299,6 +299,10 @@ function LinkedInCard({
   const [syncedAt, setSyncedAt] = useState<string | null>(cachedSyncedAt ?? null);
   const [syncError, setSyncError] = useState<string | null>(null);
 
+  const [showWithdraw, setShowWithdraw] = useState(false);
+  const [withdrawDays, setWithdrawDays] = useState(14);
+  const [withdrawing, setWithdrawing] = useState(false);
+
   async function handleSync() {
     if (!accountId) return;
     setSyncing(true); setSyncError(null);
@@ -315,10 +319,28 @@ function LinkedInCard({
     }
   }
 
+  async function handleWithdraw() {
+    if (!accountId) return;
+    setWithdrawing(true);
+    try {
+      const res = await fetch(`/api/accounts/${accountId}/withdraw`, { 
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ olderThanDays: withdrawDays })
+      });
+      if (!res.ok) throw new Error("Withdraw failed");
+      setShowWithdraw(false);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Withdraw failed");
+    } finally {
+      setWithdrawing(false);
+    }
+  }
+
   const items = [
-    { label: "Connections", value: liStats?.connections ?? null, color: "#32d583" },
-    { label: "Pending sent", value: liStats?.pending ?? null, color: "#f4b740" },
-    { label: "Profile views", value: liStats?.profile_views ?? null, color: "#5aa2ff" },
+    { label: "Connections", value: liStats?.connections ?? null, color: "#32d583", key: "connections" },
+    { label: "Pending sent", value: liStats?.pending ?? null, color: "#f4b740", key: "pending" },
+    { label: "Profile views", value: liStats?.profile_views ?? null, color: "#5aa2ff", key: "views" },
   ];
 
   return (
@@ -349,12 +371,48 @@ function LinkedInCard({
 
       <div className="grid grid-cols-3 gap-2">
         {items.map(s => (
-          <div key={s.label} className="flex flex-col gap-1.5 bg-base-300/30 rounded-lg p-3">
+          <div key={s.key} className="flex flex-col gap-1.5 bg-base-300/30 rounded-lg p-3 relative group">
             {s.value !== null
               ? <span className="text-xl font-semibold tabular-nums" style={{ color: s.color }}><Counter value={s.value} /></span>
               : <span className="text-xl font-semibold text-base-content/10">—</span>
             }
-            <span className="text-[10px] text-base-content/30 uppercase tracking-wide">{s.label}</span>
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-base-content/30 uppercase tracking-wide">{s.label}</span>
+              {s.key === "pending" && (
+                <button
+                  onClick={() => setShowWithdraw(!showWithdraw)}
+                  className="text-base-content/20 hover:text-error transition-colors opacity-0 group-hover:opacity-100"
+                  title="Withdraw old invites"
+                >
+                  <FiTrash2 size={12} />
+                </button>
+              )}
+            </div>
+            {s.key === "pending" && showWithdraw && (
+              <div className="absolute top-full left-0 mt-2 z-10 w-48 bg-base-100 border border-base-300 rounded-lg shadow-xl p-3 flex flex-col gap-2">
+                <span className="text-xs font-medium">Withdraw invites older than:</span>
+                <select 
+                  className="select select-bordered select-xs w-full"
+                  value={withdrawDays}
+                  onChange={(e) => setWithdrawDays(Number(e.target.value))}
+                  disabled={withdrawing}
+                >
+                  <option value={7}>7 days</option>
+                  <option value={14}>14 days</option>
+                  <option value={21}>21 days</option>
+                  <option value={30}>1 month</option>
+                  <option value={60}>2 months</option>
+                  <option value={90}>3 months</option>
+                </select>
+                <button 
+                  onClick={handleWithdraw}
+                  disabled={withdrawing}
+                  className="btn btn-error btn-xs w-full mt-1"
+                >
+                  {withdrawing ? "Starting..." : "Delete"}
+                </button>
+              </div>
+            )}
           </div>
         ))}
       </div>
