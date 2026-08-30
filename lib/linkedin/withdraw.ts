@@ -21,68 +21,68 @@ export async function withdrawOldInvitations(
   let scrollAttempts = 0;
   
   while (scrollAttempts < 50) {
-        
-        const targetToWithdraw = await page.evaluate((olderThan) => {
-      const withdrawButtons = Array.from(document.querySelectorAll("[aria-label^='Withdraw'], [aria-label^='withdraw'], [aria-label^='Відкликати'], [aria-label^='відкликати'], [aria-label^='Отозвать'], [aria-label^='отозвать']"));
+    const targetToWithdraw = await page.evaluate((olderThan) => {
+      // 1. Find all cards (any div or li containing an /in/ link)
+      const profileLinks = Array.from(document.querySelectorAll('a[href*="/in/"]'));
+      const cards = new Set();
+      for (const link of profileLinks) {
+         const card = link.closest('li, .invitation-card, .discovery-entity-card');
+         if (card) cards.add(card);
+      }
       
-      for (let i = 0; i < withdrawButtons.length; i++) {
-        const btn = withdrawButtons[i];
-        let container = null;
-        let cur = btn.parentElement;
-        while(cur) {
-          const links = cur.querySelectorAll("a[href*='/in/']");
-          if (links.length > 0 && links.length <= 3) {
-             const txt = cur.textContent?.toLowerCase() || "";
-             if (txt.includes("ago") || txt.includes("тому") || txt.includes("назад") || txt.includes("sent") || txt.includes("відправлено") || txt.includes("отправлено")) {
-                container = cur;
-                break;
-             }
-          }
-          if (links.length > 3) break;
-          cur = cur.parentElement;
-        }
+      const cardsArray = Array.from(cards) as Element[];
+      
+      for (let i = 0; i < cardsArray.length; i++) {
+        const card = cardsArray[i];
         
-        if (!container) continue;
+        // Extract name
+        const nameEl = card.querySelector('span[dir="ltr"], .invitation-card__title, span[aria-hidden="true"]');
+        const name = nameEl ? nameEl.textContent?.trim().split(' ')[0] : '';
         
-        const textSpans = Array.from(container.querySelectorAll("span")).map(s => s.textContent);
-        const link = container.querySelector("a[href*='/in/']");
-        const url = link ? link.getAttribute("href") : null;
-        
-        const sentSpan = textSpans.find(t => {
-          const l = t?.toLowerCase() || "";
-          return l.includes("ago") || l.includes("тому") || l.includes("назад");
-        });
-        
+        // Extract timestamp text
+        const textContent = card.textContent?.toLowerCase() || "";
         let ageDays = null;
-        if (sentSpan) {
-          const l = sentSpan.toLowerCase();
-          const match = l.match(/(\d+)\s*(hour|day|week|month|year|год|дн|тиж|нед|міс|мес|рік|рок|лет)/i);
-          if (match) {
-            const num = parseInt(match[1]);
+        
+        // Robust regex for numbers + timeframe units in multiple languages
+        const match = textContent.match(/(\d+)\s*(hour|day|week|month|year|год|дн|тиж|нед|міс|мес|рік|рок|лет|jour|sem|mois|an|dia|mes|año|tag|woch|mona|jahr)/i);
+        if (match) {
+            const num = parseInt(match[1], 10);
             const unit = match[2];
             
-            if (unit.startsWith("hour") || unit.startsWith("год")) ageDays = 0;
-            else if (unit.startsWith("day") || unit.startsWith("дн")) ageDays = num;
-            else if (unit.startsWith("week") || unit.startsWith("тиж") || unit.startsWith("нед")) ageDays = num * 7;
-            else if (unit.startsWith("month") || unit.startsWith("міс") || unit.startsWith("мес")) ageDays = num * 30;
-            else if (unit.startsWith("year") || unit.startsWith("рік") || unit.startsWith("рок") || unit.startsWith("лет")) ageDays = num * 365;
-          }
+            if (/hour|год/i.test(unit)) ageDays = 0;
+            else if (/day|дн|jour|dia|tag/i.test(unit)) ageDays = num;
+            else if (/week|тиж|нед|sem|woch/i.test(unit)) ageDays = num * 7;
+            else if (/month|міс|мес|mois|mes|mona/i.test(unit)) ageDays = num * 30;
+            else if (/year|рік|рок|лет|an|año|jahr/i.test(unit)) ageDays = num * 365;
         }
         
         if (ageDays !== null && ageDays >= olderThan) {
-           return { index: i, url, ageDays };
+           const url = card.querySelector('a[href*="/in/"]')?.getAttribute('href') || null;
+           return { index: i, url, ageDays, name };
         }
       }
       return null;
     }, olderThanDays);
 
-    // Print what we saw on this pass
-    
     if (targetToWithdraw) {
       const target = targetToWithdraw;
-            log(db, runId, null, "info", `Withdrawing invitation to ${target.url} (Age: ${target.ageDays} days)`);
+      log(db, runId, null, "info", `Withdrawing invitation to ${target.url} (Age: ${target.ageDays} days)`);
       
-      const withdrawBtn = page.locator("[aria-label^='Withdraw'], [aria-label^='withdraw'], [aria-label^='Відкликати'], [aria-label^='Отозвать']").nth(target.index);
+      // Select the exact card we matched
+      const cardHandle = page.locator('a[href*="/in/"]').locator('xpath=ancestor-or-self::li | ancestor-or-self::*[contains(@class, "invitation-card")] | ancestor-or-self::*[contains(@class, "discovery-entity-card")]').nth(target.index);
+      
+      // Find the actionable buttons inside the card
+      const actionBtns = cardHandle.locator('button, a[role="button"], a').filter({
+        hasNot: page.locator('img, svg, a[href*="/in/"]')
+      });
+      
+      // Language-agnostic withdraw selection: The button whose aria-label contains the target's name
+      let withdrawBtn = actionBtns.filter({ has: page.locator(`[aria-label*="${target.name}"]`) }).first();
+      
+      // Fallback: the last actionable button
+      if (await withdrawBtn.count() === 0) {
+        withdrawBtn = actionBtns.last();
+      }
       
       if (await withdrawBtn.count() > 0) {
          await withdrawBtn.scrollIntoViewIfNeeded();
@@ -90,7 +90,8 @@ export async function withdrawOldInvitations(
          await withdrawBtn.click();
          await page.waitForTimeout(Math.floor(Math.random() * 1000) + 1000);
          
-         const confirmBtn = page.locator('[role="dialog"] button, dialog button').filter({ hasText: /(Withdraw|Відкликати|Отозвать)/i }).first();
+         // The modal confirmation button is ALWAYS the primary artdeco button in the dialog
+         const confirmBtn = page.locator('[role="dialog"] button.artdeco-button--primary, dialog button.artdeco-button--primary').first();
          if (await confirmBtn.count() > 0) {
             await confirmBtn.click();
             await page.waitForTimeout(Math.floor(Math.random() * 2000) + 1500);
@@ -112,10 +113,10 @@ export async function withdrawOldInvitations(
       } else {
          console.warn(`[withdraw] ---> ERROR: Withdraw button not found on page despite DOM match!`);
       }
-    } else {
-          }
+    }
     
-    const countBefore = await page.evaluate(() => document.querySelectorAll("[aria-label^='Withdraw'], [aria-label^='withdraw'], [aria-label^='Відкликати'], [aria-label^='Отозвать']").length);
+    // Scroll state tracking
+    const cardsBefore = await page.locator('a[href*="/in/"]').count();
     
     await page.evaluate(() => {
       const workspace = document.getElementById("workspace");
@@ -123,12 +124,11 @@ export async function withdrawOldInvitations(
       else window.scrollTo(0, document.body.scrollHeight);
     });
     
-    await page.waitForTimeout(2000);
-    const countAfter = await page.evaluate(() => document.querySelectorAll("[aria-label^='Withdraw'], [aria-label^='withdraw'], [aria-label^='Відкликати'], [aria-label^='Отозвать']").length);
+    await page.waitForTimeout(2500);
+    const cardsAfter = await page.locator('a[href*="/in/"]').count();
     
-        
-    if (countAfter === countBefore) {
-              break;
+    if (cardsAfter === cardsBefore) {
+      break;
     }
     
     scrollAttempts++;
