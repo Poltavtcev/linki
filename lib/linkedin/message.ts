@@ -110,7 +110,11 @@ async function sendFromComposeBox(page: Page, text: string): Promise<void> {
   await msgInput.waitFor({ timeout: 8000 });
   await msgInput.click();
   // Type text directly (simulates real keystrokes, triggering React onChange events)
-  await msgInput.pressSequentially(text, { delay: 10 });
+  // Type text with human-like realistic delays (average ~65ms per key)
+  for (const char of text) {
+    await msgInput.pressSequentially(char, { delay: 15 + Math.random() * 40 });
+    await page.waitForTimeout(30 + Math.random() * 50);
+  }
   await page.waitForTimeout(500);
 
   // Send
