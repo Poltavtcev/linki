@@ -1,5 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
+
 function checkAuth(req: NextApiRequest) {
   const secret = process.env.INTERNAL_API_SECRET;
   if (!secret) return false;
