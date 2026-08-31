@@ -17,9 +17,14 @@ export async function executeIntegrationStep(
     return;
   }
 
-  let config;
+  let config = { action_type: "enrich_email", provider_chain: [] as string[] };
   try {
-    config = JSON.parse(step.config);
+    if (step.config && step.config !== "null") {
+      const parsed = JSON.parse(step.config);
+      if (parsed && typeof parsed === "object") {
+        config = parsed;
+      }
+    }
   } catch (e) {
     log(db, runId, target.id, "error", `Failed to parse integration config: ${(e as Error).message}`);
     trAdvance(db, tr, steps);
@@ -46,6 +51,7 @@ export async function executeIntegrationStep(
         let email: string | null = null;
         
         if (provider === "apollo") {
+          if (!target.linkedin_url) continue;
           const res = await matchPerson(target.linkedin_url, apiKey);
           if (res?.email) email = res.email;
         } else if (provider === "prospeo") {
