@@ -16,6 +16,7 @@ interface DashboardStats {
     total_workflows: number;
     emails_sent: number;
     email_replies: number;
+    profiles_visited: number;
   };
   today: {
     visits_today: number;
@@ -650,7 +651,7 @@ export default function Dashboard() {
           <div className="grid grid-cols-5 gap-3">
             <KpiCard
               label="Profiles visited"
-              value={totals.connections_requested}
+              value={totals.profiles_visited ?? 0}
               color="#5aa2ff"
               icon={<FiEye size={13} />}
             />

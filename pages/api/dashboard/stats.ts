@@ -42,7 +42,8 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
           (SELECT COUNT(*) FROM lists) AS total_lists,
           (SELECT COUNT(*) FROM workflows) AS total_workflows,
           (SELECT COUNT(*) FROM logs WHERE message LIKE 'Email sent%') AS emails_sent,
-          (SELECT COUNT(*) FROM targets WHERE ${ACTIVE} AND email_replied_at IS NOT NULL) AS email_replies
+          (SELECT COUNT(*) FROM targets WHERE ${ACTIVE} AND email_replied_at IS NOT NULL) AS email_replies,
+          (SELECT COUNT(*) FROM logs WHERE message LIKE 'Visited %') AS profiles_visited
       `).get() as Record<string, number>;
 
       const activity = db.prepare(`
@@ -118,7 +119,10 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
           JOIN targets t ON t.id = l.target_id
           WHERE l.run_id IN (${runsSubquery})
             AND l.message LIKE 'Email sent%'
-            AND t.email_replied_at IS NOT NULL) AS email_replies
+            AND t.email_replied_at IS NOT NULL) AS email_replies,
+        (SELECT COUNT(DISTINCT target_id) FROM logs
+          WHERE run_id IN (${runsSubquery})
+            AND message LIKE 'Visited %') AS profiles_visited
     `).get(
       runsArg,  // SCOPED_TARGETS
       runsArg,  // connections_requested
@@ -128,6 +132,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
       runsArg,  // replies_received
       runsArg,  // emails_sent
       runsArg,  // email_replies
+      runsArg,  // profiles_visited
     ) as Record<string, number>;
 
     const activity = db.prepare(`
