@@ -17,7 +17,7 @@ export async function executeIntegrationStep(
     return;
   }
 
-  let config = { action_type: "enrich_email", provider_chain: [] as string[] };
+  let config = { action_type: "enrich_email", provider_chain: ["prospeo", "apollo", "snov", "skrapp", "hunter", "lusha", "contactout"] as string[] };
   try {
     if (step.config && step.config !== "null") {
       const parsed = JSON.parse(step.config);
@@ -32,12 +32,17 @@ export async function executeIntegrationStep(
   }
 
   if (config.action_type === "enrich_email") {
-    const chain = config.provider_chain || [];
+    const chain = (config.provider_chain && config.provider_chain.length > 0) ? config.provider_chain : ["prospeo", "apollo", "snov", "skrapp", "hunter", "lusha", "contactout"];
+    log(db, runId, target.id, "info", `Starting Enrichment Waterfall: ${chain.join(" -> ")}`);
     let foundEmail = false;
 
     for (const provider of chain) {
+      log(db, runId, target.id, "info", `Checking provider: ${provider}...`);
       const row = db.prepare("SELECT api_key, quota_resets_at FROM integrations WHERE key = ? AND is_active = 1").get(provider) as { api_key: string, quota_resets_at: string | null } | undefined;
-      if (!row || !row.api_key) continue;
+      if (!row || !row.api_key) {
+        log(db, runId, target.id, "warn", `Skipping ${provider} - API key is missing or inactive`);
+        continue;
+      }
       
       if (row.quota_resets_at && new Date(row.quota_resets_at).getTime() > Date.now()) {
         log(db, runId, target.id, "info", `Skipping ${provider} due to exhausted quota`);
@@ -173,6 +178,8 @@ export async function executeIntegrationStep(
           foundEmail = true;
           break; // break the waterfall loop
         }
+        
+        log(db, runId, target.id, "info", `Provider ${provider} did not find an email`);
       } catch (err: any) {
         log(db, runId, target.id, "warn", `${provider} enrichment failed: ${err.message}`);
         if (err.response?.status === 402 || err.response?.status === 429) {
@@ -182,8 +189,9 @@ export async function executeIntegrationStep(
         }
       }
     }
-    
+    if (!foundEmail) log(db, runId, target.id, "warn", `Enrichment Waterfall finished. No email found across all ${chain.length} providers.`);
   } else if (config.action_type === "push_to_hubspot") {
+    log(db, runId, target.id, "info", `Starting push to HubSpot...`);
     const row = db.prepare("SELECT api_key FROM integrations WHERE key = 'hubspot' AND is_active = 1").get() as { api_key: string } | undefined;
     if (row && row.api_key) {
       const apiKey = decryptSecret(row.api_key);
@@ -210,7 +218,7 @@ export async function executeIntegrationStep(
           const data = await resObj.json();
           throw { response: { status: resObj.status, data } };
         }
-        log(db, runId, target.id, "info", `Successfully pushed to HubSpot`);
+        log(db, runId, target.id, "info", `Successfully pushed ${target.first_name || ""} ${target.last_name || ""} to HubSpot CRM`);
       } catch (err: any) {
         if (err.response?.data?.message?.includes("already exists")) {
           log(db, runId, target.id, "info", `Contact already exists in HubSpot`);
