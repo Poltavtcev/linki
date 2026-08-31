@@ -2013,7 +2013,10 @@ function Wizard({
                                 {ws.type === "integration" && (() => {
                   let parsedConfig = { action_type: "enrich_email", provider_chain: ["prospeo", "apollo", "snov", "skrapp", "hunter", "lusha", "contactout"] };
                   try {
-                    if (ws.config) parsedConfig = JSON.parse(ws.config);
+                    if (ws.config && ws.config !== "null") {
+                      const p = JSON.parse(ws.config);
+                      if (p && typeof p === "object") parsedConfig = p;
+                    }
                   } catch (e) {}
                   
                   return (
