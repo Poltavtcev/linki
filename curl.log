@@ -1,26 +1,0 @@
-* Host localhost:3000 was resolved.
-* IPv6: ::1
-* IPv4: 127.0.0.1
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0*   Trying [::1]:3000...
-* Connected to localhost (::1) port 3000
-> GET /api/mcp HTTP/1.1
-> Host: localhost:3000
-> User-Agent: curl/8.7.1
-> Accept: */*
-> Authorization: Bearer d1c0b9a8f7e6d5c4b3a2f1e6d7c9b8a1
-> 
-* Request completely sent off
-< HTTP/1.1 200 OK
-< Content-Type: text/event-stream
-< Cache-Control: no-cache, no-transform
-< Connection: keep-alive
-< Date: Mon, 31 Aug 2026 10:46:52 GMT
-< Transfer-Encoding: chunked
-< 
-{ [93 bytes data]
-event: endpoint
-data: /api/mcp/message?sessionId=661ecb33-4f26-4e52-802c-4fb56532491f
-
-100    87    0    87    0     0    425      0 --:--:-- --:--:-- --:--:--   424100    87    0    87    0     0     71      0 --:--:--  0:00:01 --:--:--    71100    87    0    87    0     0     39      0 --:--:--  0:00:02 --:--:--    39
