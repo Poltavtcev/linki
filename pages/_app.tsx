@@ -35,14 +35,14 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
 function ToasterWithTheme() {
   const { resolvedTheme } = useTheme();
-  return <Toaster theme={resolvedTheme === "notion-light" ? "light" : "dark"} position="bottom-right" />;
+  return <Toaster theme={resolvedTheme === "light" ? "light" : "dark"} position="bottom-right" />;
 }
 
 export default function App({ Component, pageProps: { session, ...pageProps } }: AppProps) {
   return (
     <SessionProvider session={session}>
       <AuthGuard>
-        <ThemeProvider attribute="data-theme" defaultTheme="system" enableSystem themes={['notion', 'notion-light']} value={{ dark: 'notion', light: 'notion-light' }}>
+        <ThemeProvider attribute="data-theme" defaultTheme="system" enableSystem value={{ dark: 'notion', light: 'notion-light' }}>
           <Layout>
           <Component {...pageProps} />
           <ToasterWithTheme />

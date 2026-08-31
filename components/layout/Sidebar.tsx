@@ -272,10 +272,10 @@ export default function Sidebar({ onCollapse }: { onCollapse?: (collapsed: boole
         {/* Settings + signout labels */}
         <div className="pb-3 border-t border-base-300/40 pt-3 flex flex-col gap-0.5 px-2">
           <button
-            onClick={() => setTheme(resolvedTheme === "notion-light" ? "notion" : "notion-light")}
+            onClick={() => setTheme(resolvedTheme === "light" ? "dark" : "light")}
             className="flex items-center gap-2.5 px-3 h-9 rounded-lg text-sm text-base-content/50 hover:text-base-content/80 hover:bg-base-300/40 transition-colors w-full text-left"
           >
-            {resolvedTheme === "notion-light" ? (
+            {resolvedTheme === "light" ? (
               <>
                 <RiMoonLine size={14} />
                 <span>Dark Mode</span>
