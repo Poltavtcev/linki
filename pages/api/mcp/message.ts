@@ -1,4 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+import type { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+
+declare global {
+  var mcpTransports: Map<string, SSEServerTransport> | undefined;
+}
 
 export const config = {
   api: {
@@ -15,18 +20,11 @@ function checkAuth(req: NextApiRequest) {
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "POST") {
-    return res.status(405).end("Method Not Allowed");
-  }
-
-  if (!checkAuth(req)) {
-    return res.status(401).end("Unauthorized");
-  }
+  if (req.method !== "POST") return res.status(405).end("Method Not Allowed");
+  if (!checkAuth(req)) return res.status(401).end("Unauthorized");
 
   const sessionId = req.query.sessionId as string;
-  if (!sessionId) {
-    return res.status(400).end("Missing sessionId");
-  }
+  if (!sessionId) return res.status(400).end("Missing sessionId");
 
   const transport = globalThis.mcpTransports?.get(sessionId);
   if (!transport) {
@@ -37,8 +35,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     await transport.handlePostMessage(req, res);
   } catch (error) {
     console.error("MCP handlePostMessage error:", error);
-    if (!res.headersSent) {
-      res.status(500).end("Internal Server Error");
-    }
+    if (!res.headersSent) res.status(500).end("Internal Server Error");
   }
 }

@@ -1,9 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { createMcpServer } from "@/lib/mcp/server";
-import { randomUUID } from "crypto";
 
-// Extend global to persist transports across HMR
 declare global {
   var mcpTransports: Map<string, SSEServerTransport> | undefined;
 }
@@ -21,24 +19,21 @@ function checkAuth(req: NextApiRequest) {
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "GET") {
-    return res.status(405).end("Method Not Allowed");
-  }
+  if (req.method !== "GET") return res.status(405).end("Method Not Allowed");
+  if (!checkAuth(req)) return res.status(401).end("Unauthorized");
 
-  if (!checkAuth(req)) {
-    return res.status(401).end("Unauthorized");
-  }
+  const transport = new SSEServerTransport("/api/mcp/message", res);
+  const sessionId = transport.sessionId;
 
-  const sessionId = randomUUID();
-  const transport = new SSEServerTransport("/api/mcp/message?sessionId=" + sessionId, res);
   globalThis.mcpTransports!.set(sessionId, transport);
 
   const server = createMcpServer();
   await server.connect(transport);
 
-  // Clean up on disconnect
   res.on("close", () => {
     globalThis.mcpTransports!.delete(sessionId);
     server.close();
   });
+
+  await new Promise(() => {});
 }
