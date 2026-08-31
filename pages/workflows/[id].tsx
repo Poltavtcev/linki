@@ -9,7 +9,7 @@ import { OrModel } from "@/components/ui/ModelPicker";
 import FilterBar, { ActiveFilter, filtersToParams, FILTER_FIELDS } from "@/components/ui/FilterBar";
 import {
   RiArrowLeftLine,
-  RiAddLine,
+  RiAddLine, RiPlugLine,
   RiDeleteBinLine,
   RiPlayLine,
   RiPauseLine,
@@ -736,12 +736,12 @@ function Wizard({
 
   const hasConnect = wizardSteps.some((s) => s.type === "connect");
 
-  async function addWizardStep(type: "visit" | "connect" | "message" | "sales_inmail" | "email") {
+  async function addWizardStep(type: "visit" | "connect" | "message" | "sales_inmail" | "email" | "integration") {
     const track: Track = type === "email" ? "email" : "linkedin";
     setWizardSteps((prev) => {
       const trackSteps = prev.filter((s) => s.track === track);
       const isFirstInTrack = trackSteps.length === 0;
-      const newStep: WizardStep = { track, type, delayDaysBefore: isFirstInTrack ? 0 : 1, connectNote: "", messageBody: "", templateId: null, templateIds: [], emailSubject: "", emailBody: "", emailSignature: null, aiEnabled: false, aiModel: "", aiPrompt: "", aiMaxWordsEnabled: false, aiMaxWords: 100, aiLanguage: "English" };
+      const newStep: WizardStep = { track, type, delayDaysBefore: isFirstInTrack ? 0 : 1, connectNote: "", messageBody: "", templateId: null, templateIds: [], emailSubject: "", emailBody: "", emailSignature: null, aiEnabled: false, aiModel: "", aiPrompt: "", aiMaxWordsEnabled: false, aiMaxWords: 100, aiLanguage: "English", config: null };
 
       if (type === "connect") {
         // Insert before the first linkedin message step
@@ -1380,6 +1380,7 @@ function Wizard({
                             );
                           })
                         : (
+                            <>
                             <button onClick={() => addWizardStep("email")}
                               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors text-xs border-warning/20 bg-warning/5 hover:bg-warning/10 text-warning/70 hover:text-warning">
                               <RiAddLine size={11} /> {trackSteps.length === 0 ? "Cold Email" : `Follow-up #${trackSteps.length + 1}`}
@@ -1388,6 +1389,7 @@ function Wizard({
                               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors text-xs border-accent/20 bg-accent/5 hover:bg-accent/10 text-accent/70 hover:text-accent">
                               <RiAddLine size={11} /> Integration
                             </button>
+                            </>
                           )}
                     </div>
                   </div>
