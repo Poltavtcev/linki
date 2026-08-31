@@ -314,7 +314,7 @@ type WizardPage = "prospects" | "prompt" | "linkedin-steps" | "email-steps" | "a
 
 interface WizardStep {
   track: Track;
-  type: "visit" | "connect" | "message" | "sales_inmail" | "email";
+  type: "visit" | "connect" | "message" | "sales_inmail" | "email" | "integration";
   delayDaysBefore: number; // delay before this step (0 for first step within its track)
   connectNote: string;
   messageBody: string;
@@ -330,6 +330,7 @@ interface WizardStep {
   aiMaxWordsEnabled: boolean;
   aiMaxWords: number;
   aiLanguage: string;
+  config: string | null; // For JSON config of integration step
 }
 
 function buildWizardSteps(steps: Step[]): WizardStep[] {
@@ -344,7 +345,7 @@ function buildWizardSteps(steps: Step[]): WizardStep[] {
       const raw = s as unknown as Record<string, unknown>;
       result.push({
         track,
-        type: s.step_type as "visit" | "connect" | "message" | "sales_inmail" | "email",
+        type: s.step_type as "visit" | "connect" | "message" | "sales_inmail" | "email" | "integration",
         delayDaysBefore: pendingDelay[track] ?? 0,
         connectNote: s.connect_note ?? "",
         messageBody: s.message_body ?? "",
@@ -353,12 +354,13 @@ function buildWizardSteps(steps: Step[]): WizardStep[] {
         emailSubject: s.email_subject ?? "",
         emailBody: s.email_body ?? "",
         emailSignature: raw.email_signature != null ? (raw.email_signature as string) : null,
-        aiEnabled: !!raw.ai_enabled,
-        aiModel: (raw.ai_model as string) ?? "",
-        aiPrompt: (raw.ai_prompt as string) ?? "",
-        aiMaxWordsEnabled: !!(raw.ai_max_words),
-        aiMaxWords: (raw.ai_max_words as number) ?? 100,
-        aiLanguage: (raw.ai_language as string) ?? "English",
+        aiEnabled: raw.ai_enabled === 1,
+        aiModel: raw.ai_model != null ? String(raw.ai_model) : "gpt-4o",
+        aiPrompt: raw.ai_prompt != null ? String(raw.ai_prompt) : "",
+        aiMaxWordsEnabled: raw.ai_max_words != null,
+        aiMaxWords: raw.ai_max_words != null ? Number(raw.ai_max_words) : 100,
+        aiLanguage: raw.ai_language != null ? String(raw.ai_language) : "English",
+        config: raw.config != null ? String(raw.config) : null,
       });
       pendingDelay[track] = 0;
     }
@@ -829,6 +831,7 @@ function Wizard({
           ai_prompt: hasAI ? (ws.aiPrompt || null) : null,
           ai_max_words: hasAI && ws.aiEnabled && ws.aiMaxWordsEnabled ? ws.aiMaxWords : null,
           ai_language: hasAI ? (ws.aiLanguage || "English") : null,
+          config: ws.type === "integration" ? ws.config : null,
         }),
       });
       if (isEmail) emailPosition++;
@@ -1991,6 +1994,30 @@ function Wizard({
                         </div>
                       </div>
                     )}
+                  </div>
+                )}
+
+                                {ws.type === "integration" && (
+                  <div className="space-y-4">
+                    <div className="bg-base-300/40 border border-base-300/50 rounded-xl p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <RiPlugLine size={16} className="text-accent" />
+                        <h4 className="text-sm font-medium">Enrichment Waterfall</h4>
+                      </div>
+                      <p className="text-xs text-base-content/50 mb-4 leading-relaxed">
+                        Define the priority of API providers. The system will try them in order. If one runs out of credits or fails to find an email, it falls back to the next.
+                      </p>
+                      <textarea
+                        className="textarea textarea-bordered w-full text-xs font-mono bg-base-100"
+                        rows={6}
+                        placeholder={'{\n  "action_type": "enrich_email",\n  "provider_chain": ["prospeo", "apollo", "snov", "skrapp", "hunter", "lusha", "contactout"]\n}'}
+                        value={ws.config || ""}
+                        onChange={(e) => updateStep(idx, { config: e.target.value })}
+                      />
+                      <p className="text-[10px] text-base-content/40 mt-2">
+                        * A drag-and-drop UI is coming in the next iteration. For now, specify the JSON config directly.
+                      </p>
+                    </div>
                   </div>
                 )}
 
