@@ -1347,15 +1347,19 @@ function Wizard({
                     <div className="flex items-center gap-2 mb-1">
                       {track === "linkedin" ? (
                         <RiLinkedinBoxLine size={20} className="text-primary" />
-                      ) : (
+                      ) : track === "email" ? (
                         <RiMailLine size={20} className="text-warning" />
+                      ) : (
+                        <RiPlugLine size={20} className="text-accent" />
                       )}
-                      <h2 className="text-xl font-semibold">{track === "linkedin" ? "LinkedIn steps" : "Email steps"}</h2>
+                      <h2 className="text-xl font-semibold">{track === "linkedin" ? "LinkedIn steps" : track === "email" ? "Email steps" : "Integration steps"}</h2>
                     </div>
                     <p className="text-base-content/50 text-sm mb-6">
                       {track === "linkedin"
                         ? "Profile visit, connection request, and follow-up message steps. Run in sequence."
-                        : "Cold email and follow-ups. Run in sequence, independently of the LinkedIn track."}
+                        : track === "email"
+                        ? "Cold email and follow-ups. Run in sequence, independently of the LinkedIn track."
+                        : "Third-party APIs and webhooks. These run independently and can push data to CRMs or enrich leads."}
                       {otherCount > 0 && (
                         <span className="text-base-content/35"> · Both tracks execute in parallel.</span>
                       )}
@@ -1364,7 +1368,7 @@ function Wizard({
                     <div className="space-y-0 mb-5">
                       {trackSteps.length === 0 ? (
                         <div className="text-center py-10 border border-dashed border-base-300/60 rounded-xl text-base-content/30 text-sm">
-                          {track === "linkedin" ? "No LinkedIn steps yet. Add your first step below." : "No email steps yet. Add your first step below."}
+                          {track === "linkedin" ? "No LinkedIn steps yet. Add your first step below." : track === "email" ? "No email steps yet. Add your first step below." : "No integration steps yet. Add your first step below."}
                         </div>
                       ) : (
                         trackSteps.map(({ ws, idx }, pos) => <StepCard key={idx} ws={ws} idx={idx} isFirst={pos === 0} />)
@@ -1593,7 +1597,8 @@ function Wizard({
                     {(() => {
                       const summaryLiSteps = wizardSteps.map((ws, i) => ({ ws, i })).filter(({ ws }) => ws.track === "linkedin");
                       const summaryEmSteps = wizardSteps.map((ws, i) => ({ ws, i })).filter(({ ws }) => ws.track === "email");
-                      const isDualSummary = summaryLiSteps.length > 0 && summaryEmSteps.length > 0;
+                      const summaryInSteps = wizardSteps.map((ws, i) => ({ ws, i })).filter(({ ws }) => ws.track === "integration");
+                      const isDualSummary = [summaryLiSteps, summaryEmSteps, summaryInSteps].filter(s => s.length > 0).length > 1;
 
                       function SummaryTrack({ steps, trackLabel, trackColor }: { steps: { ws: WizardStep; i: number }[]; trackLabel: string; trackColor: string }) {
                         return (
