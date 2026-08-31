@@ -1,6 +1,7 @@
 import { LinkedInNetworkObserver } from "./inbox-observer";
 import { syncLinkedInInboxReadOnly } from "./inbox-sync";
 import { getDb } from "@/lib/db";
+import { executeIntegrationStep } from "@/lib/integrations/runner";
 import { randomUUID } from "crypto";
 import { getSessionPage, saveSessionState, getSessionContext } from "@/lib/linkedin/session";
 import { isBreakerTripped, recordSuccess, recordFailure } from "./circuit-breaker";
@@ -130,7 +131,7 @@ interface WorkflowStep {
   id: string;
   step_order: number;
   track: "linkedin" | "email";
-  step_type: "visit" | "connect" | "message" | "sales_inmail" | "delay" | "email";
+  step_type: "visit" | "connect" | "message" | "sales_inmail" | "delay" | "email" | "integration";
   template_id: string | null;
   delay_seconds: number;
   connect_note: string | null;
@@ -145,6 +146,7 @@ interface WorkflowStep {
   email_position: number | null;
   message_position: number | null;
   email_signature: string | null;
+  config: string | null;
 }
 
 // A track-run row joined with its parent run_profile and run context
@@ -221,7 +223,7 @@ function hoursSince(isoStr: string) { return (Date.now() - new Date(isoStr).getT
 // ─── TrackRun verb layer ─────────────────────────────────────────────────────
 // These are the only functions that write to run_profile_tracks rows.
 
-function trAdvance(db: ReturnType<typeof getDb>, tr: TrackRun, steps: WorkflowStep[]) {
+export function trAdvance(db: ReturnType<typeof getDb>, tr: TrackRun, steps: WorkflowStep[]) {
   const nextIndex = tr.current_step + 1;
   if (nextIndex >= steps.length) {
     db.prepare(
@@ -911,6 +913,8 @@ async function executeStep(
       trRecordContext(db, tr, { emailSubject, emailBody, emailMessageId: messageId });
       trAdvance(db, tr, steps);
       log(db, runId, target.id, "info", `Email sent to ${name}`);
+    } else if (step.step_type === "integration") {
+      await executeIntegrationStep(db, runId, tr, target, step, steps);
     }
 
   } catch (err) {
