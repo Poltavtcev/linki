@@ -1,9 +1,10 @@
 import Head from "next/head";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { GetServerSideProps } from "next";
 import { getDb } from "@/lib/db";
 import {
-  RiArrowLeftLine, RiExternalLinkLine, RiGlobalLine,
+  RiArrowLeftLine, RiAddLine, RiSearchLine, RiExternalLinkLine, RiGlobalLine,
   RiMapPinLine, RiBuildingLine, RiLinkedinBoxLine, RiUserLine,
   RiMailLine, RiPhoneLine, RiMoneyDollarCircleLine, RiCalendarLine,
   RiGroupLine, RiCodeBoxLine, RiPriceTagLine, RiErrorWarningLine,
@@ -71,7 +72,75 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-export default function CompanyDetailPage({ company }: { company: Company }) {
+export default function CompanyDetailPage({ company: initialCompany }: { company: Company }) {
+  const [company, setCompany] = useState(initialCompany);
+  const [showAddContact, setShowAddContact] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+
+  useEffect(() => {
+    if (!showAddContact) {
+      setSearchQuery("");
+      setSearchResults([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      if (searchQuery.trim().length < 2) {
+        setSearchResults([]);
+        return;
+      }
+      setSearchLoading(true);
+      try {
+        const res = await fetch(`/api/targets?search=${encodeURIComponent(searchQuery)}&limit=10`);
+        const data = await res.json();
+        setSearchResults(data.contacts || []);
+      } catch(e) {
+        console.error(e);
+      } finally {
+        setSearchLoading(false);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery, showAddContact]);
+
+  async function linkContact(targetId: string) {
+    try {
+      const res = await fetch(`/api/targets/${targetId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ company_id: company.id }),
+      });
+      if (res.ok) {
+        // We do not have toast imported, let's just console.log or use standard alert if toast fails, 
+        // wait, we can just fetch fresh company and we'll see it updated.
+        setShowAddContact(false);
+        const fresh = await fetch(`/api/companies/${company.id}`).then(r => r.json());
+        setCompany(fresh);
+      } else {
+        alert("Failed to link contact");
+      }
+    } catch (e) {
+      alert("Error linking contact");
+    }
+  }
+
+  async function unlinkContact(targetId: string) {
+    if (!confirm("Remove contact from this company?")) return;
+    try {
+      const res = await fetch(`/api/targets/${targetId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ company_id: null }),
+      });
+      if (res.ok) {
+        const fresh = await fetch(`/api/companies/${company.id}`).then(r => r.json());
+        setCompany(fresh);
+      }
+    } catch(e) {
+      alert("Error unlinking");
+    }
+  }
   return (
     <>
       <Head>
@@ -238,9 +307,18 @@ export default function CompanyDetailPage({ company }: { company: Company }) {
 
         {/* Contacts */}
         <div className="bg-base-200 border border-base-300/50 rounded-xl p-5">
-          <p className="text-[11px] text-base-content/40 uppercase tracking-wide mb-3">
-            Contacts ({company.contacts.length})
-          </p>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[11px] text-base-content/40 uppercase tracking-wide">
+              Contacts ({company.contacts.length})
+            </p>
+            <button
+              onClick={() => setShowAddContact(true)}
+              className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs text-base-content/50 hover:bg-base-300 hover:text-base-content transition-colors"
+            >
+              <RiAddLine size={12} />
+              Add Contact
+            </button>
+          </div>
           {company.contacts.length === 0 ? (
             <p className="text-sm text-base-content/30">No contacts linked to this company.</p>
           ) : (
@@ -278,6 +356,9 @@ export default function CompanyDetailPage({ company }: { company: Company }) {
                         <RiExternalLinkLine size={13} />
                       </a>
                     )}
+                    <button onClick={() => unlinkContact(c.id)} className="text-base-content/20 hover:text-error transition-colors ml-1" title="Unlink contact">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                    </button>
                   </div>
                 </div>
               ))}
