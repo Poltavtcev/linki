@@ -86,7 +86,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         from: "You (LinkedIn)",
         to: "Target",
         subject: "LinkedIn Message (Manual)",
-        date: new Date(q.created_at).toISOString(),
+        date: new Date(q.created_at + 'Z').toISOString(),
         text: q.body + (q.status === 'pending' || q.status === 'processing' ? ' [⏳ Queued]' : (q.status === 'failed' ? ' [❌ Failed]' : '')),
         html: null,
         messageId: q.id,
