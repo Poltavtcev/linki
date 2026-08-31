@@ -162,7 +162,37 @@ function ReplyModal({ reply, onClose, onActionDone, hasPremium }: ReplyModalProp
   }, [messages]);
 
   async function handleSend() {
-    if (!replyText.trim() || !reply.email || !reply.email_account_id) return;
+    if (!replyText.trim()) return;
+
+    if (reply.channel === "linkedin" || reply.channel === "both") {
+      if (reply.account_id && reply.linkedin_thread_id) {
+        setSending(true);
+        try {
+          const r = await fetch("/api/inbox/reply-linkedin", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              accountId: reply.account_id,
+              targetId: reply.id,
+              threadId: reply.linkedin_thread_id,
+              body: replyText,
+            }),
+          });
+          const d = await r.json();
+          if (!r.ok) throw new Error(d.error ?? "Send failed");
+          toast.success("LinkedIn reply queued");
+          setReplyText("");
+          onClose();
+        } catch (err: any) {
+          toast.error(err.message ?? "Failed to queue reply");
+        } finally {
+          setSending(false);
+        }
+        return;
+      }
+    }
+
+    if (!reply.email || !reply.email_account_id) return;
     setSending(true);
     try {
       const r = await fetch("/api/inbox/reply", {
@@ -310,13 +340,15 @@ function ReplyModal({ reply, onClose, onActionDone, hasPremium }: ReplyModalProp
         {/* Reply composer */}
         {canReply && (
           <div className="border-t border-base-300/50 px-5 py-4 space-y-2.5">
-            <input
-              type="text"
-              value={replySubject}
-              onChange={(e) => setReplySubject(e.target.value)}
-              placeholder="Subject"
-              className="w-full bg-base-200 border border-base-300/50 rounded-lg px-3 py-1.5 text-sm text-base-content placeholder:text-base-content/30 focus:outline-none focus:border-primary/40"
-            />
+            {(reply.channel !== "linkedin" && reply.channel !== "both") && (
+              <input
+                type="text"
+                value={replySubject}
+                onChange={(e) => setReplySubject(e.target.value)}
+                placeholder="Subject"
+                className="w-full bg-base-200 border border-base-300/50 rounded-lg px-3 py-1.5 text-sm text-base-content placeholder:text-base-content/30 focus:outline-none focus:border-primary/40"
+              />
+            )}
             <textarea
               value={replyText}
               onChange={(e) => setReplyText(e.target.value)}
