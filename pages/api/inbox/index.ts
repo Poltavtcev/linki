@@ -14,6 +14,8 @@ export interface InboxReply {
   last_replied_at: string | null;
   // run context
   run_id: string | null;
+  account_id: string | null;
+  linkedin_thread_id: string | null;
   workflow_id: string | null;
   workflow_name: string | null;
   // email account context
@@ -70,6 +72,8 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
         COALESCE(er.received_at, '')
       ) AS replied_at,
       r.id AS run_id,
+      r.account_id,
+      er.in_reply_to AS linkedin_thread_id,
       r.workflow_id,
       w.name AS workflow_name,
       ea.id AS email_account_id,

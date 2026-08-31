@@ -123,3 +123,10 @@ async function sendFromComposeBox(page: Page, text: string): Promise<void> {
   await sendBtn.click({ delay: 100 });
   await page.waitForTimeout(2000);
 }
+
+export async function replyToThread(page: import("playwright").Page, threadId: string, text: string): Promise<void> {
+  const url = `https://www.linkedin.com/messaging/thread/${threadId}`;
+  await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
+  await page.waitForTimeout(5000);
+  await sendFromComposeBox(page, text);
+}

@@ -186,7 +186,7 @@ function ReplyModal({ reply, onClose, onActionDone, hasPremium }: ReplyModalProp
     }
   }
 
-  const canReply = !!reply.email && !!reply.email_account_id;
+  const canReply = (reply.channel === "linkedin" && !!reply.account_id && !!reply.linkedin_thread_id) || (!!reply.email && !!reply.email_account_id);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">

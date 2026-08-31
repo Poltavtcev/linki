@@ -305,6 +305,18 @@ function runMigrations(db: Database.Database) {
   } catch (e) { console.error("Migration error (cascade):", e); }
   // Add columns introduced after initial schema — safe to run on existing DBs
   const migrations = [
+    `CREATE TABLE IF NOT EXISTS linkedin_reply_queue (
+      id TEXT PRIMARY KEY,
+      account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+      target_id TEXT NOT NULL REFERENCES targets(id) ON DELETE CASCADE,
+      thread_id TEXT NOT NULL,
+      body TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'processing', 'completed', 'failed')),
+      error_message TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      completed_at TEXT
+    )`,
+
     // Automatic withdrawal of old pending invites
     "ALTER TABLE accounts ADD COLUMN withdraw_invites_after_days INTEGER DEFAULT 14",
     "ALTER TABLE targets ADD COLUMN degree INTEGER",

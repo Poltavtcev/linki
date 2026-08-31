@@ -975,6 +975,11 @@ async function globalLoop(): Promise<void> {
   const actionLoop = async () => {
     while (true) {
       try {
+        await tickManualReplies(db);
+      } catch (err) {
+        console.error("[runner] Manual replies error", err);
+      }
+      try {
         await tickActions(db);
       } catch (err) {
         recordFailure('message', (err as Error).message);
@@ -1470,4 +1475,24 @@ export function startRun(runId: string): void {
   const db = getDb();
   db.prepare("UPDATE runs SET status = 'running', started_at = COALESCE(started_at, datetime('now')) WHERE id = ?").run(runId);
   console.log(`[runner] Run ${runId} marked running — global loop will pick it up`);
+}
+
+export async function tickManualReplies(db: ReturnType<typeof import("@/lib/db").getDb>): Promise<void> {
+  const pending = db.prepare("SELECT * FROM linkedin_reply_queue WHERE status = 'pending'").all() as Array<{ id: string, account_id: string, thread_id: string, body: string }>;
+  for (const row of pending) {
+    db.prepare("UPDATE linkedin_reply_queue SET status = 'processing' WHERE id = ?").run(row.id);
+    try {
+      const { replyToThread } = await import("./message");
+      const page = await getSessionPage(row.account_id);
+      try {
+        await replyToThread(page, row.thread_id, row.body);
+        db.prepare("UPDATE linkedin_reply_queue SET status = 'completed', completed_at = datetime('now') WHERE id = ?").run(row.id);
+      } finally {
+        await page.close();
+      }
+    } catch (e) {
+      console.error("[runner] manual reply error", e);
+      db.prepare("UPDATE linkedin_reply_queue SET status = 'failed', error_message = ? WHERE id = ?").run(e instanceof Error ? e.message : String(e), row.id);
+    }
+  }
 }
