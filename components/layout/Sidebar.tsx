@@ -123,7 +123,7 @@ export default function Sidebar({ onCollapse }: { onCollapse?: (collapsed: boole
                 className={`flex items-center justify-center h-9 rounded-lg transition-colors ${
                   active
                     ? "text-base-content"
-                    : "text-base-content/40 hover:text-base-content/70 hover:bg-base-300/40"
+                    : "text-base-content/60 hover:text-base-content/70 hover:bg-base-300/40"
                 }`}
               >
                 <span
@@ -151,7 +151,7 @@ export default function Sidebar({ onCollapse }: { onCollapse?: (collapsed: boole
               onClick={() => setHelpOpen((v) => !v)}
               title={!hovered ? "Help" : undefined}
               className={`flex items-center justify-center h-9 rounded-lg transition-colors w-full ${
-                helpOpen ? "text-base-content bg-base-300/40" : "text-base-content/40 hover:text-base-content/70 hover:bg-base-300/40"
+                helpOpen ? "text-base-content bg-base-300/40" : "text-base-content/60 hover:text-base-content/70 hover:bg-base-300/40"
               }`}
             >
               <span className="w-6 h-6 rounded-md flex items-center justify-center">
@@ -167,7 +167,7 @@ export default function Sidebar({ onCollapse }: { onCollapse?: (collapsed: boole
                     onClick={() => { replayPageTour(tourPage); setHelpOpen(false); }}
                     className="flex items-center gap-2.5 px-3 py-2 text-sm text-base-content/70 hover:text-base-content hover:bg-base-300/40 transition-colors text-left"
                   >
-                    <RiCompassLine size={14} className="text-base-content/40 shrink-0" />
+                    <RiCompassLine size={14} className="text-base-content/60 shrink-0" />
                     Replay this page&apos;s tour
                   </button>
                 )}
@@ -178,7 +178,7 @@ export default function Sidebar({ onCollapse }: { onCollapse?: (collapsed: boole
                   onClick={() => setHelpOpen(false)}
                   className="flex items-center gap-2.5 px-3 py-2 text-sm text-base-content/70 hover:text-base-content hover:bg-base-300/40 transition-colors"
                 >
-                  <RiPlayCircleLine size={14} className="text-base-content/40 shrink-0" />
+                  <RiPlayCircleLine size={14} className="text-base-content/60 shrink-0" />
                   Learning resources
                 </a>
               </div>
@@ -194,7 +194,7 @@ export default function Sidebar({ onCollapse }: { onCollapse?: (collapsed: boole
                 className={`flex items-center justify-center h-9 rounded-lg transition-colors ${
                   active
                     ? "text-base-content"
-                    : "text-base-content/40 hover:text-base-content/70 hover:bg-base-300/40"
+                    : "text-base-content/60 hover:text-base-content/70 hover:bg-base-300/40"
                 }`}
               >
                 <span
@@ -209,7 +209,7 @@ export default function Sidebar({ onCollapse }: { onCollapse?: (collapsed: boole
           <button
             onClick={() => signOut({ callbackUrl: "/login" })}
             title={!hovered ? "Sign out" : undefined}
-            className="flex items-center justify-center h-9 rounded-lg text-base-content/40 hover:text-error/70 hover:bg-error/5 transition-colors"
+            className="flex items-center justify-center h-9 rounded-lg text-base-content/60 hover:text-error/70 hover:bg-error/5 transition-colors"
           >
             <span className="w-6 h-6 rounded-md flex items-center justify-center">
               <RiLogoutBoxLine size={14} />
@@ -241,7 +241,7 @@ export default function Sidebar({ onCollapse }: { onCollapse?: (collapsed: boole
                 className={`relative flex items-center gap-2.5 px-3 h-9 rounded-lg text-sm transition-colors ${
                   active
                     ? "bg-base-300 text-base-content"
-                    : "text-base-content/50 hover:text-base-content/80 hover:bg-base-300/40"
+                    : "text-base-content/70 hover:text-base-content/80 hover:bg-base-300/40"
                 }`}
               >
                 {active && (
@@ -273,7 +273,7 @@ export default function Sidebar({ onCollapse }: { onCollapse?: (collapsed: boole
         <div className="pb-3 border-t border-base-300/40 pt-3 flex flex-col gap-0.5 px-2">
           <button
             onClick={() => setTheme(resolvedTheme === "light" ? "dark" : "light")}
-            className="flex items-center gap-2.5 px-3 h-9 rounded-lg text-sm text-base-content/50 hover:text-base-content/80 hover:bg-base-300/40 transition-colors w-full text-left"
+            className="flex items-center gap-2.5 px-3 h-9 rounded-lg text-sm text-base-content/70 hover:text-base-content/80 hover:bg-base-300/40 transition-colors w-full text-left"
           >
             {resolvedTheme === "light" ? (
               <>
@@ -295,7 +295,7 @@ export default function Sidebar({ onCollapse }: { onCollapse?: (collapsed: boole
                 className={`relative flex items-center gap-2.5 px-3 h-9 rounded-lg text-sm transition-colors ${
                   active
                     ? "bg-base-300 text-base-content"
-                    : "text-base-content/50 hover:text-base-content/80 hover:bg-base-300/40"
+                    : "text-base-content/70 hover:text-base-content/80 hover:bg-base-300/40"
                 }`}
               >
                 {active && (
@@ -310,7 +310,7 @@ export default function Sidebar({ onCollapse }: { onCollapse?: (collapsed: boole
           })()}
           <button
             onClick={() => signOut({ callbackUrl: "/login" })}
-            className="flex items-center gap-2.5 px-3 h-9 rounded-lg text-sm text-base-content/50 hover:text-error/80 hover:bg-error/5 transition-colors w-full text-left"
+            className="flex items-center gap-2.5 px-3 h-9 rounded-lg text-sm text-base-content/70 hover:text-error/80 hover:bg-error/5 transition-colors w-full text-left"
           >
             Sign out
           </button>
@@ -319,13 +319,13 @@ export default function Sidebar({ onCollapse }: { onCollapse?: (collapsed: boole
         {/* Version + branding */}
         <div className="px-4 py-3 border-t border-base-300/40">
           {currentVersion && (
-            <p className="text-[10px] text-base-content/25 mb-0.5">v{currentVersion}</p>
+            <p className="text-[10px] text-base-content/60 mb-0.5">v{currentVersion}</p>
           )}
           <a
             href="https://opsily.com?utm_source=linki&utm_medium=app&utm_campaign=sidebar"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[10px] text-base-content/25 hover:text-base-content/50 transition-colors"
+            className="text-[10px] text-base-content/60 hover:text-base-content/70 transition-colors"
           >
             Built by opsily.com
           </a>

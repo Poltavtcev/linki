@@ -118,7 +118,7 @@ function KpiCard({
       <div className="tabular-nums font-semibold text-2xl text-base-content leading-none mb-1.5">
         <Counter value={value} />
       </div>
-      <div className="text-xs text-base-content/40">{label}</div>
+      <div className="text-xs text-base-content/60">{label}</div>
       {sub && <div className="text-xs mt-1" style={{ color }}>{sub}</div>}
     </div>
   );
@@ -144,7 +144,7 @@ function FunnelRow({
       >
         {icon}
       </span>
-      <span className="text-xs text-base-content/50 w-24 shrink-0">{label}</span>
+      <span className="text-xs text-base-content/70 w-24 shrink-0">{label}</span>
       <div className="flex-1 h-1 bg-base-300/30 rounded-full overflow-hidden">
         <div
           className="h-full rounded-full transition-all duration-700"
@@ -209,7 +209,7 @@ function ActivityChart({
                 style={{ opacity: activeSeries.has(s.key) ? 1 : 0.3 }}
               >
                 <span className="w-2 h-2 rounded-sm inline-block" style={{ background: s.color }} />
-                <span style={{ color: activeSeries.has(s.key) ? s.color : undefined }} className="text-base-content/35">{s.label}</span>
+                <span style={{ color: activeSeries.has(s.key) ? s.color : undefined }} className="text-base-content/70">{s.label}</span>
               </button>
             ))}
           </div>
@@ -222,7 +222,7 @@ function ActivityChart({
               className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
                 days === d
                   ? "bg-base-100 text-base-content shadow-sm"
-                  : "text-base-content/35 hover:text-base-content/60"
+                  : "text-base-content/70 hover:text-base-content/60"
               }`}
             >
               {d}d
@@ -248,7 +248,7 @@ function ActivityChart({
               <div key={d.day} className="flex flex-col items-center flex-1 group relative h-full justify-end">
                 {/* Tooltip */}
                 <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-base-300 border border-base-300 rounded-lg px-3 py-2 text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-10 shadow-xl transition-opacity">
-                  <div className="text-base-content/40 mb-1.5 font-medium">{d.day}</div>
+                  <div className="text-base-content/60 mb-1.5 font-medium">{d.day}</div>
                   {SERIES.filter(s => activeSeries.has(s.key)).map(s => (
                     <div key={s.key} className="flex items-center gap-2">
                       <span className="w-1.5 h-1.5 rounded-full" style={{ background: s.color }} />
@@ -271,7 +271,7 @@ function ActivityChart({
                   ))}
                 </div>
                 {showLabel && (
-                  <span className="text-[9px] text-base-content/20 mt-1 leading-none shrink-0">
+                  <span className="text-[9px] text-base-content/45 mt-1 leading-none shrink-0">
                     {d.day.slice(5)}
                   </span>
                 )}
@@ -349,12 +349,12 @@ function LinkedInCard({
     <div className="bg-base-200 border border-base-300/50 rounded-xl p-4">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <RiLinkedinBoxLine size={14} className="text-base-content/30" />
-          <span className="text-xs font-medium text-base-content/40 uppercase tracking-widest">LinkedIn</span>
+          <RiLinkedinBoxLine size={14} className="text-base-content/45" />
+          <span className="text-xs font-medium text-base-content/60 uppercase tracking-widest">LinkedIn</span>
         </div>
         <div className="flex items-center gap-2">
           {syncedAt && (
-            <span className="text-[10px] text-base-content/20">
+            <span className="text-[10px] text-base-content/45">
               {new Date(syncedAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
             </span>
           )}
@@ -362,7 +362,7 @@ function LinkedInCard({
             <button
               onClick={handleSync}
               disabled={syncing}
-              className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs text-base-content/40 hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-40"
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs text-base-content/60 hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-40"
             >
               <FiRefreshCw size={10} className={syncing ? "animate-spin" : ""} />
               {syncing ? "Syncing" : "Sync"}
@@ -379,11 +379,11 @@ function LinkedInCard({
               : <span className="text-xl font-semibold text-base-content/10">—</span>
             }
             <div className="flex items-center justify-between">
-              <span className="text-[10px] text-base-content/30 uppercase tracking-wide">{s.label}</span>
+              <span className="text-[10px] text-base-content/45 uppercase tracking-wide">{s.label}</span>
               {s.key === "pending" && (
                 <button
                   onClick={() => setShowWithdraw(!showWithdraw)}
-                  className="text-base-content/20 hover:text-error transition-colors opacity-0 group-hover:opacity-100"
+                  className="text-base-content/45 hover:text-error transition-colors opacity-0 group-hover:opacity-100"
                   title="Withdraw old invites"
                 >
                   <FiTrash2 size={12} />
@@ -420,7 +420,7 @@ function LinkedInCard({
       </div>
 
       {syncError && <p className="text-xs text-error mt-2">{syncError}</p>}
-      {!accountId && <p className="text-xs text-base-content/20 mt-2">No authenticated account.</p>}
+      {!accountId && <p className="text-xs text-base-content/45 mt-2">No authenticated account.</p>}
     </div>
   );
 }
@@ -438,19 +438,19 @@ function AiUsagePanel({ data, days }: { data: AgentStats["daily"]; days: number 
     <div className="bg-base-200 border border-base-300/50 rounded-xl p-4">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <RiRobot2Line size={14} className="text-base-content/30" />
-          <span className="text-xs font-medium text-base-content/40 uppercase tracking-widest">AI Usage</span>
+          <RiRobot2Line size={14} className="text-base-content/45" />
+          <span className="text-xs font-medium text-base-content/60 uppercase tracking-widest">AI Usage</span>
         </div>
         {hasData && (
           <div className="flex items-center gap-3 text-xs">
-            <span className="text-base-content/30 tabular-nums">{totalTokens.toLocaleString()} tokens</span>
+            <span className="text-base-content/45 tabular-nums">{totalTokens.toLocaleString()} tokens</span>
             <span className="font-semibold tabular-nums" style={{ color: "#a78bfa" }}>${totalCost.toFixed(4)}</span>
           </div>
         )}
       </div>
 
       {!hasData ? (
-        <p className="text-xs text-base-content/20 py-2">No AI usage in this period.</p>
+        <p className="text-xs text-base-content/45 py-2">No AI usage in this period.</p>
       ) : (
         <div className="flex items-end gap-0.5" style={{ height: 52 }}>
           {data.map((d, i) => {
@@ -459,16 +459,16 @@ function AiUsagePanel({ data, days }: { data: AgentStats["daily"]; days: number 
             return (
               <div key={d.day} className="flex flex-col items-center flex-1 group relative justify-end" style={{ height: "100%" }}>
                 <div className="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 bg-base-300 border border-base-300 rounded-lg px-2.5 py-1.5 text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-10 shadow-xl">
-                  <div className="text-base-content/40 mb-1">{d.day}</div>
+                  <div className="text-base-content/60 mb-1">{d.day}</div>
                   <div style={{ color: "#a78bfa" }}>${(d.cost_usd ?? 0).toFixed(5)}</div>
-                  <div className="text-base-content/40">{((d.input_tokens ?? 0) + (d.output_tokens ?? 0)).toLocaleString()} tok</div>
+                  <div className="text-base-content/60">{((d.input_tokens ?? 0) + (d.output_tokens ?? 0)).toLocaleString()} tok</div>
                 </div>
                 <div
                   className="w-full rounded-t-sm"
                   style={{ height, background: "#a78bfa", opacity: (d.cost_usd ?? 0) === 0 ? 0.08 : 0.65 }}
                 />
                 {showLabel && (
-                  <span className="text-[9px] text-base-content/20 mt-1 leading-none">{d.day.slice(5)}</span>
+                  <span className="text-[9px] text-base-content/45 mt-1 leading-none">{d.day.slice(5)}</span>
                 )}
               </div>
             );
@@ -494,12 +494,12 @@ function FilterBar({
   const hasFilter = listId || workflowId;
   return (
     <div className="flex items-center gap-2">
-      <RiFilterLine size={12} className="text-base-content/30 shrink-0" />
+      <RiFilterLine size={12} className="text-base-content/45 shrink-0" />
       <select
         value={listId}
         onChange={(e) => { onListChange(e.target.value); if (e.target.value) onWorkflowChange(""); }}
         className={`h-7 px-2.5 rounded-lg text-xs border bg-base-200 transition-colors focus:outline-none cursor-pointer ${
-          listId ? "border-primary/40 text-primary" : "border-base-300/50 text-base-content/50 hover:border-base-300"
+          listId ? "border-primary/40 text-primary" : "border-base-300/50 text-base-content/70 hover:border-base-300"
         }`}
       >
         <option value="">All lists</option>
@@ -509,7 +509,7 @@ function FilterBar({
         value={workflowId}
         onChange={(e) => { onWorkflowChange(e.target.value); if (e.target.value) onListChange(""); }}
         className={`h-7 px-2.5 rounded-lg text-xs border bg-base-200 transition-colors focus:outline-none cursor-pointer ${
-          workflowId ? "border-primary/40 text-primary" : "border-base-300/50 text-base-content/50 hover:border-base-300"
+          workflowId ? "border-primary/40 text-primary" : "border-base-300/50 text-base-content/70 hover:border-base-300"
         }`}
       >
         <option value="">All campaigns</option>
@@ -518,7 +518,7 @@ function FilterBar({
       {hasFilter && (
         <button
           onClick={() => { onListChange(""); onWorkflowChange(""); }}
-          className="h-7 px-2 rounded-lg text-xs text-base-content/30 hover:text-base-content/60 hover:bg-base-300/50 transition-colors"
+          className="h-7 px-2 rounded-lg text-xs text-base-content/45 hover:text-base-content/60 hover:bg-base-300/50 transition-colors"
         >
           Clear
         </button>
@@ -574,7 +574,7 @@ export default function Dashboard() {
 
   if (!stats) {
     return (
-      <div className="flex items-center gap-2 text-base-content/40 text-sm py-10">
+      <div className="flex items-center gap-2 text-base-content/60 text-sm py-10">
         <span className="loading loading-spinner loading-xs" />
         Loading…
       </div>
@@ -603,7 +603,7 @@ export default function Dashboard() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-base-content">Dashboard</h1>
-          <p className="text-base-content/40 text-sm mt-0.5">Your outreach at a glance.</p>
+          <p className="text-base-content/60 text-sm mt-0.5">Your outreach at a glance.</p>
         </div>
 
         <div className="flex items-center gap-3" data-tour="dashboard-filters">
@@ -619,7 +619,7 @@ export default function Dashboard() {
 
           {/* Today pills */}
           <div className="flex items-center gap-1.5 pl-2 border-l border-base-300/40">
-            <span className="text-xs text-base-content/25 mr-0.5">Today</span>
+            <span className="text-xs text-base-content/60 mr-0.5">Today</span>
             {[
               { label: `${today.visits_today} visits`,       color: "#5aa2ff" },
               { label: `${today.connections_today} connects`, color: "#32d583" },
@@ -729,7 +729,7 @@ export default function Dashboard() {
           {/* Funnel */}
           <div className="bg-base-200 border border-base-300/50 rounded-xl overflow-hidden" data-tour="dashboard-funnel">
             <div className="px-4 py-2.5 border-b border-base-300/30">
-              <span className="text-xs font-medium text-base-content/30 uppercase tracking-widest">Funnel</span>
+              <span className="text-xs font-medium text-base-content/45 uppercase tracking-widest">Funnel</span>
             </div>
             <div className="divide-y divide-base-300/20 py-1">
               <FunnelRow icon={<FiUsers size={11} />}        color="#808080" label="Targets"        value={totals.total_targets}       max={maxFunnelValue} />
