@@ -1116,6 +1116,22 @@ async function tickActions(db: ReturnType<typeof getDb>): Promise<void> {
     console.log(`[runner] Tick — ${activeRuns.length} active run(s)`);
   }
 
+
+  // Integration track enrollment — enroll directly without daily limits (handled per-provider)
+  for (const run of activeRuns) {
+    const pendingIntegration = db.prepare(
+      `SELECT rt.id, rt.run_profile_id, rt.track FROM run_profile_tracks rt
+       JOIN run_profiles rp ON rp.id = rt.run_profile_id
+       WHERE rp.run_id = ? AND rt.track = 'integration' AND rt.state = 'pending'
+       ORDER BY rt.id LIMIT 20`
+    ).all(run.run_id) as Array<{ id: string; run_profile_id: string; track: string }>;
+    
+    for (const row of pendingIntegration) {
+      db.prepare(
+        "UPDATE run_profile_tracks SET state = 'in_progress', next_step_at = datetime('now') WHERE id = ?"
+      ).run(row.id);
+    }
+  }
   // Auto-complete runs where ALL track-runs across all profiles are terminal
   for (const run of activeRuns) {
     const remaining = (db.prepare(
@@ -1340,21 +1356,7 @@ async function tickActions(db: ReturnType<typeof getDb>): Promise<void> {
 
   if (dueTrackRuns.length === 0) return;
 
-  // Integration track enrollment — enroll directly without daily limits (handled per-provider)
-  for (const run of stillActive) {
-    const pendingIntegration = db.prepare(
-      `SELECT rt.id, rt.run_profile_id, rt.track FROM run_profile_tracks rt
-       JOIN run_profiles rp ON rp.id = rt.run_profile_id
-       WHERE rp.run_id = ? AND rt.track = 'integration' AND rt.state = 'pending'
-       ORDER BY rt.id LIMIT 20`
-    ).all(run.run_id) as Array<{ id: string; run_profile_id: string; track: string }>;
-    
-    for (const row of pendingIntegration) {
-      db.prepare(
-        "UPDATE run_profile_tracks SET state = 'in_progress', next_step_at = datetime('now') WHERE id = ?"
-      ).run(row.id);
-    }
-  }
+
 
   // Apply daily limits — separate due track-runs into execute vs reschedule
   const toExecute: TrackRun[] = [];
