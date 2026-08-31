@@ -33,14 +33,14 @@ export async function executeIntegrationStep(
 
   if (config.action_type === "enrich_email") {
     const chain = (config.provider_chain && config.provider_chain.length > 0) ? config.provider_chain : ["prospeo", "apollo", "snov", "skrapp", "hunter", "lusha", "contactout"];
-    log(db, runId, target.id, "info", `Starting Enrichment Waterfall: ${chain.join(" -> ")}`);
+    
     let foundEmail = false;
 
     for (const provider of chain) {
-      log(db, runId, target.id, "info", `Checking provider: ${provider}...`);
+      
       const row = db.prepare("SELECT api_key, quota_resets_at FROM integrations WHERE key = ? AND is_active = 1").get(provider) as { api_key: string, quota_resets_at: string | null } | undefined;
       if (!row || !row.api_key) {
-        log(db, runId, target.id, "warn", `Skipping ${provider} - API key is missing or inactive`);
+        
         continue;
       }
       
@@ -204,9 +204,8 @@ export async function executeIntegrationStep(
           break; // break the waterfall loop
         }
         
-        log(db, runId, target.id, "info", `Provider ${provider} did not find an email`);
+        
       } catch (err: any) {
-        log(db, runId, target.id, "warn", `${provider} enrichment failed: ${err.message || JSON.stringify(err)}`);
         if (err.response?.status === 402 || err.response?.status === 429 || err.message?.includes('402') || err.message?.includes('429')) {
           const tomorrow = new Date();
           tomorrow.setDate(tomorrow.getDate() + 1);
@@ -214,9 +213,9 @@ export async function executeIntegrationStep(
         }
       }
     }
-    if (!foundEmail) log(db, runId, target.id, "warn", `Enrichment Waterfall finished. No email found across all ${chain.length} providers.`);
+    if (!foundEmail) log(db, runId, target.id, "warn", `Enrichment Waterfall: No email found (${chain.length} providers checked)`);
   } else if (config.action_type === "push_to_hubspot") {
-    log(db, runId, target.id, "info", `Starting push to HubSpot...`);
+    
     const row = db.prepare("SELECT api_key FROM integrations WHERE key = 'hubspot' AND is_active = 1").get() as { api_key: string } | undefined;
     if (row && row.api_key) {
       const apiKey = decryptSecret(row.api_key);
