@@ -40,7 +40,8 @@ export function buildCsvTemplate(): string {
     c === "email" ? "jane@acme.com" :
     SAMPLE_VALUES[c as EditableField]
   );
-  return Papa.unparse({ fields: [...TEMPLATE_COLUMNS], data: [sample] });
+  // Add UTF-8 BOM so Excel and Mac editors (Nova/Numbers) force UTF-8 instead of ASCII/Latin fallback
+  return "\uFEFF" + Papa.unparse({ fields: [...TEMPLATE_COLUMNS], data: [sample] });
 }
 
 export interface CsvImportResult {
