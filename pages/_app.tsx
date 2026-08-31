@@ -5,6 +5,7 @@ import { useRouter } from "next/router";
 import { useEffect } from "react";
 import Layout from "@/components/layout/Layout";
 import { Toaster } from "sonner";
+import { ThemeProvider, useTheme } from "next-themes";
 
 const PUBLIC_PATHS = ["/login"];
 
@@ -32,14 +33,21 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function ToasterWithTheme() {
+  const { resolvedTheme } = useTheme();
+  return <Toaster theme={resolvedTheme === "notion-light" ? "light" : "dark"} position="bottom-right" />;
+}
+
 export default function App({ Component, pageProps: { session, ...pageProps } }: AppProps) {
   return (
     <SessionProvider session={session}>
       <AuthGuard>
-        <Layout>
+        <ThemeProvider attribute="data-theme" defaultTheme="system" enableSystem themes={['notion', 'notion-light']} value={{ dark: 'notion', light: 'notion-light' }}>
+          <Layout>
           <Component {...pageProps} />
-          <Toaster theme="dark" position="bottom-right" />
+          <ToasterWithTheme />
         </Layout>
+        </ThemeProvider>
       </AuthGuard>
     </SessionProvider>
   );

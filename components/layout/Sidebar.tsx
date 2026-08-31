@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/router";
+import { useTheme } from "next-themes";
 import { signOut } from "next-auth/react";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -8,6 +9,8 @@ import {
   RiFlowChart,
   RiFileList3Line,
   RiLogoutBoxLine,
+  RiMoonLine,
+  RiSunLine,
   RiUserSettingsLine,
   RiArrowUpCircleLine,
   RiBuildingLine,
@@ -42,6 +45,7 @@ export const SIDEBAR_WIDTH_EXPANDED = 52;
 export const SIDEBAR_WIDTH_COLLAPSED = 52;
 
 export default function Sidebar({ onCollapse }: { onCollapse?: (collapsed: boolean) => void }) {
+  const { resolvedTheme, setTheme } = useTheme();
   const router = useRouter();
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [latestVersion, setLatestVersion] = useState<string | null>(null);
@@ -267,6 +271,22 @@ export default function Sidebar({ onCollapse }: { onCollapse?: (collapsed: boole
 
         {/* Settings + signout labels */}
         <div className="pb-3 border-t border-base-300/40 pt-3 flex flex-col gap-0.5 px-2">
+          <button
+            onClick={() => setTheme(resolvedTheme === "notion-light" ? "notion" : "notion-light")}
+            className="flex items-center gap-2.5 px-3 h-9 rounded-lg text-sm text-base-content/50 hover:text-base-content/80 hover:bg-base-300/40 transition-colors w-full text-left"
+          >
+            {resolvedTheme === "notion-light" ? (
+              <>
+                <RiMoonLine size={14} />
+                <span>Dark Mode</span>
+              </>
+            ) : (
+              <>
+                <RiSunLine size={14} />
+                <span>Light Mode</span>
+              </>
+            )}
+          </button>
           {(() => {
             const active = isActive("/settings");
             return (

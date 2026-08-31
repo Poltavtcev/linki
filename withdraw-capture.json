@@ -1,0 +1,27 @@
+[
+  {
+    "url": "https://www.linkedin.com/voyager/api/messaging/dash/presenceStatuses",
+    "method": "POST",
+    "postData": "ids=List(urn%3Ali%3Afsd_profile%3AACoAACJo9dsBHVQROact7RLnQ91Hhnix6G4Wz64)"
+  },
+  {
+    "url": "https://www.linkedin.com/voyager/api/voyagerMessagingDashMessagingBadge?action=markAllMessagesAsSeen",
+    "method": "POST",
+    "postData": "{\"until\":1788117436746}"
+  },
+  {
+    "url": "https://www.linkedin.com/voyager/api/messaging/dash/presenceStatuses",
+    "method": "POST",
+    "postData": "ids=List(urn%3Ali%3Afsd_profile%3AACoAAAOvAjYBSDJf4FlW8BVgmvbZN8gnASrILQc)"
+  },
+  {
+    "url": "https://www.linkedin.com/voyager/api/voyagerMessagingDashMessengerMessageDeliveryAcknowledgements?action=sendDeliveryAcknowledgement",
+    "method": "POST",
+    "postData": "{\"messageUrns\":[\"urn:li:msg_message:(urn:li:fsd_profile:ACoAACJo9dsBHVQROact7RLnQ91Hhnix6G4Wz64,2-MTc4ODA5NDk0NjQ3NmI3MjI5NC0xMDAmYjI2M2RjYTQtMjRjOC00NWI4LTg0MTAtOWZmNzFhNzk3ZmVlXzEwMA==)\",\"urn:li:msg_message:(urn:li:fsd_profile:ACoAACJo9dsBHVQROact7RLnQ91Hhnix6G4Wz64,2-MTc4ODA5NTEzODg2NWI5Njg5Ny0xMDAmYjI2M2RjYTQtMjRjOC00NWI4LTg0MTAtOWZmNzFhNzk3ZmVlXzEwMA==)\",\"urn:li:msg_message:(urn:li:fsd_profile:ACoAACJo9dsBHVQROact7RLnQ91Hhnix6G4Wz64,2-MTc4ODA5NTMwODEyNWI5Mzc0OS0xMDAmYjI2M2RjYTQtMjRjOC00NWI4LTg0MTAtOWZmNzFhNzk3ZmVlXzEwMA==)\",\"urn:li:msg_message:(urn:li:fsd_profile:ACoAACJo9dsBHVQROact7RLnQ91Hhnix6G4Wz64,2-MTc4ODA5NjA0Mjc2MmI5MDUwMC0xMDAmYjI2M2RjYTQtMjRjOC00NWI4LTg0MTAtOWZmNzFhNzk3ZmVlXzEwMA==)\",\"urn:li:msg_message:(urn:li:fsd_profile:ACoAACJo9dsBHVQROact7RLnQ91Hhnix6G4Wz64,2-MTc4ODA5NjA1NDM5MmIyMTU2MC0xMDAmYjI2M2RjYTQtMjRjOC00NWI4LTg0MTAtOWZmNzFhNzk3ZmVlXzEwMA==)\",\"urn:li:msg_message:(urn:li:fsd_profile:ACoAACJo9dsBHVQROact7RLnQ91Hhnix6G4Wz64,2-MTc4ODA5ODYxOTE3NWIyMTM4NS0xMDAmYjI2M2RjYTQtMjRjOC00NWI4LTg0MTAtOWZmNzFhNzk3ZmVlXzEwMA==)\",\"urn:li:msg_message:(urn:li:fsd_profile:ACoAACJo9dsBHVQROact7RLnQ91Hhnix6G4Wz64,2-MTc4ODA5ODY0MTIyNWI3NTAxMC0xMDAmYjI2M2RjYTQtMjRjOC00NWI4LTg0MTAtOWZmNzFhNzk3ZmVlXzEwMA==)\",\"urn:li:msg_message:(urn:li:fsd_profile:ACoAACJo9dsBHVQROact7RLnQ91Hhnix6G4Wz64,2-MTc4ODA5ODk4NDI3MmI5ODU4OC0xMDAmYjI2M2RjYTQtMjRjOC00NWI4LTg0MTAtOWZmNzFhNzk3ZmVlXzEwMA==)\",\"urn:li:msg_message:(urn:li:fsd_profile:ACoAACJo9dsBHVQROact7RLnQ91Hhnix6G4Wz64,2-MTc4ODA5OTI0Mzk3OGI2ODIzMC0xMDAmYjI2M2RjYTQtMjRjOC00NWI4LTg0MTAtOWZmNzFhNzk3ZmVlXzEwMA==)\",\"urn:li:msg_message:(urn:li:fsd_profile:ACoAACJo9dsBHVQROact7RLnQ91Hhnix6G4Wz64,2-MTc4ODA5OTM4NjA0OGI4NzUxMy0xMDAmYjI2M2RjYTQtMjRjOC00NWI4LTg0MTAtOWZmNzFhNzk3ZmVlXzEwMA==)\",\"urn:li:msg_message:(urn:li:fsd_profile:ACoAACJo9dsBHVQROact7RLnQ91Hhnix6G4Wz64,2-MTc4ODA5OTQ4NDA4OWI4NzYzNi0xMDAmYjI2M2RjYTQtMjRjOC00NWI4LTg0MTAtOWZmNzFhNzk3ZmVlXzEwMA==)\",\"urn:li:msg_message:(urn:li:fsd_profile:ACoAACJo9dsBHVQROact7RLnQ91Hhnix6G4Wz64,2-MTc4ODA5OTc5MzA1NmIyNjk1Ny0xMDAmYjI2M2RjYTQtMjRjOC00NWI4LTg0MTAtOWZmNzFhNzk3ZmVlXzEwMA==)\",\"urn:li:msg_message:(urn:li:fsd_profile:ACoAACJo9dsBHVQROact7RLnQ91Hhnix6G4Wz64,2-MTc4ODA5OTgyNDUwMGIxNjA2MS0xMDAmYjI2M2RjYTQtMjRjOC00NWI4LTg0MTAtOWZmNzFhNzk3ZmVlXzEwMA==)\",\"urn:li:msg_message:(urn:li:fsd_profile:ACoAACJo9dsBHVQROact7RLnQ91Hhnix6G4Wz64,2-MTc4ODEwMDQ2Njk1MWIxNzE3My0xMDAmYjI2M2RjYTQtMjRjOC00NWI4LTg0MTAtOWZmNzFhNzk3ZmVlXzEwMA==)\",\"urn:li:msg_message:(urn:li:fsd_profile:ACoAACJo9dsBHVQROact7RLnQ91Hhnix6G4Wz64,2-MTc4ODEwMDU0ODg1NmI5MzQ3Mi0xMDAmYjI2M2RjYTQtMjRjOC00NWI4LTg0MTAtOWZmNzFhNzk3ZmVlXzEwMA==)\",\"urn:li:msg_message:(urn:li:fsd_profile:ACoAACJo9dsBHVQROact7RLnQ91Hhnix6G4Wz64,2-MTc4ODEwODc3MzEwMWI4Mjk3OS0xMDAmYjI2M2RjYTQtMjRjOC00NWI4LTg0MTAtOWZmNzFhNzk3ZmVlXzEwMA==)\",\"urn:li:msg_message:(urn:li:fsd_profile:ACoAACJo9dsBHVQROact7RLnQ91Hhnix6G4Wz64,2-MTc4ODEwODgxNDc1NmIxODg4NS0xMDAmYjI2M2RjYTQtMjRjOC00NWI4LTg0MTAtOWZmNzFhNzk3ZmVlXzEwMA==)\",\"urn:li:msg_message:(urn:li:fsd_profile:ACoAACJo9dsBHVQROact7RLnQ91Hhnix6G4Wz64,2-MTc4ODExNjQ0Nzg1OGI4MDM5Mi0xMDAmYjI2M2RjYTQtMjRjOC00NWI4LTg0MTAtOWZmNzFhNzk3ZmVlXzEwMA==)\",\"urn:li:msg_message:(urn:li:fsd_profile:ACoAACJo9dsBHVQROact7RLnQ91Hhnix6G4Wz64,2-MTc4ODExNjQ3Njc1N2I4MTA5NS0xMDAmYjI2M2RjYTQtMjRjOC00NWI4LTg0MTAtOWZmNzFhNzk3ZmVlXzEwMA==)\",\"urn:li:msg_message:(urn:li:fsd_profile:ACoAACJo9dsBHVQROact7RLnQ91Hhnix6G4Wz64,2-MTc4ODExNzAyOTAwNmI0MDY2NC0xMDAmYjI2M2RjYTQtMjRjOC00NWI4LTg0MTAtOWZmNzFhNzk3ZmVlXzEwMA==)\"],\"clientId\":\"voyager-web\",\"deliveryMechanism\":\"SYNC\",\"clientConsumedAt\":1788117437774}"
+  },
+  {
+    "url": "https://www.linkedin.com/voyager/api/messaging/dash/presenceStatuses",
+    "method": "POST",
+    "postData": "ids=List(urn%3Ali%3Afsd_profile%3AACoAAAOvAjYBSDJf4FlW8BVgmvbZN8gnASrILQc)"
+  }
+]
