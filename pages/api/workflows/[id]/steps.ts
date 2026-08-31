@@ -38,7 +38,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     if (!step_type) return res.status(400).json({ error: "step_type required" });
 
     // Auto-assign track: email step_type always goes on the email track; everything else linkedin
-    const track: "linkedin" | "email" = trackIn === "email" || step_type === "email" || step_type === "integration" ? "email" : "linkedin";
+    const track: "linkedin" | "email" | "integration" = trackIn === "integration" || step_type === "integration" ? "integration" : trackIn === "email" || step_type === "email" ? "email" : "linkedin";
 
     const maxRow = db
       .prepare("SELECT MAX(step_order) as max_order FROM workflow_steps WHERE workflow_id = ? AND track = ?")

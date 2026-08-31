@@ -940,12 +940,12 @@ function Wizard({
   }
 
   const basePages: WizardPage[] = isStepsOnly
-    ? ["prompt", "linkedin-steps", "email-steps"]
+    ? ["prompt", "linkedin-steps", "email-steps", "integration-steps"]
     : isEditMode
-    ? ["prompt", "linkedin-steps", "email-steps", "account"]
+    ? ["prompt", "linkedin-steps", "email-steps", "integration-steps", "account"]
     : isAddContacts
     ? ["prospects"]
-    : ["prospects", "prompt", "linkedin-steps", "email-steps", "account", "summary"];
+    : ["prospects", "prompt", "linkedin-steps", "email-steps", "integration-steps", "account", "summary"];
   // Open-core: "Campaign Context" is AI-only (feeds the AI writer). Hide it entirely
   // in the free build — no page, no nav entry, no upgrade stub.
   const pages = hasPremium ? basePages : basePages.filter((p) => p !== "prompt");
@@ -956,9 +956,9 @@ function Wizard({
 
   function canGoTo(p: WizardPage) {
     if (p === "prompt" && !hasPremium) return false; // AI-only page, hidden in free build
-    if (isStepsOnly) return p === "prompt" || p === "linkedin-steps" || p === "email-steps";
+    if (isStepsOnly) return p === "prompt" || p === "linkedin-steps" || p === "email-steps" || p === "integration-steps";
     if (isEditMode) {
-      if (p === "prompt" || p === "linkedin-steps" || p === "email-steps") return true;
+      if (p === "prompt" || p === "linkedin-steps" || p === "email-steps" || p === "integration-steps") return true;
       if (p === "account") return stepsReady;
       return false;
     }
@@ -966,6 +966,7 @@ function Wizard({
     if (p === "prompt") return prospectsReady;
     if (p === "linkedin-steps") return prospectsReady;
     if (p === "email-steps") return prospectsReady;
+    if (p === "integration-steps") return prospectsReady;
     if (p === "account") return prospectsReady && stepsReady;
     if (p === "summary") return prospectsReady && stepsReady && !!accountId;
     return false;
@@ -1064,6 +1065,9 @@ function Wizard({
                   )}
                   {p === "email-steps" && wizardSteps.filter(s => s.track === "email").length > 0 && (
                     <p className="text-xs text-base-content/40">{wizardSteps.filter(s => s.track === "email").length} step{wizardSteps.filter(s => s.track === "email").length !== 1 ? "s" : ""}</p>
+                  )}
+                  {p === "integration-steps" && wizardSteps.filter(s => s.track === "integration").length > 0 && (
+                    <p className="text-xs text-base-content/40">{wizardSteps.filter(s => s.track === "integration").length} step{wizardSteps.filter(s => s.track === "integration").length !== 1 ? "s" : ""}</p>
                   )}
                   {p === "prompt" && campaignPrompt.trim() && (
                     <p className="text-xs text-base-content/40 truncate">{campaignPrompt.trim().slice(0, 24)}{campaignPrompt.trim().length > 24 ? "…" : ""}</p>
@@ -1270,8 +1274,8 @@ function Wizard({
               )}
 
               {/* ── Pages: LinkedIn Steps / Email Steps ── */}
-              {(page === "linkedin-steps" || page === "email-steps") && (() => {
-                const track: Track = page === "linkedin-steps" ? "linkedin" : "email";
+              {(page === "linkedin-steps" || page === "email-steps" || page === "integration-steps") && (() => {
+                const track: Track = page === "linkedin-steps" ? "linkedin" : page === "email-steps" ? "email" : "integration";
                 const trackSteps = wizardSteps.map((ws, idx) => ({ ws, idx })).filter(({ ws }) => ws.track === track);
 
                 function StepCard({ ws, idx, isFirst }: { ws: WizardStep; idx: number; isFirst: boolean }) {
@@ -1744,7 +1748,7 @@ function Wizard({
               >
                 {pageIdx === 0 ? "Cancel" : "← Back"}
               </button>
-              {!isStepsOnly && !isEditMode && (page === "linkedin-steps" || page === "email-steps") && wizardSteps.length > 0 && (
+              {!isStepsOnly && !isEditMode && (page === "linkedin-steps" || page === "email-steps" || page === "integration-steps") && wizardSteps.length > 0 && (
                 <button
                   className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm text-base-content/40 hover:text-base-content/60 hover:bg-base-300/50 transition-colors disabled:opacity-40"
                   onClick={saveAndClose}
