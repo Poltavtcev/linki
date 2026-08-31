@@ -62,7 +62,8 @@ export const getServerSideProps: GetServerSideProps = async ({ query }) => {
   const templates = db.prepare("SELECT * FROM templates ORDER BY created_at DESC").all();
   const validTabs: Tab[] = ["linkedin", "email", "templates", "integrations", "general"];
   const tab: Tab = validTabs.includes(query.tab as Tab) ? (query.tab as Tab) : "linkedin";
-  return { props: { liAccounts, emailAccounts, templates, initialTab: tab } };
+  const internalSecret = process.env.INTERNAL_API_SECRET || "";
+  return { props: { liAccounts, emailAccounts, templates, initialTab: tab, internalSecret } };
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -148,11 +149,13 @@ export default function SettingsPage({
   emailAccounts: initialEmail,
   templates: initialTemplates,
   initialTab,
+  internalSecret,
 }: {
   liAccounts: LiAccount[];
   emailAccounts: EmailAccount[];
   templates: Template[];
   initialTab: Tab;
+  internalSecret?: string;
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>(initialTab);
@@ -210,7 +213,7 @@ export default function SettingsPage({
         {tab === "email" && <EmailTab initialAccounts={initialEmail} />}
         {tab === "templates" && <TemplatesTab initialTemplates={initialTemplates} />}
         {tab === "integrations" && <IntegrationsTab hasPremium={hasPremium} />}
-        {tab === "general" && <GeneralTab hasPremium={hasPremium} />}
+        {tab === "general" && <GeneralTab hasPremium={hasPremium} internalSecret={internalSecret || ""} />}
       </div>
     </>
   );
@@ -1563,7 +1566,7 @@ function IntegrationsTab({ hasPremium }: { hasPremium: boolean }) {
 // it's built from the browser's own origin) and copy the one-liner to connect an
 // AI agent. Premium-only (ee/mcp) — hidden entirely when hasPremium is false.
 
-function McpCard() {
+function McpCard({ internalSecret }: { internalSecret: string }) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
   const [mcpUrl, setMcpUrl] = useState("");
@@ -1625,21 +1628,26 @@ function McpCard() {
           </div>
 
           <div className="mt-3 text-xs text-base-content/50 leading-relaxed">
-            <p className="mb-1.5"><span className="text-base-content/70 font-medium">Claude Code</span> — run this in your terminal:</p>
-            <div className="flex items-center gap-2 mb-1.5">
-              <code className="flex-1 min-w-0 truncate rounded-md bg-base-300/30 border border-base-300/50 px-3 py-2 text-xs text-base-content font-mono">
-                {cliCommand}
+            <div className="mt-4 mb-2 text-[10px] font-medium uppercase tracking-wide text-base-content/40">
+              Authentication Token (Bearer)
+            </div>
+            <div className="flex items-center gap-2 mb-4">
+              <code className="flex-1 min-w-0 truncate rounded-md bg-base-100 border border-base-300/50 px-3 py-2 text-xs text-base-content font-mono">
+                {internalSecret || "Missing INTERNAL_API_SECRET"}
               </code>
               <button
-                onClick={() => copy(cliCommand)}
+                onClick={() => copy(internalSecret)}
                 className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-base-300/60 px-3 py-2 text-xs text-base-content/70 hover:bg-base-300/60 transition-colors"
               >
-                <RiFileCopyLine size={13} />
+                {copied ? <RiCheckLine size={13} className="text-success" /> : <RiFileCopyLine size={13} />}
               </button>
             </div>
-            <p>
-              Other agents (Cursor, Claude desktop/web, etc.) — add it as an HTTP MCP server / connector
-              using the URL above. You&apos;ll be prompted to sign in to Linki in the browser on first use.
+
+            <p className="mb-1.5"><span className="text-base-content/70 font-medium">Claude Code</span> — it does not natively support SSE Headers from CLI yet, so you must use Cursor or a compatible client that allows header injection.</p>
+            
+            <p className="mt-2">
+              <strong>Cursor / Claude Desktop:</strong> Add an MCP Server using the <code>SSE</code> transport. URL: <code>{mcpUrl}</code>. You must configure it to pass the following header: <br/>
+              <code className="mt-1 block bg-base-300/30 p-2 rounded">Authorization: Bearer {internalSecret || "YOUR_TOKEN"}</code>
             </p>
           </div>
         </div>
@@ -1648,7 +1656,7 @@ function McpCard() {
   );
 }
 
-function GeneralTab({ hasPremium }: { hasPremium: boolean }) {
+function GeneralTab({ hasPremium, internalSecret }: { hasPremium: boolean, internalSecret: string }) {
   const router = useRouter();
   const { data: session } = useSession();
   const [form, setForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
@@ -1718,7 +1726,7 @@ function GeneralTab({ hasPremium }: { hasPremium: boolean }) {
       </div>
 
       {/* MCP — premium (ee/mcp); hidden in the public build */}
-      {hasPremium && <McpCard />}
+      {hasPremium && <McpCard internalSecret={internalSecret || ""} />}
 
       {/* Product tour */}
       <div className="bg-base-200 border border-base-300/50 rounded-xl p-4">
