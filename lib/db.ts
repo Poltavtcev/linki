@@ -596,37 +596,41 @@ function runMigrations(db: Database.Database) {
   // Drop deprecated run_profiles columns (state, current_step, etc.) — consumers now read track-runs
   dropDeprecatedRunProfileColumns(db);
 
-  // Migrate workflow_steps CHECK constraint to allow 'integration' step_type
+  
+  // Safely migrate workflow_steps CHECK constraint
   try {
     const tableInfo = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='workflow_steps'").get() as { sql: string } | undefined;
-    if (tableInfo && (!tableInfo.sql.includes("'integration'"))) {
-      db.exec(`
-        PRAGMA foreign_keys = OFF;
-        CREATE TABLE workflow_steps_new (
-          id TEXT PRIMARY KEY,
-          workflow_id TEXT REFERENCES workflows(id) ON DELETE CASCADE,
-          step_order INTEGER NOT NULL,
-          step_type TEXT NOT NULL CHECK(step_type IN ('visit', 'connect', 'message', 'sales_inmail', 'delay', 'email', 'integration')),
-          template_id TEXT REFERENCES templates(id),
-          delay_seconds INTEGER DEFAULT 0,
-          connect_note TEXT,
-          message_body TEXT,
-          email_subject TEXT,
-          email_body TEXT,
-          enabled INTEGER DEFAULT 1
-        );
-        INSERT INTO workflow_steps_new
-          SELECT id, workflow_id, step_order, step_type, template_id, delay_seconds,
-                 connect_note, message_body,
-                 NULL, NULL,
-                 enabled
-          FROM workflow_steps;
-        DROP TABLE workflow_steps;
-        ALTER TABLE workflow_steps_new RENAME TO workflow_steps;
-        PRAGMA foreign_keys = ON;
-      `);
+    if (tableInfo && !tableInfo.sql.includes("'integration'")) {
+      db.exec("PRAGMA foreign_keys = OFF;");
+      
+      const columnsQuery = db.prepare("PRAGMA table_info(workflow_steps)").all() as any[];
+      const colNames = columnsQuery.map(c => c.name);
+      
+      // We will recreate it dynamically
+      let createSql = `CREATE TABLE workflow_steps_new (
+        id TEXT PRIMARY KEY,
+        workflow_id TEXT REFERENCES workflows(id) ON DELETE CASCADE,
+        step_order INTEGER NOT NULL,
+        step_type TEXT NOT NULL CHECK(step_type IN ('visit', 'connect', 'message', 'sales_inmail', 'delay', 'email', 'integration')),
+        template_id TEXT REFERENCES templates(id)`;
+        
+      for (const col of columnsQuery) {
+        if (!['id', 'workflow_id', 'step_order', 'step_type', 'template_id'].includes(col.name)) {
+          createSql += `, ${col.name} ${col.type}`;
+        }
+      }
+      createSql += ");";
+      
+      db.exec(createSql);
+      
+      const colList = colNames.join(', ');
+      db.exec(`INSERT INTO workflow_steps_new (${colList}) SELECT ${colList} FROM workflow_steps;`);
+      db.exec("DROP TABLE workflow_steps;");
+      db.exec("ALTER TABLE workflow_steps_new RENAME TO workflow_steps;");
+      db.exec("PRAGMA foreign_keys = ON;");
     }
-  } catch { /* migration already done */ }
+  } catch (err) { console.error("Migration error:", err); }
+
 
   // Allow the 'sales_inmail' step_type (Sales Navigator InMail). Rebuilds the
   // table preserving EVERY current column (the historical rebuild above only

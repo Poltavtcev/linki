@@ -162,6 +162,7 @@ const STEP_LABELS: Record<string, string> = {
   message: "LinkedIn Message",
   sales_inmail: "Sales Nav InMail",
   email: "Cold Email",
+  integration: "Integration",
 };
 
 // Returns dynamic label for an email step based on its position among all email steps
@@ -194,6 +195,7 @@ const STEP_COLORS: Record<string, string> = {
   message: "bg-success/10 text-success border-success/20",
   sales_inmail: "bg-primary/10 text-primary border-primary/20",
   email: "bg-warning/10 text-warning border-warning/20",
+  integration: "bg-accent/10 text-accent border-accent/20",
 };
 
 
@@ -1378,6 +1380,10 @@ function Wizard({
                             <button onClick={() => addWizardStep("email")}
                               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors text-xs border-warning/20 bg-warning/5 hover:bg-warning/10 text-warning/70 hover:text-warning">
                               <RiAddLine size={11} /> {trackSteps.length === 0 ? "Cold Email" : `Follow-up #${trackSteps.length + 1}`}
+                            </button>
+                            <button onClick={() => addWizardStep("integration")}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors text-xs border-accent/20 bg-accent/5 hover:bg-accent/10 text-accent/70 hover:text-accent">
+                              <RiAddLine size={11} /> Integration
                             </button>
                           )}
                     </div>
