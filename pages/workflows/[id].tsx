@@ -81,6 +81,9 @@ interface Stats {
   messages_sent: number;
   inmails_sent: number;
   emails_sent: number;
+  profiles_visited: number;
+  emails_enriched: number;
+  hubspot_pushes: number;
   active_run: {
     id: string;
     status: string;
@@ -3046,6 +3049,9 @@ export default function WorkflowDetailPage({
     messages_sent: 0,
     inmails_sent: 0,
     emails_sent: 0,
+    profiles_visited: 0,
+    emails_enriched: 0,
+    hubspot_pushes: 0,
     active_run: initial.active_run,
   };
 
@@ -3110,6 +3116,21 @@ export default function WorkflowDetailPage({
                 {displayStats.inmails_sent > 0 && (
                   <span className="text-xs text-base-content/50">
                     <span className="font-semibold text-info">{displayStats.inmails_sent}</span> inmailed
+                  </span>
+                )}
+                {displayStats.profiles_visited > 0 && (
+                  <span className="text-xs text-base-content/50">
+                    <span className="font-semibold text-info">{displayStats.profiles_visited}</span> visited
+                  </span>
+                )}
+                {displayStats.emails_enriched > 0 && (
+                  <span className="text-xs text-base-content/50">
+                    <span className="font-semibold text-success">{displayStats.emails_enriched}</span> enriched
+                  </span>
+                )}
+                {displayStats.hubspot_pushes > 0 && (
+                  <span className="text-xs text-base-content/50">
+                    <span className="font-semibold text-success">{displayStats.hubspot_pushes}</span> to CRM
                   </span>
                 )}
                 {displayStats.connections_sent > 0 && displayStats.acceptance_rate > 0 && (

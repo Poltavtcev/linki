@@ -42,7 +42,13 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
         (SELECT COUNT(DISTINCT target_id) FROM logs
           WHERE run_id IN (${RUNS}) AND message LIKE 'InMail sent%') AS inmails_sent,
         (SELECT COUNT(DISTINCT target_id) FROM logs
-          WHERE run_id IN (${RUNS}) AND message LIKE 'Email sent%') AS emails_sent
+          WHERE run_id IN (${RUNS}) AND message LIKE 'Email sent%') AS emails_sent,
+        (SELECT COUNT(DISTINCT target_id) FROM logs
+          WHERE run_id IN (${RUNS}) AND message LIKE 'Visited %') AS profiles_visited,
+        (SELECT COUNT(DISTINCT target_id) FROM logs
+          WHERE run_id IN (${RUNS}) AND message LIKE 'Email enriched via %') AS emails_enriched,
+        (SELECT COUNT(DISTINCT target_id) FROM logs
+          WHERE run_id IN (${RUNS}) AND message LIKE 'Successfully pushed % to HubSpot CRM') AS hubspot_pushes
       FROM run_profiles rp
       JOIN runs r ON r.id = rp.run_id
       WHERE r.workflow_id = ? AND r.status IN ('running','paused','completed')
@@ -56,6 +62,9 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
       messages_sent: number;
       inmails_sent: number;
       emails_sent: number;
+      profiles_visited: number;
+      emails_enriched: number;
+      hubspot_pushes: number;
     };
 
     const connections_sent = counts.connections_sent ?? 0;
@@ -84,6 +93,9 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
       messages_sent: counts.messages_sent ?? 0,
       inmails_sent: counts.inmails_sent ?? 0,
       emails_sent: counts.emails_sent ?? 0,
+      profiles_visited: counts.profiles_visited ?? 0,
+      emails_enriched: counts.emails_enriched ?? 0,
+      hubspot_pushes: counts.hubspot_pushes ?? 0,
       active_run: activeRun ?? null,
     });
   } catch (err) {

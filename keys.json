@@ -1,0 +1,9 @@
+[
+  {"provider": "prospeo", "encKey": "v1:t+AxolzJcjiGLJxP:QZj6pfz/QHRfUMTwrNnVGA==:7/3gYRRhwdZnU8i3uIutrG0m6Pjy3WeMRi2105NRpL7sArJ2yqg1wVfaE1lh9+VQjVBGIcuHvPMiIkHm4RJuduNcyg=="},
+  {"provider": "hubspot", "encKey": "v1:ZBGRdwOVM0LpdH5e:72LYPUAU7ySUBZc5r9lqKg==:LsbUeovkdECsFfiAEshBzNM63l6gv9A3Y6uoRG0r3tloA5YSDLHaBm1rwy4="},
+  {"provider": "apollo", "encKey": "v1:yVvXDgtbU+0gAwM+:+fW/nOtljtGs/HTB/Kkz5Q==:GYOMzLzQqH+q1Uhaphg/MSlqprgX4w=="},
+  {"provider": "hunter", "encKey": "v1:yaZosCIswxCvbwwY:YWU1ztXsJeK7cHNhQIA5XA==:214rH7jfHdZPSD+A5o4IHdyejddx4L6GMyZEu8YabsHAblXaf5Ds4Q=="},
+  {"provider": "snov", "encKey": "v1:fq3rTK1LzfUEzgb7:9sO9yVxS2c41eUtXiKhdig==:V/+51r/tF01DMoViE01WMK1zspNUWL5MkWqDX/HdcF6vsvz8G3kPFCOokyzne4gvYWhp2h+RhU4eb+1mZ3tUyiE="},
+  {"provider": "lusha", "encKey": "v1:wZn8Wf41mVgAdUeA:MrzEUhwc29K6RUChabINXw==:kux2lJ3A8oVxdTpFueoDj0bX85womu0+nfUPKrWc7FJCgtql"},
+  {"provider": "contactout", "encKey": "v1:NnAjqye7yejV4K52:AlKaZ0UgSHwoA2yN3knahQ==:yoqI3HP9OUr+CxVg/fCYNTArugNbLrHs"}
+]
