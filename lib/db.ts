@@ -305,6 +305,12 @@ function runMigrations(db: Database.Database) {
   } catch (e) { console.error("Migration error (cascade):", e); }
   // Add columns introduced after initial schema — safe to run on existing DBs
   const migrations = [
+    "ALTER TABLE workflow_steps ADD COLUMN config TEXT",
+
+    "ALTER TABLE integrations ADD COLUMN is_active INTEGER DEFAULT 1",
+    "ALTER TABLE integrations ADD COLUMN credits_remaining INTEGER",
+    "ALTER TABLE integrations ADD COLUMN quota_resets_at TEXT",
+
     `CREATE TABLE IF NOT EXISTS linkedin_reply_queue (
       id TEXT PRIMARY KEY,
       account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
@@ -590,17 +596,17 @@ function runMigrations(db: Database.Database) {
   // Drop deprecated run_profiles columns (state, current_step, etc.) — consumers now read track-runs
   dropDeprecatedRunProfileColumns(db);
 
-  // Migrate workflow_steps CHECK constraint to allow 'delay' and 'email' step_types
+  // Migrate workflow_steps CHECK constraint to allow 'integration' step_type
   try {
     const tableInfo = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='workflow_steps'").get() as { sql: string } | undefined;
-    if (tableInfo && (!tableInfo.sql.includes("'delay'") || !tableInfo.sql.includes("'email'"))) {
+    if (tableInfo && (!tableInfo.sql.includes("'integration'"))) {
       db.exec(`
         PRAGMA foreign_keys = OFF;
         CREATE TABLE workflow_steps_new (
           id TEXT PRIMARY KEY,
           workflow_id TEXT REFERENCES workflows(id) ON DELETE CASCADE,
           step_order INTEGER NOT NULL,
-          step_type TEXT NOT NULL CHECK(step_type IN ('visit', 'connect', 'message', 'delay', 'email')),
+          step_type TEXT NOT NULL CHECK(step_type IN ('visit', 'connect', 'message', 'sales_inmail', 'delay', 'email', 'integration')),
           template_id TEXT REFERENCES templates(id),
           delay_seconds INTEGER DEFAULT 0,
           connect_note TEXT,
@@ -839,12 +845,13 @@ function initDb(db: Database.Database) {
       id TEXT PRIMARY KEY,
       workflow_id TEXT REFERENCES workflows(id) ON DELETE CASCADE,
       step_order INTEGER NOT NULL,
-      step_type TEXT NOT NULL CHECK(step_type IN ('visit', 'connect', 'message', 'delay')),
+      step_type TEXT NOT NULL CHECK(step_type IN ('visit', 'connect', 'message', 'delay', 'email', 'sales_inmail', 'integration')),
       template_id TEXT REFERENCES templates(id),
       delay_seconds INTEGER DEFAULT 0,
       connect_note TEXT,
       message_body TEXT,
-      enabled INTEGER DEFAULT 1
+      enabled INTEGER DEFAULT 1,
+      config TEXT
     );
 
     CREATE TABLE IF NOT EXISTS workflow_step_templates (
