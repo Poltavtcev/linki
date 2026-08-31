@@ -578,6 +578,65 @@ export default function ContactDetailPage({
   const [editingNotes, setEditingNotes] = useState(false);
   const [notesDraft, setNotesDraft] = useState(target.notes ?? "");
 
+  const [companyObj, setCompanyObj] = useState(target.companyObj);
+  const [showCompanyModal, setShowCompanyModal] = useState(false);
+  const [companySearch, setCompanySearch] = useState("");
+  const [companyResults, setCompanyResults] = useState<any[]>([]);
+  const [companySearchLoading, setCompanySearchLoading] = useState(false);
+
+  useEffect(() => {
+    if (!showCompanyModal) {
+      setCompanySearch("");
+      setCompanyResults([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      if (companySearch.trim().length < 2) {
+        setCompanyResults([]);
+        return;
+      }
+      setCompanySearchLoading(true);
+      try {
+        const res = await fetch(`/api/companies?search=${encodeURIComponent(companySearch)}&limit=10`);
+        const data = await res.json();
+        setCompanyResults(data.companies || []);
+      } catch(e) {} finally {
+        setCompanySearchLoading(false);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [companySearch, showCompanyModal]);
+
+  async function linkCompany(companyId: string) {
+    try {
+      const res = await fetch(`/api/targets/${target.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ company_id: companyId }),
+      });
+      if (res.ok) {
+        setShowCompanyModal(false);
+        const fresh = await fetch(`/api/targets/${target.id}`).then(r => r.json());
+        setCompanyObj(fresh.company);
+      }
+    } catch (e) {}
+  }
+  
+  async function unlinkCompany() {
+    if (!confirm("Remove company from this contact?")) return;
+    try {
+      const res = await fetch(`/api/targets/${target.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ company_id: null }),
+      });
+      if (res.ok) {
+        setCompanyObj(null);
+      }
+    } catch (e) {}
+  }
+
+
   const [memberLists, setMemberLists] = useState<ListRef[]>(target.lists);
   const [showAddList, setShowAddList] = useState(false);
   const [addListId, setAddListId] = useState("");
@@ -1063,38 +1122,49 @@ export default function ContactDetailPage({
         )}
 
         {/* Company */}
-        {target.companyObj && (
-          <div className="bg-base-200 border border-base-300/50 rounded-xl p-5 mb-4">
-            <p className="text-[11px] text-base-content/40 uppercase tracking-wide mb-3">Company</p>
+        <div className="bg-base-200 border border-base-300/50 rounded-xl p-5 mb-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[11px] text-base-content/40 uppercase tracking-wide">Company</p>
+            {companyObj ? (
+              <button onClick={unlinkCompany} className="text-[10px] text-base-content/40 hover:text-error transition-colors">
+                Unlink
+              </button>
+            ) : (
+              <button onClick={() => setShowCompanyModal(true)} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-base-content/50 hover:bg-base-300 transition-colors">
+                <RiBuilding2Line size={10} /> Add
+              </button>
+            )}
+          </div>
+          {companyObj ? (
             <div className="flex items-start gap-3">
               <div className="w-8 h-8 rounded-lg bg-base-300 flex items-center justify-center shrink-0">
                 <RiBuilding2Line size={14} className="text-base-content/40" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <Link href={`/companies/${target.companyObj.id}`} className="text-sm font-medium hover:text-primary transition-colors">
-                    {target.companyObj.name}
+                  <Link href={`/companies/${companyObj.id}`} className="text-sm font-medium hover:text-primary transition-colors">
+                    {companyObj.name}
                   </Link>
-                  {target.companyObj.linkedin_url && (
-                    <a href={target.companyObj.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-base-content/30 hover:text-base-content/60 transition-colors">
+                  {companyObj.linkedin_url && (
+                    <a href={companyObj.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-base-content/30 hover:text-base-content/60 transition-colors">
                       <RiExternalLinkLine size={12} />
                     </a>
                   )}
                 </div>
                 <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
-                  {target.companyObj.industry && <span className="text-xs text-base-content/40">{target.companyObj.industry}</span>}
-                  {target.companyObj.location && (
+                  {companyObj.industry && <span className="text-xs text-base-content/40">{companyObj.industry}</span>}
+                  {companyObj.location && (
                     <span className="text-xs text-base-content/40 flex items-center gap-1">
-                      <RiMapPinLine size={10} /> {target.companyObj.location}
+                      <RiMapPinLine size={10} /> {companyObj.location}
                     </span>
                   )}
                   {target.company_size && (
                     <span className="text-xs text-base-content/40">{target.company_size} employees</span>
                   )}
-                  {target.companyObj.domain && (
-                    <a href={`https://${target.companyObj.domain}`} target="_blank" rel="noopener noreferrer"
+                  {companyObj.domain && (
+                    <a href={`https://${companyObj.domain}`} target="_blank" rel="noopener noreferrer"
                       className="text-xs text-base-content/40 hover:text-primary flex items-center gap-1 transition-colors">
-                      <RiGlobalLine size={10} /> {target.companyObj.domain}
+                      <RiGlobalLine size={10} /> {companyObj.domain}
                     </a>
                   )}
                 </div>
@@ -1103,8 +1173,12 @@ export default function ContactDetailPage({
                 )}
               </div>
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="flex items-center justify-center py-3 border border-dashed border-base-300/50 rounded-lg">
+              <button onClick={() => setShowCompanyModal(true)} className="text-xs text-primary hover:underline">Select a company</button>
+            </div>
+          )}
+        </div>
 
           </div>{/* end left col */}
 
