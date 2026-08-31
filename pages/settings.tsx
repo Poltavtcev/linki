@@ -1459,7 +1459,7 @@ const INTEGRATIONS: IntegrationDef[] = [
     badge: "SN",
     badgeColor: "#a855f7",
     accentColor: "#a855f7",
-    placeholder: "Snov.io API key",
+    placeholder: "Client ID : Client Secret (separated by colon)",
   },
   {
     key: "lusha",
