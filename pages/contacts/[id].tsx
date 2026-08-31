@@ -10,7 +10,7 @@ import {
   RiTimeLine, RiGlobalLine, RiLinkedinBoxLine, RiCheckboxCircleLine,
   RiEditLine, RiCheckLine, RiCloseLine, RiFlowChart,
   RiCheckboxBlankCircleLine, RiDeleteBinLine, RiCalendarLine,
-  RiAddLine, RiCloseCircleLine, RiPhoneLine,
+  RiAddLine, RiSearchLine, RiCloseCircleLine, RiPhoneLine,
 } from "react-icons/ri";
 
 interface Company {
@@ -1405,6 +1405,55 @@ export default function ContactDetailPage({
 
         </div>{/* end two-col */}
       </div>
+    
+      {/* Link Company Modal */}
+      {showCompanyModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-base-100/80 backdrop-blur-sm">
+          <div className="bg-base-200 border border-base-300 rounded-xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-base-300/50">
+              <h3 className="font-semibold text-sm text-base-content">Link Company</h3>
+              <button onClick={() => setShowCompanyModal(false)} className="text-base-content/40 hover:text-base-content">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+              </button>
+            </div>
+            <div className="p-4">
+              <div className="relative mb-4">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-base-content/30">
+                  <RiSearchLine size={14} />
+                </span>
+                <input
+                  type="text"
+                  autoFocus
+                  className="w-full bg-base-100 border border-base-300 rounded-lg pl-9 pr-3 py-2 text-sm text-base-content focus:outline-none focus:border-primary/40"
+                  placeholder="Search by company name or domain..."
+                  value={companySearch}
+                  onChange={(e) => setCompanySearch(e.target.value)}
+                />
+                {companySearchLoading && (
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-base-content/30">
+                    <span className="loading loading-spinner loading-xs"></span>
+                  </span>
+                )}
+              </div>
+              <div className="max-h-64 overflow-y-auto space-y-1">
+                {companyResults.length === 0 && companySearch.length > 1 && !companySearchLoading && (
+                  <div className="text-center py-4 text-xs text-base-content/40">No companies found</div>
+                )}
+                {companyResults.map((c: any) => (
+                  <button
+                    key={c.id}
+                    onClick={() => linkCompany(c.id)}
+                    className="w-full flex flex-col text-left px-3 py-2 rounded-lg hover:bg-base-300/50 transition-colors"
+                  >
+                    <span className="text-sm font-medium text-base-content">{c.name}</span>
+                    <span className="text-xs text-base-content/40">{c.domain || c.industry || "No domain"}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
