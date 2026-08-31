@@ -36,7 +36,7 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type StepType = "visit" | "connect" | "message" | "sales_inmail" | "delay" | "email";
+type StepType = "visit" | "connect" | "message" | "sales_inmail" | "delay" | "email" | "integration";
 type Track = "linkedin" | "email";
 
 interface Step {
