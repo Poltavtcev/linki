@@ -1589,7 +1589,7 @@ function McpCard({ internalSecret }: { internalSecret: string }) {
 
   if (!mcpUrl) return null;
 
-  const cliCommand = `claude mcp add --transport http linki ${mcpUrl}`;
+  const cliCommand = `claude mcp add --transport sse --header "Authorization: Bearer ${internalSecret}" linki ${mcpUrl}`;
 
   return (
     <div className="bg-base-200 border border-base-300/50 rounded-xl overflow-hidden">
