@@ -1,7 +1,7 @@
 import Head from "next/head";
 import { useEffect, useState, useRef } from "react";
 import { FiUserPlus, FiMessageSquare, FiEye, FiRepeat, FiUsers, FiRefreshCw, FiTrash2 } from "react-icons/fi";
-import { RiMailSendLine, RiReplyLine, RiRobot2Line, RiLinkedinBoxLine, RiFilterLine } from "react-icons/ri";
+import { RiMailSendLine, RiReplyLine, RiRobot2Line, RiLinkedinBoxLine, RiFilterLine , RiPlugLine , RiDatabase2Line } from "react-icons/ri";
 
 interface DashboardStats {
   totals: {
@@ -17,6 +17,8 @@ interface DashboardStats {
     emails_sent: number;
     email_replies: number;
     profiles_visited: number;
+    emails_enriched: number;
+    hubspot_pushes: number;
   };
   today: {
     visits_today: number;
@@ -734,10 +736,13 @@ export default function Dashboard() {
             </div>
             <div className="divide-y divide-base-300/20 py-1">
               <FunnelRow icon={<FiUsers size={11} />}        color="#808080" label="Targets"        value={totals.total_targets}       max={maxFunnelValue} />
+              <FunnelRow icon={<FiEye size={11} />}          color="#5aa2ff" label="Visited"        value={totals.profiles_visited}    max={maxFunnelValue} />
               <FunnelRow icon={<FiUserPlus size={11} />}     color="#32d583" label="Connected"      value={totals.connected}           max={maxFunnelValue} />
               <FunnelRow icon={<FiRepeat size={11} />}       color="#c084fc" label="LI replies"     value={totals.replies_received}    max={maxFunnelValue} />
               <FunnelRow icon={<RiMailSendLine size={11} />} color="#fb923c" label="Emails sent"    value={totals.emails_sent}         max={maxFunnelValue} />
               <FunnelRow icon={<RiReplyLine size={11} />}    color="#32d583" label="Email replies"  value={totals.email_replies}       max={maxFunnelValue} />
+              <FunnelRow icon={<RiPlugLine size={11} />}     color="#f4b740" label="Enriched"       value={totals.emails_enriched}     max={maxFunnelValue} />
+              <FunnelRow icon={<RiDatabase2Line size={11} />} color="#20c997" label="Pushed CRM"     value={totals.hubspot_pushes}      max={maxFunnelValue} />
             </div>
           </div>
 

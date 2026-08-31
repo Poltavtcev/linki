@@ -52,7 +52,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
       FROM run_profiles rp
       JOIN runs r ON r.id = rp.run_id
       WHERE r.workflow_id = ? AND r.status IN ('running','paused','completed')
-    `).get(workflowId, workflowId, workflowId, workflowId, workflowId, workflowId) as {
+    `).get(workflowId, workflowId, workflowId, workflowId, workflowId, workflowId, workflowId, workflowId, workflowId) as {
       total_prospects: number;
       active_prospects: number;
       completed_prospects: number;

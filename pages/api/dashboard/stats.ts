@@ -43,7 +43,9 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
           (SELECT COUNT(*) FROM workflows) AS total_workflows,
           (SELECT COUNT(*) FROM logs WHERE message LIKE 'Email sent%') AS emails_sent,
           (SELECT COUNT(*) FROM targets WHERE ${ACTIVE} AND email_replied_at IS NOT NULL) AS email_replies,
-          (SELECT COUNT(*) FROM logs WHERE message LIKE 'Visited %') AS profiles_visited
+          (SELECT COUNT(*) FROM logs WHERE message LIKE 'Visited %') AS profiles_visited,
+          (SELECT COUNT(*) FROM logs WHERE message LIKE 'Email enriched via %') AS emails_enriched,
+          (SELECT COUNT(*) FROM logs WHERE message LIKE 'Successfully pushed % to HubSpot CRM') AS hubspot_pushes
       `).get() as Record<string, number>;
 
       const activity = db.prepare(`
@@ -122,7 +124,13 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
             AND t.email_replied_at IS NOT NULL) AS email_replies,
         (SELECT COUNT(DISTINCT target_id) FROM logs
           WHERE run_id IN (${runsSubquery})
-            AND message LIKE 'Visited %') AS profiles_visited
+            AND message LIKE 'Visited %') AS profiles_visited,
+        (SELECT COUNT(DISTINCT target_id) FROM logs
+          WHERE run_id IN (${runsSubquery})
+            AND message LIKE 'Email enriched via %') AS emails_enriched,
+        (SELECT COUNT(DISTINCT target_id) FROM logs
+          WHERE run_id IN (${runsSubquery})
+            AND message LIKE 'Successfully pushed % to HubSpot CRM') AS hubspot_pushes
     `).get(
       runsArg,  // SCOPED_TARGETS
       runsArg,  // connections_requested
@@ -133,6 +141,8 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
       runsArg,  // emails_sent
       runsArg,  // email_replies
       runsArg,  // profiles_visited
+      runsArg,  // emails_enriched
+      runsArg,  // hubspot_pushes
     ) as Record<string, number>;
 
     const activity = db.prepare(`
