@@ -1367,7 +1367,7 @@ function Wizard({
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-xs text-base-content/30 mr-1">Add step:</span>
                       {track === "linkedin"
-                        ? (["visit", "connect", "message", "sales_inmail"] as const)
+                        ? (["visit", "connect", "message", "sales_inmail", "integration"] as const)
                             // Sales Nav InMail is a premium feature — hide from the picker in the public build.
                             .filter((type) => type !== "sales_inmail" || hasPremium)
                             .map((type) => {
