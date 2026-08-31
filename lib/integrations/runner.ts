@@ -73,8 +73,11 @@ export async function executeIntegrationStep(
             headers: { 'X-KEY': apiKey, 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
           });
-          const res = { data: await resObj.json(), status: resObj.status };
-          if (!resObj.ok) throw { response: res };
+          let data;
+          const text = await resObj.text();
+          try { data = JSON.parse(text); } catch (e) { data = text; }
+          const res = { data, status: resObj.status };
+          if (!resObj.ok) throw new Error(`${resObj.status} ${resObj.statusText}: ${typeof data === 'string' ? data.slice(0, 50) : JSON.stringify(data).slice(0, 50)}`);
           if (res.data?.person?.email?.email) {
             email = res.data.person.email.email;
           }
@@ -86,8 +89,11 @@ export async function executeIntegrationStep(
             api_key: apiKey
           });
           const resObj = await fetch(`https://api.hunter.io/v2/email-finder?${query}`);
-          const res = { data: await resObj.json(), status: resObj.status };
-          if (!resObj.ok) throw { response: res };
+          let data;
+          const text = await resObj.text();
+          try { data = JSON.parse(text); } catch (e) { data = text; }
+          const res = { data, status: resObj.status };
+          if (!resObj.ok) throw new Error(`${resObj.status} ${resObj.statusText}: ${typeof data === 'string' ? data.slice(0, 50) : JSON.stringify(data).slice(0, 50)}`);
           if (res.data?.data?.email) {
             email = res.data.data.email;
           }
@@ -100,8 +106,11 @@ export async function executeIntegrationStep(
             const resObj = await fetch(`https://api.skrapp.io/api/v2/find?${query}`, {
               headers: { 'X-Access-Key': apiKey }
             });
-            const res = { data: await resObj.json(), status: resObj.status };
-            if (!resObj.ok) throw { response: res };
+            let data;
+          const text = await resObj.text();
+          try { data = JSON.parse(text); } catch (e) { data = text; }
+          const res = { data, status: resObj.status };
+          if (!resObj.ok) throw new Error(`${resObj.status} ${resObj.statusText}: ${typeof data === 'string' ? data.slice(0, 50) : JSON.stringify(data).slice(0, 50)}`);
           if (res.data?.email) email = res.data.email;
         } else if (provider === "snov") {
           const parts = apiKey.split(":");
@@ -113,8 +122,11 @@ export async function executeIntegrationStep(
             headers: { "Content-Type": "application/x-www-form-urlencoded" },
             body: new URLSearchParams({ grant_type: "client_credentials", client_id: clientId.trim(), client_secret: clientSecret.trim() })
           });
-          if (!tokenResObj.ok) throw { response: { status: tokenResObj.status } };
-          const token = (await tokenResObj.json()).access_token;
+          if (!tokenResObj.ok) throw new Error(`Snov auth failed: ${tokenResObj.status} ${tokenResObj.statusText}`);
+          let tokenText = await tokenResObj.text();
+          let tokenData; try { tokenData = JSON.parse(tokenText); } catch(e) { tokenData = {}; }
+          const token = tokenData.access_token;
+          if (!token) throw new Error("Snov.io did not return access_token");
           
           if (target.linkedin_url) {
             await fetch("https://api.snov.io/v1/add-url-for-search", {
@@ -151,8 +163,11 @@ export async function executeIntegrationStep(
               company: target.company || ""
             })
           });
-          const res = { data: await resObj.json(), status: resObj.status };
-          if (!resObj.ok) throw { response: res };
+          let data;
+          const text = await resObj.text();
+          try { data = JSON.parse(text); } catch (e) { data = text; }
+          const res = { data, status: resObj.status };
+          if (!resObj.ok) throw new Error(`${resObj.status} ${resObj.statusText}: ${typeof data === 'string' ? data.slice(0, 50) : JSON.stringify(data).slice(0, 50)}`);
           if (res.data?.data?.emailAddresses?.[0]?.email) {
             email = res.data.data.emailAddresses[0].email;
           }
@@ -167,8 +182,11 @@ export async function executeIntegrationStep(
             const resObj = await fetch(`https://api.contactout.com/v1/email/find?${query}`, {
               headers: { 'token': apiKey }
             });
-            const res = { data: await resObj.json(), status: resObj.status };
-            if (!resObj.ok) throw { response: res };
+            let data;
+          const text = await resObj.text();
+          try { data = JSON.parse(text); } catch (e) { data = text; }
+          const res = { data, status: resObj.status };
+          if (!resObj.ok) throw new Error(`${resObj.status} ${resObj.statusText}: ${typeof data === 'string' ? data.slice(0, 50) : JSON.stringify(data).slice(0, 50)}`);
           if (res.data?.email) email = res.data.email;
         }
 
@@ -181,7 +199,7 @@ export async function executeIntegrationStep(
         
         log(db, runId, target.id, "info", `Provider ${provider} did not find an email`);
       } catch (err: any) {
-        log(db, runId, target.id, "warn", `${provider} enrichment failed: ${err.message}`);
+        log(db, runId, target.id, "warn", `${provider} enrichment failed: ${err.message || JSON.stringify(err)}`);
         if (err.response?.status === 402 || err.response?.status === 429) {
           const tomorrow = new Date();
           tomorrow.setDate(tomorrow.getDate() + 1);
@@ -215,8 +233,12 @@ export async function executeIntegrationStep(
           body: JSON.stringify(payload)
         });
         if (!resObj.ok) {
-          const data = await resObj.json();
-          throw { response: { status: resObj.status, data } };
+          let data;
+          const text = await resObj.text();
+          try { data = JSON.parse(text); } catch (e) { data = text; }
+          const err = new Error(`${resObj.status} ${resObj.statusText}: ${typeof data === 'string' ? data.slice(0, 50).replace(/\n/g, '') : JSON.stringify(data).slice(0, 50)}`);
+          (err as any).response = { status: resObj.status, data };
+          throw err;
         }
         log(db, runId, target.id, "info", `Successfully pushed ${target.first_name || ""} ${target.last_name || ""} to HubSpot CRM`);
       } catch (err: any) {
