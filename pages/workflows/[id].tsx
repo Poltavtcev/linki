@@ -37,7 +37,7 @@ import {
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type StepType = "visit" | "connect" | "message" | "sales_inmail" | "delay" | "email" | "integration";
-type Track = "linkedin" | "email";
+type Track = "linkedin" | "email" | "integration";
 
 interface Step {
   id: string;
@@ -310,7 +310,7 @@ export const getServerSideProps: GetServerSideProps = async ({ params, query }) 
 
 // ─── Wizard ───────────────────────────────────────────────────────────────────
 
-type WizardPage = "prospects" | "prompt" | "linkedin-steps" | "email-steps" | "account" | "summary";
+type WizardPage = "prospects" | "prompt" | "linkedin-steps" | "email-steps" | "integration-steps" | "account" | "summary";
 
 interface WizardStep {
   track: Track;
@@ -737,7 +737,7 @@ function Wizard({
   const hasConnect = wizardSteps.some((s) => s.type === "connect");
 
   async function addWizardStep(type: "visit" | "connect" | "message" | "sales_inmail" | "email" | "integration") {
-    const track: Track = type === "email" ? "email" : "linkedin";
+    const track: Track = type === "integration" ? "integration" : type === "email" ? "email" : "linkedin";
     setWizardSteps((prev) => {
       const trackSteps = prev.filter((s) => s.track === track);
       const isFirstInTrack = trackSteps.length === 0;
@@ -786,7 +786,7 @@ function Wizard({
     // Save per-track: each track's steps saved in order with correct delays
     // We interleave all steps together (API auto-assigns track from step_type / track field)
     // Process linkedin steps then email steps (order within each track matters, cross-track order is irrelevant)
-    const byTrack: Record<Track, WizardStep[]> = { linkedin: [], email: [] };
+    const byTrack: Record<Track, WizardStep[]> = { linkedin: [], email: [], integration: [] };
     for (const ws of wizardSteps) {
       byTrack[ws.track].push(ws);
     }
@@ -794,7 +794,7 @@ function Wizard({
     let messagePosition = 1;
     // Save all steps flat — the track field tells the API which track each step belongs to
     // We must save them interleaved so positions increment correctly per type
-    const allOrdered = [...byTrack.linkedin, ...byTrack.email];
+    const allOrdered = [...byTrack.linkedin, ...byTrack.email, ...byTrack.integration];
     // Re-calculate positions independently
     emailPosition = 1; messagePosition = 1;
     for (const ws of allOrdered) {
@@ -976,6 +976,7 @@ function Wizard({
     prompt: "Campaign Context",
     "linkedin-steps": "LinkedIn Steps",
     "email-steps": "Email Steps",
+    "integration-steps": "Integration Steps",
     account: "Choose Account",
     summary: "Summary",
   };
@@ -985,6 +986,7 @@ function Wizard({
     prompt: <RiRobot2Line size={14} />,
     "linkedin-steps": <RiLinkedinBoxLine size={14} />,
     "email-steps": <RiMailLine size={14} />,
+    "integration-steps": <RiPlugLine size={14} />,
     account: <RiUser3Line size={14} />,
     summary: "✓",
   };
@@ -1367,8 +1369,7 @@ function Wizard({
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-xs text-base-content/30 mr-1">Add step:</span>
                       {track === "linkedin"
-                        ? (["visit", "connect", "message", "sales_inmail", "integration"] as const)
-                            // Sales Nav InMail is a premium feature — hide from the picker in the public build.
+                        ? (["visit", "connect", "message", "sales_inmail"] as const)
                             .filter((type) => type !== "sales_inmail" || hasPremium)
                             .map((type) => {
                             const disabled = type === "connect" && hasConnect;
@@ -1379,17 +1380,17 @@ function Wizard({
                               </button>
                             );
                           })
-                        : (
-                            <>
+                        : track === "email" ? (
                             <button onClick={() => addWizardStep("email")}
                               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors text-xs border-warning/20 bg-warning/5 hover:bg-warning/10 text-warning/70 hover:text-warning">
                               <RiAddLine size={11} /> {trackSteps.length === 0 ? "Cold Email" : `Follow-up #${trackSteps.length + 1}`}
                             </button>
+                          )
+                        : (
                             <button onClick={() => addWizardStep("integration")}
                               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors text-xs border-accent/20 bg-accent/5 hover:bg-accent/10 text-accent/70 hover:text-accent">
-                              <RiAddLine size={11} /> Integration
+                              <RiAddLine size={11} /> Integration Step
                             </button>
-                            </>
                           )}
                     </div>
                   </div>
@@ -3085,7 +3086,7 @@ export default function WorkflowDetailPage({
               <p className="text-xs text-base-content/30 uppercase tracking-widest px-1 mb-3">Pipeline</p>
 
               {/* Render each track independently, delays shown inline before their step */}
-              {(["linkedin", "email"] as Track[]).map((track) => {
+              {(["linkedin", "email", "integration"] as Track[]).map((track) => {
                 const trackSteps = steps.filter((s) => (s.track ?? (s.step_type === "email" ? "email" : "linkedin")) === track);
                 if (trackSteps.length === 0) return null;
                 const trackActionSteps = trackSteps.filter((s) => s.step_type !== "delay");
