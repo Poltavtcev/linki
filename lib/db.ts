@@ -654,6 +654,13 @@ function runMigrations(db: Database.Database) {
     )`,
     "CREATE INDEX IF NOT EXISTS idx_sfc_type_query ON search_filter_cache(filter_type, query)",
     "CREATE INDEX IF NOT EXISTS idx_sfc_type_display ON search_filter_cache(filter_type, display_value)",
+    "CREATE INDEX IF NOT EXISTS idx_logs_run_id ON logs(run_id)",
+    "CREATE INDEX IF NOT EXISTS idx_logs_target_id ON logs(target_id)",
+    "CREATE INDEX IF NOT EXISTS idx_logs_created_at ON logs(created_at)",
+    "CREATE INDEX IF NOT EXISTS idx_run_profiles_run_id ON run_profiles(run_id)",
+    "CREATE INDEX IF NOT EXISTS idx_run_profiles_target_id ON run_profiles(target_id)",
+    "CREATE INDEX IF NOT EXISTS idx_runs_workflow_id ON runs(workflow_id)",
+    "CREATE INDEX IF NOT EXISTS idx_runs_list_id ON runs(list_id)",
     // CSV import: lists can be flagged as linkedin- or email-only, so the runner/UI
     // can warn before enrolling a purpose-mismatched list into a campaign.
     "ALTER TABLE lists ADD COLUMN purpose TEXT",
