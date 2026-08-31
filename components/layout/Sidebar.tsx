@@ -27,14 +27,14 @@ import { pathToTourPage, replayPageTour } from "@/lib/tour";
 const LEARNING_PLAYLIST_URL = "https://www.youtube.com/playlist?list=PLBf6xNJOmsIQ";
 
 const mainNav = [
-  { href: "/", label: "Dashboard", icon: RiLayoutGridLine, color: "#5aa2ff", tour: "nav-dashboard" },
-  { href: "/lists", label: "Lists", icon: RiFileList3Line, color: "#32d583", tour: "nav-lists" },
-  { href: "/contacts", label: "Contacts", icon: RiContactsLine, color: "#34d399", tour: "nav-contacts" },
-  { href: "/companies", label: "Companies", icon: RiBuildingLine, color: "#a78bfa", tour: "nav-companies" },
-  { href: "/workflows", label: "Campaigns", icon: RiFlowChart, color: "#f4b740", tour: "nav-workflows" },
-  { href: "/inbox", label: "Inbox", icon: RiInboxLine, color: "#38bdf8", tour: "nav-inbox" },
-  { href: "/email-health", label: "Email Health", icon: RiMailCheckLine, color: "#f4b740", tour: "nav-email-health" },
-  { href: "/todos", label: "Todos", icon: RiCheckboxCircleLine, color: "#fb923c", tour: "nav-todos" },
+  { href: "/", label: "Dashboard", icon: RiLayoutGridLine, color: "var(--nav-blue)", tour: "nav-dashboard" },
+  { href: "/lists", label: "Lists", icon: RiFileList3Line, color: "var(--nav-green)", tour: "nav-lists" },
+  { href: "/contacts", label: "Contacts", icon: RiContactsLine, color: "var(--nav-emerald)", tour: "nav-contacts" },
+  { href: "/companies", label: "Companies", icon: RiBuildingLine, color: "var(--nav-purple)", tour: "nav-companies" },
+  { href: "/workflows", label: "Campaigns", icon: RiFlowChart, color: "var(--nav-yellow)", tour: "nav-workflows" },
+  { href: "/inbox", label: "Inbox", icon: RiInboxLine, color: "var(--nav-sky)", tour: "nav-inbox" },
+  { href: "/email-health", label: "Email Health", icon: RiMailCheckLine, color: "var(--nav-yellow)", tour: "nav-email-health" },
+  { href: "/todos", label: "Todos", icon: RiCheckboxCircleLine, color: "var(--nav-orange)", tour: "nav-todos" },
 ];
 
 // Nav items that only exist in the commercial build (ee/). Filtered out when premium absent.
@@ -128,7 +128,7 @@ export default function Sidebar({ onCollapse }: { onCollapse?: (collapsed: boole
               >
                 <span
                   className="w-6 h-6 rounded-md flex items-center justify-center"
-                  style={{ background: active ? `${item.color}22` : "transparent" }}
+                  style={{ background: active ? "color-mix(in srgb, " + item.color + " 15%, transparent)" : "transparent" }}
                 >
                   <item.icon size={14} style={{ color: active ? item.color : "currentColor" }} />
                 </span>
