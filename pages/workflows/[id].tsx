@@ -2550,6 +2550,7 @@ interface AnalyticsData {
     total: number; connections_sent: number; connected: number;
     messages_sent: number; inmails_sent: number; li_replies: number;
     emails_sent: number; email_replies: number; completed: number;
+    profiles_visited: number; emails_enriched: number; hubspot_pushes: number;
   };
   activity: { day: string; visits: number; connections: number; messages: number; inmails: number; emails: number }[];
   aiDaily: { day: string; cost_usd: number; input_tokens: number; output_tokens: number }[];
@@ -2792,6 +2793,7 @@ function AnalyticsPanel({ workflowId, days: initialDays }: { workflowId: string;
             </div>
             <div className="space-y-0.5">
               <FunnelBar label="Prospects" value={funnel.total} color="#808080" />
+              <FunnelBar label="Visited" value={funnel.profiles_visited} color="#5aa2ff" />
               <FunnelBar label="Connections sent" value={funnel.connections_sent} color="#32d583" />
               <FunnelBar label="Connected" value={funnel.connected} color="#32d583" />
               <FunnelBar label="LI Messages" value={funnel.messages_sent} color="#f4b740" />
@@ -2799,6 +2801,8 @@ function AnalyticsPanel({ workflowId, days: initialDays }: { workflowId: string;
               <FunnelBar label="LI Replies" value={funnel.li_replies} color="#c084fc" />
               <FunnelBar label="Emails sent" value={funnel.emails_sent} color="#fb923c" />
               <FunnelBar label="Email replies" value={funnel.email_replies} color="#32d583" />
+              <FunnelBar label="Enriched" value={funnel.emails_enriched} color="#f4b740" />
+              <FunnelBar label="Pushed CRM" value={funnel.hubspot_pushes} color="#20c997" />
               <div className="pt-2 border-t border-base-300/30 mt-2">
                 <FunnelBar label="Completed" value={funnel.completed} color="#5aa2ff" />
               </div>

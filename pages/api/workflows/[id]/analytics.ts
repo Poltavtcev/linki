@@ -93,6 +93,12 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
           WHERE l.run_id IN (${RUNS})
             AND l.message LIKE 'Email sent%'
             AND t.email_replied_at IS NOT NULL) AS email_replies,
+        (SELECT COUNT(DISTINCT target_id) FROM logs
+          WHERE run_id IN (${RUNS}) AND message LIKE 'Visited %') AS profiles_visited,
+        (SELECT COUNT(DISTINCT target_id) FROM logs
+          WHERE run_id IN (${RUNS}) AND message LIKE 'Email enriched via %') AS emails_enriched,
+        (SELECT COUNT(DISTINCT target_id) FROM logs
+          WHERE run_id IN (${RUNS}) AND message LIKE 'Successfully pushed % to HubSpot CRM') AS hubspot_pushes,
 
         (SELECT COUNT(DISTINCT rp.target_id)
           FROM run_profiles rp JOIN runs r ON r.id = rp.run_id
@@ -108,10 +114,12 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     `).get(
       workflowId, workflowId, workflowId, workflowId,
       workflowId, workflowId, workflowId, workflowId, workflowId,
+      workflowId, workflowId, workflowId
     ) as {
       total: number; connections_sent: number; connected: number;
       messages_sent: number; inmails_sent: number; li_replies: number;
       emails_sent: number; email_replies: number; completed: number;
+      profiles_visited: number; emails_enriched: number; hubspot_pushes: number;
     };
 
     // ── Daily activity ────────────────────────────────────────────────────────
