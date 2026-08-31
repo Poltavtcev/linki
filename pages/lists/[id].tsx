@@ -372,7 +372,17 @@ export default function ListDetailPage({
     setCsvImporting(true);
     setCsvResult(null);
     try {
-      const csv = await csvFile.text();
+      const buffer = await csvFile.arrayBuffer();
+      let csv = "";
+      try {
+        const utf8Decoder = new TextDecoder("utf-8", { fatal: true });
+        csv = utf8Decoder.decode(buffer);
+      } catch (e) {
+        // Fallback for Windows Excel CSVs containing Polish/Central European characters
+        console.warn("CSV is not valid UTF-8, falling back to windows-1250");
+        const fallbackDecoder = new TextDecoder("windows-1250");
+        csv = fallbackDecoder.decode(buffer);
+      }
       const res = await fetch(`/api/lists/${initialList.id}/import-csv`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
