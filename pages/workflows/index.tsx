@@ -105,7 +105,7 @@ export const getServerSideProps: GetServerSideProps = async () => {
        COUNT(DISTINCT CASE WHEN t.connection_requested_at IS NOT NULL THEN rp.target_id END) as connections_sent,
        COUNT(DISTINCT CASE WHEN t.connected_at IS NOT NULL THEN rp.target_id END) as connections_accepted,
        MAX(CASE WHEN r.status = 'running' THEN r.id ELSE NULL END) as active_run_id,
-       MAX(CASE WHEN r.status IN ('running','paused') THEN r.status ELSE NULL END) as active_status
+       (SELECT status FROM runs r2 WHERE r2.workflow_id = r.workflow_id ORDER BY created_at DESC LIMIT 1) as active_status
      FROM runs r
      LEFT JOIN run_profiles rp ON rp.run_id = r.id
      LEFT JOIN targets t ON t.id = rp.target_id
@@ -260,6 +260,7 @@ export default function WorkflowsPage({ initialWorkflows }: { initialWorkflows: 
               : 0;
             const isRunning = w.active_status === "running";
             const isPaused = w.active_status === "paused";
+            const isCompleted = w.active_status === "completed";
 
             return (
               <div
@@ -284,6 +285,11 @@ export default function WorkflowsPage({ initialWorkflows }: { initialWorkflows: 
                       {isPaused && (
                         <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-warning/15 text-warning shrink-0">
                           Paused
+                        </span>
+                      )}
+                      {isCompleted && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-success/10 border border-success/20 text-success shrink-0">
+                          Completed
                         </span>
                       )}
                     </div>

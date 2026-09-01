@@ -2955,6 +2955,7 @@ export default function WorkflowDetailPage({
   const activeRun = stats?.active_run ?? initial.active_run;
   const isRunning = activeRun?.status === "running";
   const isPaused = activeRun?.status === "paused";
+  const isCompleted = activeRun?.status === "completed";
   const isActive = isRunning || isPaused;
 
   const actionSteps = steps.filter((s) => s.step_type !== "delay");
@@ -3178,7 +3179,12 @@ export default function WorkflowDetailPage({
                 Paused
               </span>
             )}
-            {!isActive && displayStats.total_prospects > 0 && (
+            {isCompleted && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-success/10 border border-success/20 text-success">
+                Completed
+              </span>
+            )}
+            {!isActive && !isCompleted && displayStats.total_prospects > 0 && (
               <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-base-300 text-base-content/40">
                 Idle
               </span>

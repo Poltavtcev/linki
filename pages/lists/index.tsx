@@ -137,7 +137,7 @@ export default function ListsPage({ initialLists }: { initialLists: List[] }) {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-semibold">Lists</h1>
-          <p className="text-base-content/50 text-sm mt-0.5">Lead lists imported from Sales Navigator</p>
+          <p className="text-base-content/50 text-sm mt-0.5">Lead lists imported from Sales Navigator or CSV</p>
         </div>
         <button data-tour="lists-new" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-primary text-primary-content hover:bg-primary/90 transition-colors" onClick={() => setShowModal(true)}>
           <RiAddLine size={15} /> New List
