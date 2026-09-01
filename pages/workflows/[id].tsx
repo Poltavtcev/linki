@@ -1447,10 +1447,16 @@ function Wizard({
                             </button>
                           )
                         : (
-                            <button onClick={() => addWizardStep("integration")}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors text-xs border-accent/20 bg-accent/5 hover:bg-accent/10 text-accent/70 hover:text-accent">
-                              <RiAddLine size={11} /> Integration Step
-                            </button>
+                            <>
+                              <button onClick={() => addWizardStep("integration")}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors text-xs border-primary/20 bg-primary/5 hover:bg-primary/10 text-primary/70 hover:text-primary">
+                                <RiAddLine size={11} /> {STEP_LABELS["integration"]}
+                              </button>
+                              <button onClick={() => addWizardStep("change_status")}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors text-xs border-secondary/20 bg-secondary/5 hover:bg-secondary/10 text-secondary/70 hover:text-secondary">
+                                <RiAddLine size={11} /> {STEP_LABELS["change_status"]}
+                              </button>
+                            </>
                           )}
                     </div>
                   </div>

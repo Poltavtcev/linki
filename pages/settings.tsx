@@ -1855,6 +1855,17 @@ function GeneralTab({ hasPremium, internalSecret }: { hasPremium: boolean, inter
 }
 
 // ─── CRM Tab ─────────────────────────────────────────────────────────────────
+const THEME_COLORS = [
+  { value: "bg-base-300 text-base-content", label: "Neutral / Gray" },
+  { value: "bg-primary/20 text-primary", label: "Primary (Light)" },
+  { value: "bg-primary text-primary-content", label: "Primary (Solid)" },
+  { value: "bg-secondary/20 text-secondary", label: "Secondary (Light)" },
+  { value: "bg-info/20 text-info", label: "Info / Blue" },
+  { value: "bg-success/20 text-success", label: "Success (Light)" },
+  { value: "bg-success text-success-content", label: "Success (Solid)" },
+  { value: "bg-warning/20 text-warning", label: "Warning / Yellow" },
+  { value: "bg-error/20 text-error", label: "Error / Red" }
+];
 function CrmTab() {
   const [statuses, setStatuses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1893,7 +1904,16 @@ function CrmTab() {
           <div key={i} className="flex gap-3 items-center bg-base-200 p-3 rounded-lg border border-base-300">
             <input type="text" className="input input-bordered input-sm w-32" placeholder="ID (e.g. lead)" value={s.id} onChange={e => { const copy = [...statuses]; copy[i].id = e.target.value; setStatuses(copy); }} />
             <input type="text" className="input input-bordered input-sm flex-1" placeholder="Label (e.g. Lead)" value={s.label} onChange={e => { const copy = [...statuses]; copy[i].label = e.target.value; setStatuses(copy); }} />
-            <input type="text" className="input input-bordered input-sm flex-1" placeholder="Color CSS (e.g. bg-base-300)" value={s.color} onChange={e => { const copy = [...statuses]; copy[i].color = e.target.value; setStatuses(copy); }} />
+            
+            <select 
+              className={`select select-bordered select-sm w-48 font-medium ${s.color}`}
+              value={s.color} 
+              onChange={e => { const copy = [...statuses]; copy[i].color = e.target.value; setStatuses(copy); }}
+            >
+              {THEME_COLORS.map(tc => (
+                <option key={tc.value} value={tc.value} className={tc.value}>{tc.label}</option>
+              ))}
+            </select>
             <label className="flex items-center gap-2 text-sm cursor-pointer ml-4">
               <input type="checkbox" className="checkbox checkbox-sm checkbox-primary" checked={s.blocks_enrollment} onChange={e => { const copy = [...statuses]; copy[i].blocks_enrollment = e.target.checked; setStatuses(copy); }} />
               Blocks Enrollment
