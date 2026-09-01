@@ -1121,7 +1121,15 @@ export default function ContactDetailPage({
         {/* Inbox */}
         {inboxMessages && inboxMessages.length > 0 && (
           <div className="bg-base-200 border border-base-300/50 rounded-xl p-5 mb-4">
-            <p className="text-[11px] text-base-content/40 uppercase tracking-wide mb-4">Inbox</p>
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-[11px] text-base-content/40 uppercase tracking-wide">Inbox</p>
+              <a
+                href={`/inbox?search=${encodeURIComponent(target.full_name || target.email || target.id)}`}
+                className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
+              >
+                Open in Inbox <RiExternalLinkLine size={10} />
+              </a>
+            </div>
             <div className="space-y-3">
               {inboxMessages.map((msg) => (
                 <div key={msg.id} className="p-3 bg-base-100 rounded-lg border border-base-300/40">

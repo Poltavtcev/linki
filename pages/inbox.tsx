@@ -12,6 +12,7 @@ import {
   RiCloseLine,
   RiLoader4Line,
 } from "react-icons/ri";
+import { useRouter } from "next/router";
 import type { InboxReply } from "./api/inbox/index";
 import type { EmailMessage } from "./api/inbox/thread";
 
@@ -376,9 +377,16 @@ function ReplyModal({ reply, onClose, onActionDone, hasPremium }: ReplyModalProp
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function InboxPage() {
+  const router = useRouter();
   const [replies, setReplies] = useState<InboxReply[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState((router.query.search as string) || "");
+  
+  useEffect(() => {
+    if (router.isReady && router.query.search && search === "") {
+      setSearch(router.query.search as string);
+    }
+  }, [router.isReady, router.query.search]);
   const [channel, setChannel] = useState<ChannelFilter>("all");
   const [verdict, setVerdict] = useState<string>("all");
   const [selectedReply, setSelectedReply] = useState<InboxReply | null>(null);
