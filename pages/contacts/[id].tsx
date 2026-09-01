@@ -164,12 +164,11 @@ export const getServerSideProps: GetServerSideProps = async ({ params }) => {
   const rawTarget = target as unknown as Record<string, unknown>;
   const { company: company_name, ...rest } = rawTarget;
 
-  const emailReplies = db.prepare("SELECT id, subject, body_text as body, received_at FROM email_replies WHERE target_id = ? ORDER BY received_at DESC").all(id);
-  const liReplies = db.prepare("SELECT id, body, created_at as received_at FROM linkedin_reply_queue WHERE target_id = ? ORDER BY created_at DESC").all(id);
-  const inboxMessages = [
-    ...emailReplies.map((r: any) => ({ ...r, source: "email" })),
-    ...liReplies.map((r: any) => ({ ...r, source: "linkedin" }))
-  ].sort((a, b) => new Date(b.received_at).getTime() - new Date(a.received_at).getTime());
+  const allReplies = db.prepare("SELECT id, subject, body_text as body, received_at FROM email_replies WHERE target_id = ? ORDER BY received_at DESC").all(id);
+  const inboxMessages = allReplies.map((r: any) => ({ 
+    ...r, 
+    source: r.id.startsWith("linkedin:") ? "linkedin" : "email" 
+  }));
 
   return { props: { target: { ...rest, company_name, companyObj, lists }, campaignHistory, todos, activityLogs, allLists, inboxMessages } };
 };
