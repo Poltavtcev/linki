@@ -21,7 +21,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 
   if (req.method === "PUT") {
-    const { name, description, prompt } = req.body;
+    const { name, description, prompt, allow_cross_campaign_overlap } = req.body;
     // name/description: COALESCE so a rename-only request doesn't null them out
     // prompt: always update when present in body (even "" to clear it)
     if (prompt !== undefined) {
@@ -37,9 +37,12 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 
   if (req.method === "PATCH") {
-    const { is_archived } = req.body;
+    const { is_archived, allow_cross_campaign_overlap } = req.body;
     if (is_archived !== undefined) {
       db.prepare("UPDATE workflows SET is_archived = ? WHERE id = ?").run(is_archived ? 1 : 0, id);
+    }
+    if (allow_cross_campaign_overlap !== undefined) {
+      db.prepare("UPDATE workflows SET allow_cross_campaign_overlap = ? WHERE id = ?").run(allow_cross_campaign_overlap ? 1 : 0, id);
     }
     return res.json(db.prepare("SELECT * FROM workflows WHERE id = ?").get(id));
   }

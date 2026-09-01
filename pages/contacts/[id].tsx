@@ -76,6 +76,7 @@ interface Target {
   title: string | null;
   company_name: string | null; // renamed from DB 'company' to avoid collision
   location: string | null;
+  lead_status: string | null;
   degree: number | null;
   headline: string | null;
   summary: string | null;
@@ -584,6 +585,7 @@ export default function ContactDetailPage({
   const [firstName, setFirstName] = useState(target?.first_name ?? "");
   const [lastName, setLastName] = useState(target?.last_name ?? "");
   const [fullName, setFullName] = useState(target?.full_name ?? "");
+  const [leadStatus, setLeadStatus] = useState(target?.lead_status ?? "lead");
   const [editingEmail, setEditingEmail] = useState(false);
   const [emailDraft, setEmailDraft] = useState(target.email ?? "");
   const emailInputRef = useRef<HTMLInputElement>(null);
@@ -896,6 +898,27 @@ export default function ContactDetailPage({
                   {target.degree === 1 ? <RiUserFollowLine size={11} /> : target.connection_requested_at ? <RiUserAddLine size={11} /> : null}
                   {connectionStatus.label}
                 </span>
+                
+                <select 
+                  className="select select-bordered select-xs bg-base-300 text-xs font-medium ml-2"
+                  value={leadStatus || 'lead'}
+                  onChange={async (e) => {
+                    const v = e.target.value;
+                    setLeadStatus(v);
+                    await fetch(`/api/targets/${target.id}`, {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ lead_status: v })
+                    });
+                    toast.success("Status updated");
+                  }}
+                >
+                  <option value="lead">Lead</option>
+                  <option value="nurture">Nurture</option>
+                  <option value="meeting_scheduled">Meeting Scheduled</option>
+                  <option value="customer">Customer</option>
+                  <option value="disqualified">Disqualified</option>
+                </select>
                 {target.email && (
                   target.email_status === "invalid" ? (
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-error/15 text-error">

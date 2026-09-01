@@ -60,6 +60,7 @@ interface WorkflowData {
   name: string;
   description: string | null;
   prompt: string | null;
+  allow_cross_campaign_overlap: number;
   steps: Step[];
   active_run: {
     id: string;
@@ -531,6 +532,7 @@ function Wizard({
   workflowId,
   workflowName: initialWorkflowName,
   initialPrompt,
+  allowCrossCampaignOverlap = false,
   initialSteps,
   lists,
   accounts,
@@ -548,6 +550,7 @@ function Wizard({
   workflowId: string;
   workflowName: string;
   initialPrompt: string;
+  allowCrossCampaignOverlap: boolean;
   initialSteps: Step[];
   lists: List[];
   accounts: Account[];
@@ -567,6 +570,7 @@ function Wizard({
   const isAddContacts = mode === "add-contacts";
   const [page, setPage] = useState<WizardPage>(isEditMode ? "linkedin-steps" : "prospects");
   const [campaignPrompt, setCampaignPrompt] = useState(initialPrompt);
+  const [crossOverlap, setCrossOverlap] = useState(allowCrossCampaignOverlap);
   const [listId, setListId] = useState("");
   const [accountId, setAccountId] = useState("");
   const [emailAccountIds, setEmailAccountIds] = useState<Set<string>>(new Set(activeRunEmailAccountIds));
@@ -1122,6 +1126,27 @@ function Wizard({
                         ? "Pick contacts from any list to enroll into the running campaign. Already-enrolled contacts are skipped."
                         : "Pick a list, then choose all contacts or a manual subset."}
                     </p>
+                    
+                    <div className="mb-4 bg-base-200/50 p-3 rounded-xl border border-base-300 flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium">Cross-campaign Enrollment</p>
+                        <p className="text-xs text-base-content/50 mt-0.5">Allow enrolling contacts who have already participated in other campaigns</p>
+                      </div>
+                      <input 
+                        type="checkbox" 
+                        className="toggle toggle-primary toggle-sm"
+                        checked={crossOverlap}
+                        onChange={async (e) => {
+                          const checked = e.target.checked;
+                          setCrossOverlap(checked);
+                          await fetch(`/api/workflows/${workflowId}`, {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ allow_cross_campaign_overlap: checked ? 1 : 0 })
+                          });
+                        }}
+                      />
+                    </div>
 
                     <div className="flex gap-6 flex-1 min-h-0">
                       {/* ── Left: Lists picker ── */}
@@ -3576,6 +3601,7 @@ export default function WorkflowDetailPage({
           workflowId={initial.id}
           workflowName={workflowName}
           initialPrompt={initial.prompt ?? ""}
+          allowCrossCampaignOverlap={initial.allow_cross_campaign_overlap === 1}
           initialSteps={steps}
           lists={lists}
           accounts={accounts}

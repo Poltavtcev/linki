@@ -14,6 +14,18 @@ export interface FieldDef {
 
 export const FILTER_FIELDS: FieldDef[] = [
   {
+    key: "lead_status",
+    label: "CRM Status",
+    type: "enum",
+    options: [
+      { value: "lead", label: "Lead" },
+      { value: "nurture", label: "Nurture" },
+      { value: "meeting_scheduled", label: "Meeting Scheduled" },
+      { value: "customer", label: "Customer" },
+      { value: "disqualified", label: "Disqualified" },
+    ]
+  },
+  {
     key: "connection_status",
     label: "Connection",
     type: "enum",

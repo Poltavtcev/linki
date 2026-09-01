@@ -20,7 +20,7 @@ interface Contact {
   full_name: string | null;
   title: string | null;
   company: string | null;
-  location: string | null;
+  location: string | null; lead_status: string | null;
   email: string | null;
   email_status: string | null;
   phone: string | null;
@@ -311,6 +311,7 @@ export default function ContactsPage({ lists, total: initialTotal }: { lists: Li
                       <input type="checkbox" className="w-3.5 h-3.5 rounded border border-base-300 bg-base-300/50 accent-primary cursor-pointer" checked={allPageSelected} onChange={toggleAll} />
                     </th>
                     <th>Name</th>
+                    <th>CRM</th>
                     <th>Title</th>
                     <th>Company</th>
                     <th>Location</th>
@@ -341,6 +342,26 @@ export default function ContactsPage({ lists, total: initialTotal }: { lists: Li
                           </div>
                           <span className="font-medium truncate max-w-36">{c.full_name ?? "—"}</span>
                         </div>
+                      </td>
+                      <td>
+                        <select 
+                          className="select select-bordered select-xs bg-base-300/50 w-28 text-[11px]" 
+                          value={c.lead_status || 'lead'}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => {
+                            fetch(`/api/targets/${c.id}`, {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ lead_status: e.target.value })
+                            }).then(() => fetch_(page, listId, debouncedSearch, filters));
+                          }}
+                        >
+                          <option value="lead">Lead</option>
+                          <option value="nurture">Nurture</option>
+                          <option value="meeting_scheduled">Meeting</option>
+                          <option value="customer">Customer</option>
+                          <option value="disqualified">Disqualified</option>
+                        </select>
                       </td>
                       <td className="text-base-content/60 max-w-44 truncate">{c.title ?? "—"}</td>
                       <td className="text-base-content/60 truncate max-w-36">{c.company ?? "—"}</td>

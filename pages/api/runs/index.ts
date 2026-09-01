@@ -86,7 +86,34 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
       ).all() as { target_id: string }[]).map((r) => r.target_id)
     );
 
-    const targets = candidates.filter((t) => !alreadyEnrolled.has(t.target_id) && !activeElsewhere.has(t.target_id));
+    // Exclude targets with protected lead_status (CRM feature)
+    const crmExcluded = new Set(
+      (db.prepare(
+        "SELECT id as target_id FROM targets WHERE lead_status IN ('meeting_scheduled', 'customer', 'disqualified')"
+      ).all() as { target_id: string }[]).map((r) => r.target_id)
+    );
+
+    // Cross-campaign overlap logic
+    const workflow = db.prepare("SELECT allow_cross_campaign_overlap FROM workflows WHERE id = ?").get(workflow_id) as { allow_cross_campaign_overlap: number } | undefined;
+    const overlapAllowed = workflow?.allow_cross_campaign_overlap === 1;
+
+    let overlapExcluded = new Set<string>();
+    if (!overlapAllowed) {
+      overlapExcluded = new Set(
+        (db.prepare(
+          `SELECT DISTINCT rp.target_id FROM run_profiles rp
+           JOIN runs r ON r.id = rp.run_id
+           WHERE r.workflow_id != ?`
+        ).all(workflow_id) as { target_id: string }[]).map((r) => r.target_id)
+      );
+    }
+
+    const targets = candidates.filter((t) => 
+      !alreadyEnrolled.has(t.target_id) && 
+      !activeElsewhere.has(t.target_id) && 
+      !crmExcluded.has(t.target_id) &&
+      !overlapExcluded.has(t.target_id)
+    );
 
     if (targets.length === 0) {
       // Clean up the run we just created since there's nothing to enroll

@@ -666,6 +666,8 @@ function runMigrations(db: Database.Database) {
     "ALTER TABLE lists ADD COLUMN purpose TEXT",
     // Manual/CSV-only field — no automation reads or writes this, reference data only.
     "ALTER TABLE targets ADD COLUMN phone TEXT",
+    "ALTER TABLE targets ADD COLUMN lead_status TEXT DEFAULT 'lead'",
+    "ALTER TABLE workflows ADD COLUMN allow_cross_campaign_overlap INTEGER DEFAULT 0",
   ];
   for (const sql of migrations) {
     try { db.exec(sql); } catch { /* column already exists */ }
