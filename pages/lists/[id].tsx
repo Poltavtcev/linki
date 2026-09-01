@@ -17,6 +17,7 @@ import FilterBar, { ActiveFilter, applyFiltersClient } from "@/components/ui/Fil
 const PAGE_SIZE = 25;
 
 interface Target {
+  lead_status?: string | null;
   id: string;
   linkedin_url: string | null;
   full_name: string | null;
@@ -164,6 +165,10 @@ export default function ListDetailPage({
 
   const [showSync, setShowSync] = useState(false);
   const [syncAccountId, setSyncAccountId] = useState("");
+  const [crmStatuses, setCrmStatuses] = useState<any[]>([]);
+  useEffect(() => {
+    fetch("/api/settings/crm-statuses").then(r => r.json()).then(setCrmStatuses).catch(() => {});
+  }, []);
   const [syncing, setSyncing] = useState(false);
 
   const [apolloConfigured, setApolloConfigured] = useState(false);
@@ -641,6 +646,7 @@ export default function ListDetailPage({
                   <th>Title</th>
                   <th>Company</th>
                   <th>Location</th>
+                  <th className="w-24">Status</th>
                   <th className="w-20"></th>
                   <th></th>
                 </tr>
@@ -664,6 +670,33 @@ export default function ListDetailPage({
                     <td className="text-base-content/60 max-w-50 truncate">{t.title ?? "—"}</td>
                     <td className="text-base-content/60">{t.company ?? "—"}</td>
                     <td className="text-base-content/40 text-xs">{t.location ?? "—"}</td>
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <select 
+                        className={`select select-bordered select-xs w-28 text-[11px] ${crmStatuses.find(s => s.id === (t.lead_status || 'lead'))?.color || 'bg-base-300/50'}`} 
+                        value={t.lead_status || 'lead'}
+                        onChange={(e) => {
+                          const newVal = e.target.value;
+                          fetch(`/api/targets/${t.id}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ lead_status: newVal })
+                          });
+                          setTargets(targets.map(x => x.id === t.id ? { ...x, lead_status: newVal } : x));
+                        }}
+                      >
+                        {crmStatuses.length > 0 ? crmStatuses.map(s => (
+                          <option key={s.id} value={s.id} className="bg-base-200 text-base-content">{s.label}</option>
+                        )) : (
+                          <>
+                            <option value="lead">Lead</option>
+                            <option value="nurture">Nurture</option>
+                            <option value="meeting_scheduled">Meeting</option>
+                            <option value="customer">Customer</option>
+                            <option value="disqualified">Disqualified</option>
+                          </>
+                        )}
+                      </select>
+                    </td>
                     <td onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center gap-2">
                         <ConnectionIcon t={t} />
