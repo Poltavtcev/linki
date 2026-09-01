@@ -1138,12 +1138,11 @@ function Wizard({
                         <p className="text-sm font-medium">Cross-campaign Enrollment</p>
                         <p className="text-xs text-base-content/50 mt-0.5">Allow enrolling contacts who have already participated in other campaigns</p>
                       </div>
-                      <input 
-                        type="checkbox" 
-                        className="toggle toggle-success border-base-content/30"
-                        checked={crossOverlap}
-                        onChange={async (e) => {
-                          const checked = e.target.checked;
+                      <button
+                        type="button"
+                        className={`btn btn-sm w-16 ${crossOverlap ? "btn-success" : "btn-outline border-base-300"}`}
+                        onClick={async () => {
+                          const checked = !crossOverlap;
                           setCrossOverlap(checked);
                           await fetch(`/api/workflows/${workflowId}`, {
                             method: "PATCH",
@@ -1151,7 +1150,9 @@ function Wizard({
                             body: JSON.stringify({ allow_cross_campaign_overlap: checked ? 1 : 0 })
                           });
                         }}
-                      />
+                      >
+                        {crossOverlap ? "ON" : "OFF"}
+                      </button>
                     </div>
 
                     <div className="flex gap-6 flex-1 min-h-0">
