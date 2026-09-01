@@ -32,11 +32,12 @@ import {
   RiArrowDownSLine,
   RiRefreshLine,
   RiErrorWarningLine,
+  RiGroupLine,
 } from "react-icons/ri";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type StepType = "visit" | "connect" | "message" | "sales_inmail" | "delay" | "email" | "integration";
+type StepType = "visit" | "connect" | "message" | "sales_inmail" | "delay" | "email" | "integration" | "change_status";
 type Track = "linkedin" | "email" | "integration";
 
 interface Step {
@@ -158,6 +159,7 @@ const STEP_ICONS: Record<string, React.ReactNode> = {
   delay: <RiTimeLine size={15} />,
   email: <RiMailLine size={15} />,
   integration: <RiPlugLine size={15} />,
+  change_status: <RiGroupLine size={15} />,
 };
 
 // Static base labels — email steps use getEmailStepLabel() for dynamic numbering
@@ -329,7 +331,7 @@ type WizardPage = "prospects" | "prompt" | "linkedin-steps" | "email-steps" | "i
 
 interface WizardStep {
   track: Track;
-  type: "visit" | "connect" | "message" | "sales_inmail" | "email" | "integration";
+  type: "visit" | "connect" | "message" | "sales_inmail" | "email" | "integration" | "change_status";
   delayDaysBefore: number; // delay before this step (0 for first step within its track)
   connectNote: string;
   messageBody: string;
@@ -578,6 +580,10 @@ function Wizard({
   const [conflictsLoading, setConflictsLoading] = useState(false);
   const [wizardSteps, setWizardSteps] = useState<WizardStep[]>(() => buildWizardSteps(initialSteps));
   const [integrations, setIntegrations] = useState<{ key: string; configured: boolean }[]>([]);
+  const [crmStatuses, setCrmStatuses] = useState<any[]>([]);
+  useEffect(() => {
+    fetch("/api/settings/crm-statuses").then(r => r.json()).then(setCrmStatuses).catch(() => {});
+  }, []);
   useEffect(() => {
     fetch("/api/integrations")
       .then((r) => r.json())
@@ -761,12 +767,12 @@ function Wizard({
 
   const hasConnect = wizardSteps.some((s) => s.type === "connect");
 
-  async function addWizardStep(type: "visit" | "connect" | "message" | "sales_inmail" | "email" | "integration") {
-    const track: Track = type === "integration" ? "integration" : type === "email" ? "email" : "linkedin";
+  async function addWizardStep(type: "visit" | "connect" | "message" | "sales_inmail" | "email" | "integration" | "change_status") {
+    const track: Track = (type === "integration" || type === "change_status") ? "integration" : type === "email" ? "email" : "linkedin";
     setWizardSteps((prev) => {
       const trackSteps = prev.filter((s) => s.track === track);
       const isFirstInTrack = trackSteps.length === 0;
-      const newStep: WizardStep = { track, type, delayDaysBefore: isFirstInTrack ? 0 : 1, connectNote: "", messageBody: "", templateId: null, templateIds: [], emailSubject: "", emailBody: "", emailSignature: null, aiEnabled: false, aiModel: "", aiPrompt: "", aiMaxWordsEnabled: false, aiMaxWords: 100, aiLanguage: "English", config: type === "integration" ? JSON.stringify({ action_type: "enrich_email", provider_chain: ["prospeo", "apollo", "snov", "skrapp", "hunter", "lusha", "contactout"] }) : null };
+      const newStep: WizardStep = { track, type, delayDaysBefore: isFirstInTrack ? 0 : 1, connectNote: "", messageBody: "", templateId: null, templateIds: [], emailSubject: "", emailBody: "", emailSignature: null, aiEnabled: false, aiModel: "", aiPrompt: "", aiMaxWordsEnabled: false, aiMaxWords: 100, aiLanguage: "English", config: type === "integration" ? JSON.stringify({ action_type: "enrich_email", provider_chain: ["prospeo", "apollo", "snov", "skrapp", "hunter", "lusha", "contactout"] }) : type === "change_status" ? JSON.stringify({ status_id: "lead" }) : null };
 
       if (type === "connect") {
         // Insert before the first linkedin message step
@@ -856,7 +862,7 @@ function Wizard({
           ai_prompt: hasAI ? (ws.aiPrompt || null) : null,
           ai_max_words: hasAI && ws.aiEnabled && ws.aiMaxWordsEnabled ? ws.aiMaxWords : null,
           ai_language: hasAI ? (ws.aiLanguage || "English") : null,
-          config: ws.type === "integration" ? ws.config : null,
+          config: (ws.type === "integration" || ws.type === "change_status") ? ws.config : null,
         }),
       });
       if (isEmail) emailPosition++;
@@ -2055,7 +2061,38 @@ function Wizard({
                   </div>
                 )}
 
-                                {ws.type === "integration" && (() => {
+                                {ws.type === "change_status" && (() => {
+                  let parsedConfig = { status_id: "lead" };
+                  try {
+                    if (ws.config && ws.config !== "null") {
+                      const p = JSON.parse(ws.config);
+                      if (p && typeof p === "object") parsedConfig = { ...parsedConfig, ...p };
+                    }
+                  } catch (e) {}
+
+                  return (
+                    <div className="p-6">
+                      <div className="mb-6">
+                        <label className="block text-xs font-semibold text-base-content/60 uppercase tracking-wider mb-2">New Status</label>
+                        <select
+                          className="select select-bordered bg-base-300 w-full"
+                          value={parsedConfig.status_id}
+                          onChange={(e) => {
+                            const newConfig = { ...parsedConfig, status_id: e.target.value };
+                            setWizardSteps((prev) => prev.map((s, idx) => idx === configIdx ? { ...s, config: JSON.stringify(newConfig) } : s));
+                          }}
+                        >
+                          {crmStatuses.map((s) => (
+                            <option key={s.id} value={s.id}>{s.label}</option>
+                          ))}
+                        </select>
+                        <p className="text-xs text-base-content/50 mt-2">When this step is reached, the contact's CRM status will be updated to this value.</p>
+                      </div>
+                    </div>
+                  );
+                })()}
+                
+                {ws.type === "integration" && (() => {
                   let parsedConfig = { action_type: "enrich_email", provider_chain: ["prospeo", "apollo", "snov", "skrapp", "hunter", "lusha", "contactout"] };
                   try {
                     if (ws.config && ws.config !== "null") {

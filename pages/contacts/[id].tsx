@@ -586,6 +586,10 @@ export default function ContactDetailPage({
   const [lastName, setLastName] = useState(target?.last_name ?? "");
   const [fullName, setFullName] = useState(target?.full_name ?? "");
   const [leadStatus, setLeadStatus] = useState(target?.lead_status ?? "lead");
+  const [crmStatuses, setCrmStatuses] = useState<any[]>([]);
+  useEffect(() => {
+    fetch("/api/settings/crm-statuses").then(r => r.json()).then(setCrmStatuses).catch(() => {});
+  }, []);
   const [editingEmail, setEditingEmail] = useState(false);
   const [emailDraft, setEmailDraft] = useState(target.email ?? "");
   const emailInputRef = useRef<HTMLInputElement>(null);
@@ -900,7 +904,7 @@ export default function ContactDetailPage({
                 </span>
                 
                 <select 
-                  className="select select-bordered select-xs bg-base-300 text-xs font-medium ml-2"
+                  className={`select select-bordered select-xs text-xs font-medium ml-2 ${crmStatuses.find(s => s.id === (leadStatus || 'lead'))?.color || 'bg-base-300'}`}
                   value={leadStatus || 'lead'}
                   onChange={async (e) => {
                     const v = e.target.value;
@@ -913,11 +917,17 @@ export default function ContactDetailPage({
                     toast.success("Status updated");
                   }}
                 >
-                  <option value="lead">Lead</option>
-                  <option value="nurture">Nurture</option>
-                  <option value="meeting_scheduled">Meeting Scheduled</option>
-                  <option value="customer">Customer</option>
-                  <option value="disqualified">Disqualified</option>
+                  {crmStatuses.length > 0 ? crmStatuses.map(s => (
+                    <option key={s.id} value={s.id}>{s.label}</option>
+                  )) : (
+                    <>
+                      <option value="lead">Lead</option>
+                      <option value="nurture">Nurture</option>
+                      <option value="meeting_scheduled">Meeting Scheduled</option>
+                      <option value="customer">Customer</option>
+                      <option value="disqualified">Disqualified</option>
+                    </>
+                  )}
                 </select>
                 {target.email && (
                   target.email_status === "invalid" ? (

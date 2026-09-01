@@ -392,6 +392,17 @@ interface FilterBarProps {
 }
 
 export default function FilterBar({ filters, onChange, fieldSubset }: FilterBarProps) {
+  useEffect(() => {
+    fetch("/api/settings/crm-statuses")
+      .then(r => r.json())
+      .then(statuses => {
+        const leadField = FILTER_FIELDS.find(f => f.key === "lead_status");
+        if (leadField) {
+          leadField.options = statuses.map((s: any) => ({ value: s.id, label: s.label }));
+        }
+      })
+      .catch(() => {});
+  }, []);
   const visibleFields = fieldSubset
     ? FILTER_FIELDS.filter((f) => fieldSubset.includes(f.key))
     : FILTER_FIELDS;

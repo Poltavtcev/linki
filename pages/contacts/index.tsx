@@ -83,6 +83,10 @@ export default function ContactsPage({ lists, total: initialTotal }: { lists: Li
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filters, setFilters] = useState<ActiveFilter[]>([]);
+  const [crmStatuses, setCrmStatuses] = useState<any[]>([]);
+  useEffect(() => {
+    fetch("/api/settings/crm-statuses").then(r => r.json()).then(setCrmStatuses).catch(() => {});
+  }, []);
   const [loading, setLoading] = useState(true);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -345,7 +349,7 @@ export default function ContactsPage({ lists, total: initialTotal }: { lists: Li
                       </td>
                       <td>
                         <select 
-                          className="select select-bordered select-xs bg-base-300/50 w-28 text-[11px]" 
+                          className={`select select-bordered select-xs w-28 text-[11px] ${crmStatuses.find(s => s.id === (c.lead_status || 'lead'))?.color || 'bg-base-300/50'}`} 
                           value={c.lead_status || 'lead'}
                           onClick={(e) => e.stopPropagation()}
                           onChange={(e) => {
@@ -356,11 +360,17 @@ export default function ContactsPage({ lists, total: initialTotal }: { lists: Li
                             }).then(() => fetch_(page, listId, debouncedSearch, filters));
                           }}
                         >
-                          <option value="lead">Lead</option>
-                          <option value="nurture">Nurture</option>
-                          <option value="meeting_scheduled">Meeting</option>
-                          <option value="customer">Customer</option>
-                          <option value="disqualified">Disqualified</option>
+                          {crmStatuses.length > 0 ? crmStatuses.map(s => (
+                            <option key={s.id} value={s.id}>{s.label}</option>
+                          )) : (
+                            <>
+                              <option value="lead">Lead</option>
+                              <option value="nurture">Nurture</option>
+                              <option value="meeting_scheduled">Meeting</option>
+                              <option value="customer">Customer</option>
+                              <option value="disqualified">Disqualified</option>
+                            </>
+                          )}
                         </select>
                       </td>
                       <td className="text-base-content/60 max-w-44 truncate">{c.title ?? "—"}</td>

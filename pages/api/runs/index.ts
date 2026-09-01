@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getDb } from "@/lib/db";
 import { randomUUID } from "crypto";
+import { getCrmStatuses } from "./../settings/crm-statuses";
 
 export default function handler(req: NextApiRequest, res: NextApiResponse) {
   const db = getDb();
@@ -87,10 +88,14 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     );
 
     // Exclude targets with protected lead_status (CRM feature)
+    const crmStatuses = getCrmStatuses();
+    const blockedStatuses = crmStatuses.filter((s: any) => s.blocks_enrollment).map((s: any) => s.id);
     const crmExcluded = new Set(
-      (db.prepare(
-        "SELECT id as target_id FROM targets WHERE lead_status IN ('meeting_scheduled', 'customer', 'disqualified')"
-      ).all() as { target_id: string }[]).map((r) => r.target_id)
+      blockedStatuses.length > 0 
+        ? (db.prepare(
+            `SELECT id as target_id FROM targets WHERE lead_status IN (${blockedStatuses.map(() => '?').join(',')})`
+          ).all(...blockedStatuses) as { target_id: string }[]).map((r) => r.target_id)
+        : []
     );
 
     // Cross-campaign overlap logic

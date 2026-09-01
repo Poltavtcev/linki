@@ -915,6 +915,18 @@ async function executeStep(
       log(db, runId, target.id, "info", `Email sent to ${name}`);
     } else if (step.step_type === "integration") {
       await executeIntegrationStep(db, runId, tr, target, step, steps);
+    } else if (step.step_type === "change_status") {
+      let statusId = "lead";
+      try {
+        if (step.config) {
+          const cfg = JSON.parse(step.config);
+          if (cfg && cfg.status_id) statusId = cfg.status_id;
+        }
+      } catch(e) {}
+      
+      db.prepare("UPDATE targets SET lead_status = ? WHERE id = ?").run(statusId, target.id);
+      log(db, runId, target.id, "info", `Updated CRM status to ${statusId}`);
+      trAdvance(db, tr, steps);
     }
 
   } catch (err) {
