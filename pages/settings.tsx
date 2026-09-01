@@ -1881,7 +1881,7 @@ function CrmTab() {
       await fetch("/api/settings/crm-statuses", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(statuses)
+        body: JSON.stringify(statuses.map(s => { const { _isNew, ...rest } = s; return rest; }))
       });
       toast.success("Saved CRM settings");
     } catch(e) {
@@ -1902,8 +1902,21 @@ function CrmTab() {
       <div className="space-y-3 mb-6 max-w-2xl">
         {statuses.map((s, i) => (
           <div key={i} className="flex gap-3 items-center bg-base-200 p-3 rounded-lg border border-base-300">
-            <input type="text" className="input input-bordered input-sm w-32" placeholder="ID (e.g. lead)" value={s.id} onChange={e => { const copy = [...statuses]; copy[i].id = e.target.value; setStatuses(copy); }} />
-            <input type="text" className="input input-bordered input-sm flex-1" placeholder="Label (e.g. Lead)" value={s.label} onChange={e => { const copy = [...statuses]; copy[i].label = e.target.value; setStatuses(copy); }} />
+            <input 
+              type="text" 
+              className="input input-bordered input-sm flex-1" 
+              placeholder="Status Name" 
+              value={s.label} 
+              onChange={e => { 
+                const val = e.target.value;
+                const copy = [...statuses]; 
+                copy[i].label = val; 
+                if (copy[i]._isNew) {
+                  copy[i].id = val.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/(^_|_$)/g, '') || 'new_status';
+                }
+                setStatuses(copy); 
+              }} 
+            />
             
             <select 
               className={`select select-bordered select-sm w-48 font-medium ${s.color}`}
@@ -1924,7 +1937,7 @@ function CrmTab() {
       </div>
       
       <div className="flex gap-3 max-w-2xl">
-        <button className="btn btn-outline btn-sm border-base-300" onClick={() => setStatuses([...statuses, { id: "new", label: "New Status", color: "bg-base-300", blocks_enrollment: false }])}>
+        <button className="btn btn-outline btn-sm border-base-300" onClick={() => setStatuses([...statuses, { id: "new_status", label: "New Status", color: "bg-base-300 text-base-content", blocks_enrollment: false, _isNew: true }])}>
           <RiAddLine size={14} /> Add Status
         </button>
         <button className="btn btn-primary btn-sm ml-auto" onClick={save} disabled={saving}>
