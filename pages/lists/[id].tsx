@@ -643,10 +643,10 @@ export default function ListDetailPage({
                     <input type="checkbox" className="w-3.5 h-3.5 rounded border border-base-300 bg-base-300/50 accent-primary cursor-pointer" checked={allPageSelected} onChange={toggleAll} />
                   </th>
                   <th>Name</th>
+                  <th>CRM</th>
                   <th>Title</th>
                   <th>Company</th>
                   <th>Location</th>
-                  <th className="w-24">Status</th>
                   <th className="w-20"></th>
                   <th></th>
                 </tr>
@@ -667,9 +667,6 @@ export default function ListDetailPage({
                       />
                     </td>
                     <td className="font-medium">{t.full_name ?? "—"}</td>
-                    <td className="text-base-content/60 max-w-50 truncate">{t.title ?? "—"}</td>
-                    <td className="text-base-content/60">{t.company ?? "—"}</td>
-                    <td className="text-base-content/40 text-xs">{t.location ?? "—"}</td>
                     <td onClick={(e) => e.stopPropagation()}>
                       <select 
                         className={`select select-bordered select-xs w-28 text-[11px] ${crmStatuses.find(s => s.id === (t.lead_status || 'lead'))?.color || 'bg-base-300/50'}`} 
@@ -697,6 +694,9 @@ export default function ListDetailPage({
                         )}
                       </select>
                     </td>
+                    <td className="text-base-content/60 max-w-50 truncate">{t.title ?? "—"}</td>
+                    <td className="text-base-content/60">{t.company ?? "—"}</td>
+                    <td className="text-base-content/40 text-xs">{t.location ?? "—"}</td>
                     <td onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center gap-2">
                         <ConnectionIcon t={t} />
