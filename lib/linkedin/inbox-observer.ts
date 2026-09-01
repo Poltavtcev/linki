@@ -100,7 +100,7 @@ export class LinkedInNetworkObserver implements LinkedInInboxObservationSource {
     // Wait for GraphQL to complete
     await page.waitForTimeout(5000);
 
-      console.log(`[observer] Captured ${observations.length} observations from network.`);
+      // console.log(`[observer] Captured ${observations.length} observations from network.`);
       return observations;
     } finally {
       page.off("response", responseHandler);

@@ -407,7 +407,7 @@ export function captureLinkedInInboxObservations(
     const key = observationKey(value);
     const normalized = normalizeObservation(value);
     if ("reason" in normalized) {
-      console.log(`[inbox-sync] Skipped (normalize): ${normalized.reason} - ${JSON.stringify(value)}`);
+      // console.log(`[inbox-sync] Skipped (normalize): ${normalized.reason}`);
       result.skipped.push({ ...key, reason: normalized.reason });
       continue;
     }
@@ -415,7 +415,7 @@ export function captureLinkedInInboxObservations(
     const resolution = resolveTarget(db, accountId, normalized, scopedTargets, allTargets);
     if ("reason" in resolution) {
       if (resolution.reason !== "unmatched_target" && resolution.reason !== "identity_conflict") {
-        console.log(`[inbox-sync] Skipped (resolve): ${resolution.reason} - ${JSON.stringify(normalized)}`);
+        // console.log(`[inbox-sync] Skipped (resolve): ${resolution.reason}`);
       }
       result.skipped.push({ ...key, reason: resolution.reason });
       continue;
@@ -447,13 +447,13 @@ export function captureLinkedInInboxObservations(
     } catch (error) {
       const reason = repositoryErrorReason(error);
       const errMsg = error instanceof Error ? error.message : String(error);
-      console.log(`[inbox-sync] Skipped message: ${reason} (DB ERROR: ${errMsg}) - ${JSON.stringify(normalized)}`);
+      console.warn(`[inbox-sync] Skipped message: ${reason} (DB ERROR: ${errMsg})`);
       result.skipped.push({ ...key, reason });
     }
   }
   
   if (result.skipped.length > 0) {
-    console.log(`[inbox-sync] Total skipped in this batch: ${result.skipped.length}`);
+    // console.log(`[inbox-sync] Total skipped in this batch: ${result.skipped.length}`);
   }
 
   return result;

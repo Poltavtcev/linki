@@ -1140,7 +1140,7 @@ function Wizard({
                       </div>
                       <button
                         type="button"
-                        className={`btn btn-sm w-16 ${crossOverlap ? "btn-success" : "btn-outline border-base-300"}`}
+                        className={`btn btn-xs w-12 text-[10px] ${crossOverlap ? "btn-success" : "btn-outline border-base-300"}`}
                         onClick={async () => {
                           const checked = !crossOverlap;
                           setCrossOverlap(checked);
