@@ -61,7 +61,7 @@ export const getServerSideProps: GetServerSideProps = async ({ query }) => {
     .prepare("SELECT id, name, from_email, from_name, reply_to, smtp_host, smtp_port, smtp_secure, imap_host, imap_port, username, daily_email_limit, active_hours_start, active_hours_end, timezone, working_days, is_verified, signature, ramp_up_enabled, ramp_start_date, created_at FROM email_accounts ORDER BY created_at DESC")
     .all();
   const templates = db.prepare("SELECT * FROM templates ORDER BY created_at DESC").all();
-  const validTabs: Tab[] = ["linkedin", "email", "templates", "integrations", "general"];
+  const validTabs: Tab[] = ["linkedin", "email", "templates", "integrations", "general", "crm"];
   const tab: Tab = validTabs.includes(query.tab as Tab) ? (query.tab as Tab) : "linkedin";
   const internalSecret = process.env.INTERNAL_API_SECRET || "";
   return { props: { liAccounts, emailAccounts, templates, initialTab: tab, internalSecret } };
