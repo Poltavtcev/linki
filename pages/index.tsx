@@ -650,7 +650,7 @@ export default function Dashboard() {
             label="LinkedIn"
             color="#5aa2ff"
           />
-          <div className="grid grid-cols-5 gap-3">
+          <div className="grid grid-cols-4 gap-3">
             <KpiCard
               label="Profiles visited"
               value={totals.profiles_visited ?? 0}
@@ -678,12 +678,6 @@ export default function Dashboard() {
               color="#e879f9"
               icon={<RiLinkedinBoxLine size={13} />}
             />
-            <KpiCard
-              label="LI Replies"
-              value={totals.replies_received}
-              color="#c084fc"
-              icon={<FiRepeat size={13} />}
-            />
           </div>
         </div>
 
@@ -691,10 +685,16 @@ export default function Dashboard() {
         <div>
           <ChannelHeader
             icon={<RiMailSendLine size={11} />}
-            label="Email"
+            label="Data & Email"
             color="#fb923c"
           />
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-3 gap-3">
+            <KpiCard
+              label="Emails enriched"
+              value={totals.emails_enriched ?? 0}
+              color="#f4b740"
+              icon={<RiPlugLine size={13} />}
+            />
             <KpiCard
               label="Emails sent"
               value={totals.emails_sent}
@@ -703,22 +703,10 @@ export default function Dashboard() {
               icon={<RiMailSendLine size={13} />}
             />
             <KpiCard
-              label="Email replies"
-              value={totals.email_replies}
-              color="#32d583"
-              icon={<RiReplyLine size={13} />}
-            />
-            <KpiCard
-              label="Total targets"
-              value={totals.total_targets}
-              color="#808080"
-              icon={<FiUsers size={13} />}
-            />
-            <KpiCard
-              label="Connected"
-              value={totals.connected}
-              color="#32d583"
-              icon={<FiUserPlus size={13} />}
+              label="Pushed to CRM"
+              value={totals.hubspot_pushes ?? 0}
+              color="#20c997"
+              icon={<RiDatabase2Line size={13} />}
             />
           </div>
         </div>
