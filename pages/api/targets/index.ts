@@ -39,8 +39,16 @@ function buildFilterClause(filters: ActiveFilter[]): { sql: string; params: unkn
           expr = "t.connection_requested_at IS NOT NULL AND (t.degree IS NULL OR t.degree != 1)";
           break;
         case "not_contacted":
-        default:
-          expr = "t.connection_requested_at IS NULL AND t.message_sent_at IS NULL";
+        expr = "t.connection_requested_at IS NULL AND t.message_sent_at IS NULL";
+        break;
+      case "enriched":
+        expr = "(t.enriched_at IS NOT NULL OR t.apollo_enriched_at IS NOT NULL OR EXISTS (SELECT 1 FROM logs l WHERE l.target_id = t.id AND (l.message LIKE 'Email enriched via %' OR l.message LIKE '%to HubSpot%')))";
+        break;
+      case "hubspot":
+        expr = "EXISTS (SELECT 1 FROM logs l WHERE l.target_id = t.id AND l.message LIKE '%to HubSpot%')";
+        break;
+      default:
+        expr = "t.connection_requested_at IS NULL AND t.message_sent_at IS NULL";
       }
       if (f.op === "is_not") expr = `NOT (${expr})`;
       parts.push(expr);

@@ -10,7 +10,7 @@ import {
   RiTimeLine, RiGlobalLine, RiLinkedinBoxLine, RiCheckboxCircleLine,
   RiEditLine, RiCheckLine, RiCloseLine, RiFlowChart,
   RiCheckboxBlankCircleLine, RiDeleteBinLine, RiCalendarLine,
-  RiAddLine, RiSearchLine, RiCloseCircleLine, RiPhoneLine,
+  RiAddLine, RiSearchLine, RiCloseCircleLine, RiPhoneLine, RiMailCheckLine, RiMessage2Line,
 } from "react-icons/ri";
 
 interface Company {
@@ -56,6 +56,14 @@ interface ActivityLog {
   body: string;
   logged_at: string;
   created_at: string;
+}
+
+interface InboxMessage {
+  id: string;
+  source: "email" | "linkedin";
+  body: string;
+  subject?: string;
+  received_at: string;
 }
 
 interface Target {
@@ -155,7 +163,15 @@ export const getServerSideProps: GetServerSideProps = async ({ params }) => {
   // rename DB 'company' text field to avoid TS collision with Company object
   const rawTarget = target as unknown as Record<string, unknown>;
   const { company: company_name, ...rest } = rawTarget;
-  return { props: { target: { ...rest, company_name, companyObj, lists }, campaignHistory, todos, activityLogs, allLists } };
+
+  const emailReplies = db.prepare("SELECT id, subject, body_text as body, received_at FROM email_replies WHERE target_id = ? ORDER BY received_at DESC").all(id);
+  const liReplies = db.prepare("SELECT id, body, created_at as received_at FROM linkedin_reply_queue WHERE target_id = ? ORDER BY created_at DESC").all(id);
+  const inboxMessages = [
+    ...emailReplies.map((r: any) => ({ ...r, source: "email" })),
+    ...liReplies.map((r: any) => ({ ...r, source: "linkedin" }))
+  ].sort((a, b) => new Date(b.received_at).getTime() - new Date(a.received_at).getTime());
+
+  return { props: { target: { ...rest, company_name, companyObj, lists }, campaignHistory, todos, activityLogs, allLists, inboxMessages } };
 };
 
 const LOG_TYPE_ICONS: Record<string, string> = {
@@ -552,19 +568,23 @@ function formatTenure(months: number | null) {
 }
 
 export default function ContactDetailPage({
-  target, campaignHistory, todos: initialTodos, activityLogs: initialLogs, allLists,
+  target, campaignHistory, todos: initialTodos, activityLogs: initialLogs, allLists, inboxMessages,
 }: {
   target: Target;
   campaignHistory: CampaignRun[];
   todos: Todo[];
   activityLogs: ActivityLog[];
   allLists: ListRef[];
+  inboxMessages: InboxMessage[];
 }) {
   const functions: string[] = target.apollo_functions ? JSON.parse(target.apollo_functions) : [];
   const positions: { title: string; companyName: string; startDate?: string; endDate?: string; current?: boolean; description?: string }[] =
     target.positions_json ? JSON.parse(target.positions_json) : [];
 
   const [email, setEmail] = useState(target.email ?? "");
+  const [firstName, setFirstName] = useState(target?.first_name ?? "");
+  const [lastName, setLastName] = useState(target?.last_name ?? "");
+  const [fullName, setFullName] = useState(target?.full_name ?? "");
   const [editingEmail, setEditingEmail] = useState(false);
   const [emailDraft, setEmailDraft] = useState(target.email ?? "");
   const emailInputRef = useRef<HTMLInputElement>(null);
@@ -576,6 +596,10 @@ export default function ContactDetailPage({
 
   const [notes, setNotes] = useState(target.notes ?? "");
   const [editingNotes, setEditingNotes] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [firstNameDraft, setFirstNameDraft] = useState("");
+  const [lastNameDraft, setLastNameDraft] = useState("");
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const [notesDraft, setNotesDraft] = useState(target.notes ?? "");
 
   const [companyObj, setCompanyObj] = useState(target.companyObj);
@@ -716,6 +740,24 @@ export default function ContactDetailPage({
     setActivityLogs((prev) => prev.filter((l) => l.id !== id));
   }
 
+  async function saveName() {
+    const fn = firstNameDraft.trim();
+    const ln = lastNameDraft.trim();
+    const full = (fn + " " + ln).trim();
+    
+    setFirstName(fn);
+    setLastName(ln);
+    setFullName(full);
+    setEditingName(false);
+    
+    await fetch(`/api/targets/${target.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ first_name: fn, last_name: ln, full_name: full }),
+    });
+    toast.success("Name updated");
+  }
+
   async function saveEmail() {
     const trimmed = emailDraft.trim();
     const res = await fetch(`/api/targets/${target.id}`, {
@@ -807,7 +849,45 @@ export default function ContactDetailPage({
         <div className="bg-base-200 border border-base-300/50 rounded-xl p-5 mb-4">
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1">
-              <h1 className="text-xl font-semibold">{target.full_name ?? "—"}</h1>
+              {editingName ? (
+                <div className="flex items-center gap-2 mb-1">
+                  <input
+                    ref={nameInputRef}
+                    type="text"
+                    className="input input-sm input-bordered bg-base-300 w-32 focus:outline-none focus:border-primary/50 text-base"
+                    placeholder="First"
+                    value={firstNameDraft}
+                    onChange={(e) => setFirstNameDraft(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && saveName()}
+                  />
+                  <input
+                    type="text"
+                    className="input input-sm input-bordered bg-base-300 w-40 focus:outline-none focus:border-primary/50 text-base"
+                    placeholder="Last"
+                    value={lastNameDraft}
+                    onChange={(e) => setLastNameDraft(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && saveName()}
+                  />
+                  <button onClick={saveName} className="btn btn-sm btn-ghost px-2 text-success"><RiCheckLine size={16} /></button>
+                  <button onClick={() => setEditingName(false)} className="btn btn-sm btn-ghost px-2 text-base-content/40"><RiCloseLine size={16} /></button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 group mb-1">
+                  <h1 className="text-xl font-semibold">{fullName || "—"}</h1>
+                  <button
+                    onClick={() => {
+                      setFirstNameDraft(firstName || "");
+                      setLastNameDraft(lastName || "");
+                      setEditingName(true);
+                      setTimeout(() => nameInputRef.current?.focus(), 50);
+                    }}
+                    className="text-base-content/0 group-hover:text-base-content/30 hover:!text-base-content/60 transition-colors"
+                    title="Edit name"
+                  >
+                    <RiEditLine size={14} />
+                  </button>
+                </div>
+              )}
               {target.title && <p className="text-base-content/60 text-sm mt-0.5">{target.title}</p>}
               {target.headline && target.headline !== target.title && (
                 <p className="text-base-content/40 text-xs mt-1 italic">{target.headline}</p>
@@ -1038,6 +1118,32 @@ export default function ContactDetailPage({
             </button>
           )}
         </div>
+
+        {/* Inbox */}
+        {inboxMessages && inboxMessages.length > 0 && (
+          <div className="bg-base-200 border border-base-300/50 rounded-xl p-5 mb-4">
+            <p className="text-[11px] text-base-content/40 uppercase tracking-wide mb-4">Inbox</p>
+            <div className="space-y-3">
+              {inboxMessages.map((msg) => (
+                <div key={msg.id} className="p-3 bg-base-100 rounded-lg border border-base-300/40">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-medium text-base-content/60 uppercase tracking-widest flex items-center gap-1.5">
+                      {msg.source === "email" ? <RiMailCheckLine size={12} className="text-[#fb923c]" /> : <RiMessage2Line size={12} className="text-[#c084fc]" />}
+                      {msg.source}
+                    </span>
+                    <span className="text-[10px] text-base-content/40">
+                      {new Date(msg.received_at).toLocaleDateString()} {new Date(msg.received_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  {msg.subject && <div className="text-sm font-semibold mb-1">{msg.subject}</div>}
+                  <div className="text-sm whitespace-pre-wrap text-base-content/80 break-words leading-relaxed max-h-60 overflow-y-auto custom-scrollbar">
+                    {msg.body}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Activity Log — premium (ee/); hidden in the public build */}
         {hasPremium && (

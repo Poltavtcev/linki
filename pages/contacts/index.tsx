@@ -30,6 +30,7 @@ interface Contact {
   message_sent_at: string | null;
   last_replied_at: string | null;
   apollo_enriched_at: string | null;
+  enriched_at: string | null;
   seniority: string | null;
   created_at: string;
 }
@@ -360,8 +361,8 @@ export default function ContactsPage({ lists, total: initialTotal }: { lists: Li
                           {c.email && c.email_status !== "verified" && (
                             <span title={`Email (${c.email_status ?? "unverified"})`} className="text-warning"><RiAtLine size={13} /></span>
                           )}
-                          {c.apollo_enriched_at && !c.email && (
-                            <span title="Apollo enriched — no email" className="text-base-content/20"><RiMailLine size={13} /></span>
+                          {(c.apollo_enriched_at || c.enriched_at) && !c.email && (
+                            <span title="Enriched — no email" className="text-base-content/20"><RiMailLine size={13} /></span>
                           )}
                         </div>
                       </td>

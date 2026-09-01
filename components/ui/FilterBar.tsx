@@ -70,8 +70,13 @@ export const FILTER_FIELDS: FieldDef[] = [
     type: "presence",
   },
   {
-    key: "apollo_enriched_at",
-    label: "Apollo enriched",
+    key: "enriched",
+    label: "Enriched",
+    type: "presence",
+  },
+  {
+    key: "hubspot",
+    label: "HubSpot",
     type: "presence",
   },
   {
