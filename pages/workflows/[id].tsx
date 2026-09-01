@@ -54,6 +54,7 @@ interface Step {
   message_body: string | null;
   email_subject: string | null;
   email_body: string | null;
+  config: string | null;
 }
 
 interface WorkflowData {
@@ -170,6 +171,7 @@ const STEP_LABELS: Record<string, string> = {
   sales_inmail: "Sales Nav InMail",
   email: "Cold Email",
   integration: "Integration",
+  change_status: "Change CRM Status",
 };
 
 // Returns dynamic label for an email step based on its position among all email steps
@@ -188,6 +190,26 @@ function getMessageStepLabel(wizardSteps: Array<{ type: string }>, idx: number):
   if (msgPos === 0) return "LinkedIn Message";
   const ordinals = ["1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th", "10th"];
   return `LinkedIn Follow-up ${ordinals[msgPos] ?? `#${msgPos + 1}`}`;
+}
+
+function getStepLabel(type: string, configStr?: string | null): string {
+  if (type === "integration") {
+    try {
+      if (configStr && configStr !== "null") {
+        const p = JSON.parse(configStr);
+        if (p.action_type === "push_to_hubspot") return "HubSpot Sync";
+        if (p.action_type === "enrich_email") return "Email Enrichment";
+      }
+    } catch(e) {}
+    return "Integration";
+  }
+  return STEP_LABELS[type] ?? type;
+}
+
+function getDynamicStepLabel(ws: any, wizardSteps: Array<any>, idx: number): string {
+  if (ws.type === "email") return getEmailStepLabel(wizardSteps, idx);
+  if (ws.type === "message") return getMessageStepLabel(wizardSteps, idx);
+  return getStepLabel(ws.type, ws.config);
 }
 
 const AI_LANGUAGES = [
@@ -1355,7 +1377,7 @@ function Wizard({
                         </span>
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-medium truncate">
-                            {ws.type === "email" ? getEmailStepLabel(wizardSteps, idx) : ws.type === "message" ? getMessageStepLabel(wizardSteps, idx) : STEP_LABELS[ws.type]}
+                            {getDynamicStepLabel(ws, wizardSteps, idx)}
                           </p>
                           {ws.type === "connect" && ws.connectNote && (
                             <p className="text-[10px] text-base-content/40 truncate">Note: {ws.connectNote}</p>
@@ -1666,7 +1688,7 @@ function Wizard({
                             <div className={`px-4 py-2 border-b border-base-300/30 text-xs font-semibold ${trackColor}`}>{trackLabel}</div>
                             <div className="divide-y divide-base-300/20">
                               {steps.map(({ ws, i }) => {
-                                const label = ws.type === "email" ? getEmailStepLabel(wizardSteps, i) : ws.type === "message" ? getMessageStepLabel(wizardSteps, i) : STEP_LABELS[ws.type];
+                                const label = getDynamicStepLabel(ws, wizardSteps, i);
                                 const cost = stepPreviewCosts[i];
                                 const colorClass = STEP_COLORS[ws.type] ?? "bg-base-300/30 text-base-content/50 border-base-300/30";
                                 return (
@@ -1714,7 +1736,7 @@ function Wizard({
                           ) : (
                             <div className="divide-y divide-base-300/30">
                               {wizardSteps.map((ws, i) => {
-                                const label = ws.type === "email" ? getEmailStepLabel(wizardSteps, i) : ws.type === "message" ? getMessageStepLabel(wizardSteps, i) : STEP_LABELS[ws.type];
+                                const label = getDynamicStepLabel(ws, wizardSteps, i);
                                 const cost = stepPreviewCosts[i];
                                 const colorClass = STEP_COLORS[ws.type] ?? "bg-base-300/30 text-base-content/50 border-base-300/30";
                                 return (
@@ -1760,7 +1782,7 @@ function Wizard({
                           <div className="divide-y divide-base-300/30">
                             {aiSteps.map(({ ws, i }) => {
                               const cost = stepPreviewCosts[i];
-                              const label = ws.type === "email" ? getEmailStepLabel(wizardSteps, i) : getMessageStepLabel(wizardSteps, i);
+                              const label = getDynamicStepLabel(ws, wizardSteps, i);
                               if (!cost) return (
                                 <div key={i} className="grid grid-cols-[1fr_auto] px-5 py-2.5 text-xs items-center gap-4">
                                   <span className="text-base-content/40">{label}</span>
@@ -1882,7 +1904,7 @@ function Wizard({
       {configIdx !== null && (() => {
         const ws = wizardSteps[configIdx];
         const idx = configIdx;
-        const stepLabel = ws.type === "email" ? getEmailStepLabel(wizardSteps, idx) : ws.type === "message" ? getMessageStepLabel(wizardSteps, idx) : STEP_LABELS[ws.type];
+        const stepLabel = getDynamicStepLabel(ws, wizardSteps, idx);
         return (
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setConfigIdx(null)}>
             <div
@@ -3372,7 +3394,7 @@ export default function WorkflowDetailPage({
                           {STEP_ICONS[s.step_type]}
                         </span>
                         <p className={`text-xs font-medium leading-tight ${sel ? "text-primary" : "text-base-content"}`}>
-                          {STEP_LABELS[s.step_type] ?? s.step_type}
+                          {getStepLabel(s.step_type, s.config)}
                         </p>
                       </button>
                     </div>
