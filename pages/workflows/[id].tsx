@@ -1140,7 +1140,7 @@ function Wizard({
                       </div>
                       <input 
                         type="checkbox" 
-                        className="toggle toggle-primary toggle-sm"
+                        className="checkbox checkbox-primary"
                         checked={crossOverlap}
                         onChange={async (e) => {
                           const checked = e.target.checked;
