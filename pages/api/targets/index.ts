@@ -130,16 +130,17 @@ function buildFilterClause(filters: ActiveFilter[]): { sql: string; params: unkn
 export default function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === "POST") {
     const db = getDb();
-    const { full_name, linkedin_url, title, company, location, email, phone, list_id } = req.body;
-    if (!full_name || !linkedin_url) {
-      return res.status(400).json({ error: "full_name and linkedin_url are required" });
+    const { first_name, last_name, linkedin_url, title, company, location, email, phone, list_id } = req.body;
+    if (!first_name || !linkedin_url) {
+      return res.status(400).json({ error: "first_name and linkedin_url are required" });
     }
+    const full_name = `${first_name} ${last_name || ""}`.trim();
     const id = randomUUID();
     try {
       db.prepare(
-        `INSERT INTO targets (id, full_name, linkedin_url, title, company, location, email, phone)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-      ).run(id, full_name, linkedin_url, title ?? null, company ?? null, location ?? null, email ?? null, phone ?? null);
+        `INSERT INTO targets (id, first_name, last_name, full_name, linkedin_url, title, company, location, email, phone, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run(id, first_name, last_name || null, full_name, linkedin_url, title ?? null, company ?? null, location ?? null, email ?? null, phone ?? null, new Date().toISOString());
     } catch (e: unknown) {
       if (e instanceof Error && e.message.includes("UNIQUE")) {
         return res.status(409).json({ error: "A contact with this LinkedIn URL already exists" });

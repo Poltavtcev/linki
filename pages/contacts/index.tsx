@@ -117,7 +117,7 @@ export default function ContactsPage({ lists, total: initialTotal }: { lists: Li
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [showNewContact, setShowNewContact] = useState(false);
-  const [newContactForm, setNewContactForm] = useState({ full_name: "", linkedin_url: "", title: "", company: "", location: "", email: "", phone: "", list_id: "" });
+  const [newContactForm, setNewContactForm] = useState({ first_name: "", last_name: "", linkedin_url: "", title: "", company: "", location: "", email: "", phone: "", list_id: "" });
   const [newContactLoading, setNewContactLoading] = useState(false);
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -250,7 +250,7 @@ export default function ContactsPage({ lists, total: initialTotal }: { lists: Li
     }
     toast.success("Contact created");
     setShowNewContact(false);
-    setNewContactForm({ full_name: "", linkedin_url: "", title: "", company: "", location: "", email: "", phone: "", list_id: "" });
+    setNewContactForm({ first_name: "", last_name: "", linkedin_url: "", title: "", company: "", location: "", email: "", phone: "", list_id: "" });
     fetch_(0, listId, debouncedSearch, filters);
     setPage(0);
   }
@@ -500,14 +500,23 @@ export default function ContactsPage({ lists, total: initialTotal }: { lists: Li
             <h3 className="font-semibold text-base mb-4">New Contact</h3>
             <form onSubmit={createContact} className="flex flex-col gap-3">
               <div className="grid grid-cols-2 gap-3">
-                <div className="col-span-2">
-                  <label className="label text-xs text-base-content/50 pb-1">Full name *</label>
+                <div>
+                  <label className="label text-xs text-base-content/50 pb-1">First name *</label>
                   <input
                     className="input input-bordered input-sm w-full bg-base-300/50"
-                    placeholder="Jane Smith"
-                    value={newContactForm.full_name}
-                    onChange={(e) => setNewContactForm({ ...newContactForm, full_name: e.target.value })}
+                    placeholder="Jane"
+                    value={newContactForm.first_name}
+                    onChange={(e) => setNewContactForm({ ...newContactForm, first_name: e.target.value })}
                     required
+                  />
+                </div>
+                <div>
+                  <label className="label text-xs text-base-content/50 pb-1">Last name</label>
+                  <input
+                    className="input input-bordered input-sm w-full bg-base-300/50"
+                    placeholder="Smith"
+                    value={newContactForm.last_name}
+                    onChange={(e) => setNewContactForm({ ...newContactForm, last_name: e.target.value })}
                   />
                 </div>
                 <div className="col-span-2">

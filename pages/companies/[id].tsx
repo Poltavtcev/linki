@@ -406,7 +406,7 @@ export default function CompanyDetailPage({ company: initialCompany }: { company
                     onClick={() => linkContact(c.id)}
                     className="w-full flex flex-col text-left px-3 py-2 rounded-lg hover:bg-base-300/50 transition-colors"
                   >
-                    <span className="text-sm font-medium text-base-content">{c.full_name}</span>
+                    <span className="text-sm font-medium text-base-content">{c.first_name} {c.last_name}</span>
                     <span className="text-xs text-base-content/40">{c.title || "No title"}</span>
                   </button>
                 ))}

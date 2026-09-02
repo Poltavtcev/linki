@@ -5,6 +5,7 @@ import Sidebar from "@/components/layout/Sidebar";
 import { getDb } from "@/lib/db";
 import { RiCloseLine, RiCheckboxBlankCircleLine, RiCheckboxCircleFill, RiAddLine, RiSearchLine, RiBuildingLine, RiCalendarLine } from "react-icons/ri";
 import { toast } from "sonner";
+import ContactSelect from "@/components/ui/ContactSelect";
 
 interface Todo {
   id: string;
@@ -35,14 +36,10 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
     ORDER BY todos.status ASC, todos.due_date ASC, todos.created_at DESC
   `).all() as Todo[];
 
-  const targets = db.prepare(`
-    SELECT id, first_name, last_name, company as company_name FROM targets ORDER BY created_at DESC LIMIT 1000
-  `).all() as TargetOption[];
-
-  return { props: { initialTodos: todos, targets } };
+  return { props: { initialTodos: todos } };
 };
 
-function GlobalTodoModal({ targets, onClose, onSave, initialTitle = "", initialDescription = "" }: { targets: TargetOption[], onClose: () => void, onSave: (t: Todo) => void, initialTitle?: string, initialDescription?: string }) {
+function GlobalTodoModal({ onClose, onSave, initialTitle = "", initialDescription = "" }: { onClose: () => void, onSave: (t: Todo) => void, initialTitle?: string, initialDescription?: string }) {
   const [targetId, setTargetId] = useState("");
   const [title, setTitle] = useState(initialTitle);
   const [description, setDescription] = useState(initialDescription);
@@ -90,17 +87,7 @@ function GlobalTodoModal({ targets, onClose, onSave, initialTitle = "", initialD
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-[11px] text-base-content/40 uppercase tracking-wide mb-1.5">Contact</label>
-              <div className="relative">
-                <svg stroke="currentColor" fill="currentColor" strokeWidth="0" viewBox="0 0 24 24" className="absolute left-3 top-1/2 -translate-y-1/2 text-base-content/30 pointer-events-none" height="13" width="13" xmlns="http://www.w3.org/2000/svg"><path d="M4 22C4 17.5817 7.58172 14 12 14C16.4183 14 20 17.5817 20 22H18C18 18.6863 15.3137 16 12 16C8.68629 16 6 18.6863 6 22H4ZM12 13C8.685 13 6 10.315 6 7C6 3.685 8.685 1 12 1C15.315 1 18 3.685 18 7C18 10.315 15.315 13 12 13ZM12 11C14.21 11 16 9.21 16 7C16 4.79 14.21 3 12 3C9.79 3 8 4.79 8 7C8 9.21 9.79 11 12 11Z"></path></svg>
-                <select value={targetId} onChange={e => setTargetId(e.target.value)} className="w-full pl-8 pr-3 py-2 bg-base-200/60 border border-base-300/40 rounded-xl text-sm text-base-content/80 focus:outline-none focus:border-base-300/80 appearance-none transition-colors">
-                  <option value="" disabled>Select contact...</option>
-                  {targets.map(t => (
-                    <option key={t.id} value={t.id}>
-                      {t.first_name} {t.last_name} {t.company_name ? `(${t.company_name})` : ""}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <ContactSelect value={targetId} onChange={setTargetId} />
             </div>
             <div>
               <label className="block text-[11px] text-base-content/40 uppercase tracking-wide mb-1.5">Due date</label>
@@ -120,7 +107,7 @@ function GlobalTodoModal({ targets, onClose, onSave, initialTitle = "", initialD
   );
 }
 
-function GlobalTodoDetailModal({ todo, targets, onClose, onSave, onDelete, onDuplicate }: { todo: Todo, targets: TargetOption[], onClose: () => void, onSave: (t: Todo) => void, onDelete: (id: string) => void, onDuplicate?: (todo: Todo) => void }) {
+function GlobalTodoDetailModal({ todo, onClose, onSave, onDelete, onDuplicate }: { todo: Todo, onClose: () => void, onSave: (t: Todo) => void, onDelete: (id: string) => void, onDuplicate?: (todo: Todo) => void }) {
   const [title, setTitle] = useState(todo.title);
   const [description, setDescription] = useState(todo.description ?? "");
   const [dueDate, setDueDate] = useState(todo.due_date ?? "");
@@ -175,17 +162,7 @@ function GlobalTodoDetailModal({ todo, targets, onClose, onSave, onDelete, onDup
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-[11px] text-base-content/40 uppercase tracking-wide mb-1.5">Contact</label>
-              <div className="relative">
-                <svg stroke="currentColor" fill="currentColor" strokeWidth="0" viewBox="0 0 24 24" className="absolute left-3 top-1/2 -translate-y-1/2 text-base-content/30 pointer-events-none" height="13" width="13" xmlns="http://www.w3.org/2000/svg"><path d="M4 22C4 17.5817 7.58172 14 12 14C16.4183 14 20 17.5817 20 22H18C18 18.6863 15.3137 16 12 16C8.68629 16 6 18.6863 6 22H4ZM12 13C8.685 13 6 10.315 6 7C6 3.685 8.685 1 12 1C15.315 1 18 3.685 18 7C18 10.315 15.315 13 12 13ZM12 11C14.21 11 16 9.21 16 7C16 4.79 14.21 3 12 3C9.79 3 8 4.79 8 7C8 9.21 9.79 11 12 11Z"></path></svg>
-                <select value={targetId} onChange={e => setTargetId(e.target.value)} className="w-full pl-8 pr-3 py-2 bg-base-200/60 border border-base-300/40 rounded-xl text-sm text-base-content/80 focus:outline-none focus:border-base-300/80 appearance-none transition-colors">
-                  <option value="" disabled>Select contact...</option>
-                  {targets.map(t => (
-                    <option key={t.id} value={t.id}>
-                      {t.first_name} {t.last_name} {t.company_name ? `(${t.company_name})` : ""}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <ContactSelect value={targetId} onChange={setTargetId} initialTarget={{ id: todo.target_id, first_name: todo.first_name || "", last_name: todo.last_name || "", company: todo.company_name || "" }} />
             </div>
             <div>
               <label className="block text-[11px] text-base-content/40 uppercase tracking-wide mb-1.5">Due date</label>
@@ -213,7 +190,7 @@ function GlobalTodoDetailModal({ todo, targets, onClose, onSave, onDelete, onDup
   );
 }
 
-export default function TodosPage({ initialTodos, targets }: { initialTodos: Todo[], targets: TargetOption[] }) {
+export default function TodosPage({ initialTodos }: { initialTodos: Todo[] }) {
   const [todos, setTodos] = useState<Todo[]>(initialTodos);
   const [filter, setFilter] = useState<"all" | "open" | "done">("open");
   const [search, setSearch] = useState("");
@@ -383,7 +360,6 @@ export default function TodosPage({ initialTodos, targets }: { initialTodos: Tod
 
       {showModal && (
         <GlobalTodoModal
-          targets={targets}
           initialTitle={modalDefaults.title}
           initialDescription={modalDefaults.description}
           onClose={() => setShowModal(false)}
@@ -396,7 +372,7 @@ export default function TodosPage({ initialTodos, targets }: { initialTodos: Tod
       )}
 
       {selectedTodo && (
-        <GlobalTodoDetailModal targets={targets}
+        <GlobalTodoDetailModal
           todo={selectedTodo}
           onClose={() => setSelectedTodo(null)}
           onSave={(updated) => {
