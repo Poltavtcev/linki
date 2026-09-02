@@ -71,3 +71,7 @@ scripts/tmp/
 # credentials
 # One-off handoff doc (Opsily GHCR access instructions) — keep local, not tracked
 docs/OPSILY_GHCR_ACCESS.md
+database.sqlite
+patch_*.js
+.sessions/
+dist/
