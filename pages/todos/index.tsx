@@ -215,6 +215,16 @@ export default function TodosPage({ initialTodos }: { initialTodos: Todo[] }) {
     });
   }, [todos, filter, search]);
 
+  const PAGE_SIZE = 25;
+  const [page, setPage] = useState(0);
+
+  useEffect(() => {
+    setPage(0);
+  }, [filter, search]);
+
+  const paginatedTodos = filteredTodos.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const totalPages = Math.ceil(filteredTodos.length / PAGE_SIZE);
+
   async function toggleTodo(todo: Todo) {
     const next = todo.status === "open" ? "done" : "open";
     const res = await fetch(`/api/todos/${todo.id}`, {
