@@ -298,7 +298,7 @@ export default function TodosPage({ initialTodos }: { initialTodos: Todo[] }) {
                   <button onClick={() => setShowModal(true)} className="text-xs text-base-content/30 hover:text-primary transition-colors">+ Create one</button>
                 </div>
               ) : (
-                filteredTodos.map(todo => {
+                paginatedTodos.map(todo => {
                   const isDone = todo.status === "done";
                   const isOverdue = !isDone && todo.due_date && new Date(todo.due_date) < new Date(new Date().toDateString());
                   
