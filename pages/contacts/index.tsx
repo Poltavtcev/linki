@@ -78,7 +78,12 @@ export default function ContactsPage({ lists, total: initialTotal }: { lists: Li
   const router = useRouter();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [total, setTotal] = useState(initialTotal);
-  const [page, setPage] = useState(0);
+  const queryPage = parseInt(router.query.page as string, 10);
+  const page = isNaN(queryPage) ? 0 : Math.max(0, queryPage - 1);
+  const setPage = (p: number | ((prev: number) => number)) => {
+    const newPage = typeof p === "function" ? p(page) : p;
+    router.push({ pathname: router.pathname, query: { ...router.query, page: newPage + 1 } }, undefined, { shallow: true });
+  };
   const [listId, setListId] = useState("");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");

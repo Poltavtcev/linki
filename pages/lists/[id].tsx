@@ -164,7 +164,12 @@ export default function ListDetailPage({
   const [targets, setTargets] = useState<Target[]>(initialList.targets);
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState<ActiveFilter[]>([]);
-  const [page, setPage] = useState(0);
+  const queryPage = parseInt(router.query.page as string, 10);
+  const page = isNaN(queryPage) ? 0 : Math.max(0, queryPage - 1);
+  const setPage = (p: number | ((prev: number) => number)) => {
+    const newPage = typeof p === "function" ? p(page) : p;
+    router.push({ pathname: router.pathname, query: { ...router.query, page: newPage + 1 } }, undefined, { shallow: true });
+  };
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [allFilteredSelected, setAllFilteredSelected] = useState(false);
   const [deleting, setDeleting] = useState(false);
