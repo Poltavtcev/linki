@@ -1,5 +1,5 @@
 import Head from "next/head";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { GetServerSideProps } from "next";
 import { getDb } from "@/lib/db";
@@ -8,6 +8,7 @@ import {
   RiMapPinLine, RiBuildingLine, RiLinkedinBoxLine, RiUserLine,
   RiMailLine, RiPhoneLine, RiMoneyDollarCircleLine, RiCalendarLine,
   RiGroupLine, RiCodeBoxLine, RiPriceTagLine, RiErrorWarningLine,
+  RiEditLine, RiCheckLine, RiCloseLine,
 } from "react-icons/ri";
 
 interface Contact {
@@ -62,6 +63,54 @@ export const getServerSideProps: GetServerSideProps = async ({ params }) => {
   return { props: { company: { ...company, contacts } } };
 };
 
+
+function InlineEdit({ value, onSave, render, emptyLabel, multiline = false, className = "", type = "text" }: { value: string; onSave: (val: string) => Promise<void>; render: (val: string) => React.ReactNode; emptyLabel: string; multiline?: boolean; className?: string; type?: string; }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const [saving, setSaving] = useState(false);
+  const inputRef = useRef<any>(null);
+
+  async function handleSave() {
+    setSaving(true);
+    await onSave(draft);
+    setSaving(false);
+    setEditing(false);
+  }
+
+  if (editing) {
+    return (
+      <div className={`flex items-start gap-1 ${className}`}>
+        {multiline ? (
+          <textarea ref={inputRef} value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === "Escape") setEditing(false); }} className="flex-1 w-full px-2 py-1 rounded bg-base-300 border border-primary/40 text-sm focus:outline-none focus:border-primary resize-y min-h-[80px]" />
+        ) : (
+          <input ref={inputRef} type={type} value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === "Enter") handleSave(); if (e.key === "Escape") setEditing(false); }} className="flex-1 min-w-0 px-2 py-0.5 rounded bg-base-300 border border-primary/40 text-sm focus:outline-none focus:border-primary" />
+        )}
+        <div className="flex flex-col gap-1 shrink-0 mt-0.5">
+          <button onClick={handleSave} disabled={saving} className="text-success hover:text-success/70 shrink-0"><RiCheckLine size={16} /></button>
+          <button onClick={() => setEditing(false)} disabled={saving} className="text-base-content/40 hover:text-base-content/70 shrink-0"><RiCloseLine size={16} /></button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!value) {
+    return (
+      <button onClick={() => { setDraft(""); setEditing(true); setTimeout(() => inputRef.current?.focus(), 50); }} className="text-[11px] text-base-content/30 hover:text-base-content/60 transition-colors block">
+        + Add {emptyLabel}
+      </button>
+    );
+  }
+
+  return (
+    <div className={`group relative inline-flex items-center gap-2 ${className}`}>
+      {render(value)}
+      <button onClick={() => { setDraft(value); setEditing(true); setTimeout(() => inputRef.current?.focus(), 50); }} className="opacity-0 group-hover:opacity-100 text-base-content/30 hover:text-base-content/60 transition-colors shrink-0" title={`Edit ${emptyLabel}`}>
+        <RiEditLine size={12} />
+      </button>
+    </div>
+  );
+}
+
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   if (!value) return null;
   return (
@@ -74,6 +123,20 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
 
 export default function CompanyDetailPage({ company: initialCompany }: { company: Company }) {
   const [company, setCompany] = useState(initialCompany);
+
+  async function updateField(key: string, value: any) {
+    const res = await fetch(`/api/companies/${company.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ [key]: value })
+    });
+    if (res.ok) {
+      setCompany(await res.json());
+    } else {
+      alert("Failed to save " + key);
+    }
+  }
+
   const [showAddContact, setShowAddContact] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -164,34 +227,15 @@ export default function CompanyDetailPage({ company: initialCompany }: { company
                 <RiBuildingLine size={16} className="text-base-content/40" />
               </div>
               <div>
-                <h1 className="text-xl font-semibold">{company.name}</h1>
+                <InlineEdit value={company.name} emptyLabel="name" onSave={v => updateField("name", v)} render={v => <h1 className="text-xl font-semibold">{v}</h1>} />
                 <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
-                  {company.industry && <span className="text-sm text-base-content/50">{company.industry}</span>}
-                  {company.location && (
-                    <span className="text-sm text-base-content/40 flex items-center gap-1">
-                      <RiMapPinLine size={12} /> {company.location}
-                    </span>
-                  )}
+                  <InlineEdit value={company.industry || ""} emptyLabel="industry" onSave={v => updateField("industry", v)} render={v => <span className="text-sm text-base-content/50">{v}</span>} />
+                  <InlineEdit value={company.location || ""} emptyLabel="location" onSave={v => updateField("location", v)} render={v => <span className="text-sm text-base-content/40 flex items-center gap-1"><RiMapPinLine size={12} /> {v}</span>} />
                 </div>
                 <div className="flex flex-wrap gap-1.5 mt-2">
-                  {company.domain && (
-                    <a href={`https://${company.domain}`} target="_blank" rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs bg-base-300 text-base-content/60 hover:text-base-content hover:bg-base-300/80 transition-colors">
-                      <RiGlobalLine size={12} /> {company.domain}
-                    </a>
-                  )}
-                  {company.linkedin_url && (
-                    <a href={company.linkedin_url} target="_blank" rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs bg-base-300 text-base-content/60 hover:text-base-content hover:bg-base-300/80 transition-colors">
-                      <RiLinkedinBoxLine size={12} /> LinkedIn
-                    </a>
-                  )}
-                  {company.website && company.website !== `https://${company.domain}` && (
-                    <a href={company.website} target="_blank" rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs bg-base-300 text-base-content/60 hover:text-base-content hover:bg-base-300/80 transition-colors">
-                      <RiExternalLinkLine size={12} /> Website
-                    </a>
-                  )}
+                  <InlineEdit value={company.domain || ""} emptyLabel="domain" onSave={v => updateField("domain", v)} render={v => <a href={`https://${v}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs bg-base-300 text-base-content/60 hover:text-base-content hover:bg-base-300/80 transition-colors"><RiGlobalLine size={12} /> {v}</a>} />
+                  <InlineEdit value={company.linkedin_url || ""} type="url" emptyLabel="LinkedIn URL" onSave={v => updateField("linkedin_url", v)} render={v => <a href={v} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs bg-base-300 text-base-content/60 hover:text-base-content hover:bg-base-300/80 transition-colors"><RiLinkedinBoxLine size={12} /> LinkedIn</a>} />
+                  <InlineEdit value={company.website || ""} type="url" emptyLabel="website" onSave={v => updateField("website", v)} render={v => <a href={v} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs bg-base-300 text-base-content/60 hover:text-base-content hover:bg-base-300/80 transition-colors"><RiExternalLinkLine size={12} /> Website</a>} />
                 </div>
               </div>
             </div>
@@ -210,100 +254,33 @@ export default function CompanyDetailPage({ company: initialCompany }: { company
         )}
 
         {/* Description */}
-        {company.description && (
-          <div className="bg-base-200 border border-base-300/50 rounded-xl p-5 mb-4">
-            <p className="text-[11px] text-base-content/40 uppercase tracking-wide mb-2">About</p>
-            <p className="text-sm text-base-content/70 leading-relaxed whitespace-pre-line">{company.description}</p>
-          </div>
-        )}
+        <div className="bg-base-200 border border-base-300/50 rounded-xl p-5 mb-4">
+      <p className="text-[11px] text-base-content/40 uppercase tracking-wide mb-2">About</p>
+      <InlineEdit value={company.description || ""} emptyLabel="description" multiline onSave={v => updateField("description", v)} render={v => <p className="text-sm text-base-content/70 leading-relaxed whitespace-pre-line">{v}</p>} />
+    </div>
 
         {/* Details grid */}
-        {(company.employee_count || company.founded_year || company.annual_revenue || company.phone ||
-          company.city || company.country || company.technology_names || company.keywords) && (
-          <div className="bg-base-200 border border-base-300/50 rounded-xl p-5 mb-4">
+        <div className="bg-base-200 border border-base-300/50 rounded-xl p-5 mb-4">
             <p className="text-[11px] text-base-content/40 uppercase tracking-wide mb-3">Details</p>
             <div className="grid grid-cols-2 gap-x-6 gap-y-3">
-              {company.employee_count && (
-                <div className="flex items-center gap-2 text-sm text-base-content/70">
-                  <RiGroupLine size={13} className="text-base-content/30 shrink-0" />
-                  <span>{company.employee_count.toLocaleString()} employees</span>
-                </div>
-              )}
-              {company.founded_year && (
-                <div className="flex items-center gap-2 text-sm text-base-content/70">
-                  <RiCalendarLine size={13} className="text-base-content/30 shrink-0" />
-                  <span>Founded {company.founded_year}</span>
-                </div>
-              )}
-              {company.annual_revenue && (
-                <div className="flex items-center gap-2 text-sm text-base-content/70">
-                  <RiMoneyDollarCircleLine size={13} className="text-base-content/30 shrink-0" />
-                  <span>{company.annual_revenue}</span>
-                </div>
-              )}
-              {company.phone && (
-                <div className="flex items-center gap-2 text-sm text-base-content/70">
-                  <RiPhoneLine size={13} className="text-base-content/30 shrink-0" />
-                  <span>{company.phone}</span>
-                </div>
-              )}
-              {(company.city || company.country) && (
-                <div className="flex items-center gap-2 text-sm text-base-content/70">
-                  <RiMapPinLine size={13} className="text-base-content/30 shrink-0" />
-                  <span>{[company.city, company.country].filter(Boolean).join(", ")}</span>
-                </div>
-              )}
+              <InlineEdit value={company.employee_count?.toString() || ""} emptyLabel="employee count" onSave={v => updateField("employee_count", parseInt(v) || null)} render={v => <div className="flex items-center gap-2 text-sm text-base-content/70"><RiGroupLine size={13} className="text-base-content/30 shrink-0" /><span>{parseInt(v).toLocaleString()} employees</span></div>} />
+              <InlineEdit value={company.founded_year?.toString() || ""} emptyLabel="founded year" onSave={v => updateField("founded_year", parseInt(v) || null)} render={v => <div className="flex items-center gap-2 text-sm text-base-content/70"><RiCalendarLine size={13} className="text-base-content/30 shrink-0" /><span>Founded {v}</span></div>} />
+              <InlineEdit value={company.annual_revenue || ""} emptyLabel="annual revenue" onSave={v => updateField("annual_revenue", v)} render={v => <div className="flex items-center gap-2 text-sm text-base-content/70"><RiMoneyDollarCircleLine size={13} className="text-base-content/30 shrink-0" /><span>{v}</span></div>} />
+              <InlineEdit value={company.phone || ""} emptyLabel="phone" onSave={v => updateField("phone", v)} render={v => <div className="flex items-center gap-2 text-sm text-base-content/70"><RiPhoneLine size={13} className="text-base-content/30 shrink-0" /><span>{v}</span></div>} />
+              <InlineEdit value={company.city || ""} emptyLabel="city" onSave={v => updateField("city", v)} render={v => <div className="flex items-center gap-2 text-sm text-base-content/70"><RiMapPinLine size={13} className="text-base-content/30 shrink-0" /><span>{v}</span></div>} />
+   <InlineEdit value={company.country || ""} emptyLabel="country" onSave={v => updateField("country", v)} render={v => <div className="flex items-center gap-2 text-sm text-base-content/70"><RiMapPinLine size={13} className="text-base-content/30 shrink-0" /><span>{v}</span></div>} />
             </div>
 
-            {company.technology_names && (() => {
-              try {
-                const tech: string[] = JSON.parse(company.technology_names!);
-                if (!tech.length) return null;
-                return (
-                  <div className="mt-4">
-                    <div className="flex items-center gap-1.5 mb-2">
-                      <RiCodeBoxLine size={12} className="text-base-content/30" />
-                      <p className="text-[11px] text-base-content/40 uppercase tracking-wide">Tech stack</p>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {tech.map(t => (
-                        <span key={t} className="inline-flex items-center px-2 py-0.5 rounded-md text-xs bg-base-300 text-base-content/50">{t}</span>
-                      ))}
-                    </div>
-                  </div>
-                );
-              } catch { return null; }
-            })()}
+            <InlineEdit value={company.technology_names ? (() => { try { return JSON.parse(company.technology_names).join(", "); } catch { return company.technology_names; } })() : ""} emptyLabel="technologies (comma separated)" onSave={v => updateField("technology_names", JSON.stringify(v.split(",").map(s => s.trim()).filter(Boolean)))} render={v => <div className="mt-4"><div className="flex items-center gap-1.5 mb-2"><RiCodeBoxLine size={12} className="text-base-content/30" /><span className="text-[11px] text-base-content/50 uppercase tracking-wide">Technologies</span></div><div className="flex flex-wrap gap-1.5">{v.split(",").map((t: string) => <span key={t} className="px-2 py-0.5 bg-base-300 text-base-content/70 text-xs rounded-md">{t.trim()}</span>)}</div></div>} />
 
-            {company.keywords && (() => {
-              try {
-                const kw: string[] = JSON.parse(company.keywords!);
-                if (!kw.length) return null;
-                return (
-                  <div className="mt-4">
-                    <div className="flex items-center gap-1.5 mb-2">
-                      <RiPriceTagLine size={12} className="text-base-content/30" />
-                      <p className="text-[11px] text-base-content/40 uppercase tracking-wide">Keywords</p>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {kw.map(k => (
-                        <span key={k} className="inline-flex items-center px-2 py-0.5 rounded-md text-xs bg-base-300 text-base-content/50">{k}</span>
-                      ))}
-                    </div>
-                  </div>
-                );
-              } catch { return null; }
-            })()}
+            <InlineEdit value={company.keywords || ""} emptyLabel="keywords (comma separated)" onSave={v => updateField("keywords", JSON.stringify(v.split(",").map((s: string) => s.trim()).filter(Boolean)))} render={(v: string) => <div className="mt-4"><div className="flex items-center gap-1.5 mb-2"><RiPriceTagLine size={12} className="text-base-content/30" /><span className="text-[11px] text-base-content/50 uppercase tracking-wide">Keywords</span></div><div className="flex flex-wrap gap-1.5">{v.split(",").map((k: string) => <span key={k} className="px-2 py-0.5 bg-base-300 text-base-content/70 text-xs rounded-md">{k.trim()}</span>)}</div></div>} />
           </div>
-        )}
 
         {/* Notes */}
-        {company.notes && (
-          <div className="bg-base-200 border border-base-300/50 rounded-xl p-5 mb-4">
-            <p className="text-[11px] text-base-content/40 uppercase tracking-wide mb-2">Notes</p>
-            <p className="text-sm text-base-content/70 leading-relaxed whitespace-pre-line">{company.notes}</p>
-          </div>
-        )}
+        <div className="bg-base-200 border border-base-300/50 rounded-xl p-5 mb-4">
+      <p className="text-[11px] text-base-content/40 uppercase tracking-wide mb-2">Notes</p>
+      <InlineEdit value={company.notes || ""} emptyLabel="notes" multiline onSave={v => updateField("notes", v)} render={v => <p className="text-sm text-base-content/70 leading-relaxed whitespace-pre-line">{v}</p>} />
+    </div>
 
         {/* Contacts */}
         <div className="bg-base-200 border border-base-300/50 rounded-xl p-5">
