@@ -42,10 +42,10 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   return { props: { initialTodos: todos, targets } };
 };
 
-function GlobalTodoModal({ targets, onClose, onSave }: { targets: TargetOption[], onClose: () => void, onSave: (t: Todo) => void }) {
+function GlobalTodoModal({ targets, onClose, onSave, initialTitle = "", initialDescription = "" }: { targets: TargetOption[], onClose: () => void, onSave: (t: Todo) => void, initialTitle?: string, initialDescription?: string }) {
   const [targetId, setTargetId] = useState("");
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
+  const [title, setTitle] = useState(initialTitle);
+  const [description, setDescription] = useState(initialDescription);
   const [dueDate, setDueDate] = useState("");
   const [saving, setSaving] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
@@ -120,7 +120,7 @@ function GlobalTodoModal({ targets, onClose, onSave }: { targets: TargetOption[]
   );
 }
 
-function GlobalTodoDetailModal({ todo, targets, onClose, onSave, onDelete }: { todo: Todo, targets: TargetOption[], onClose: () => void, onSave: (t: Todo) => void, onDelete: (id: string) => void }) {
+function GlobalTodoDetailModal({ todo, targets, onClose, onSave, onDelete, onDuplicate }: { todo: Todo, targets: TargetOption[], onClose: () => void, onSave: (t: Todo) => void, onDelete: (id: string) => void, onDuplicate?: (todo: Todo) => void }) {
   const [title, setTitle] = useState(todo.title);
   const [description, setDescription] = useState(todo.description ?? "");
   const [dueDate, setDueDate] = useState(todo.due_date ?? "");
@@ -197,7 +197,12 @@ function GlobalTodoDetailModal({ todo, targets, onClose, onSave, onDelete }: { t
           </div>
         </div>
         <div className="flex items-center justify-between gap-2 px-6 py-4 border-t border-base-300/40">
-          <button onClick={del} className="px-4 py-2 rounded-xl text-sm text-error/80 hover:text-error hover:bg-error/10 transition-colors">Delete</button>
+          <div className="flex gap-2">
+            <button onClick={del} className="px-4 py-2 rounded-xl text-sm text-error/80 hover:text-error hover:bg-error/10 transition-colors">Delete</button>
+            {onDuplicate && (
+              <button onClick={() => onDuplicate(todo)} className="px-4 py-2 rounded-xl text-sm text-base-content/60 hover:text-base-content hover:bg-base-300/50 transition-colors">Duplicate</button>
+            )}
+          </div>
           <div className="flex gap-2">
             <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-base-content/50 hover:text-base-content hover:bg-base-300/40 transition-colors">Cancel</button>
             <button onClick={save} disabled={saving || !title.trim() || !targetId} className="px-4 py-2 rounded-xl text-sm font-medium bg-primary/90 text-primary-content hover:bg-primary disabled:opacity-40 disabled:cursor-not-allowed transition-colors">{saving ? "Saving..." : "Save changes"}</button>
@@ -213,6 +218,7 @@ export default function TodosPage({ initialTodos, targets }: { initialTodos: Tod
   const [filter, setFilter] = useState<"all" | "open" | "done">("open");
   const [search, setSearch] = useState("");
   const [showModal, setShowModal] = useState(false);
+  const [modalDefaults, setModalDefaults] = useState({ title: "", description: "" });
   const [selectedTodo, setSelectedTodo] = useState<Todo | null>(null);
 
   const openCount = todos.filter(t => t.status === "open").length;
@@ -260,7 +266,7 @@ export default function TodosPage({ initialTodos, targets }: { initialTodos: Tod
                 </div>
               </div>
               <button
-                onClick={() => setShowModal(true)}
+                onClick={() => { setModalDefaults({ title: "", description: "" }); setShowModal(true); }}
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium bg-base-200 border border-base-300/50 text-base-content/70 hover:text-base-content hover:bg-base-300/60 transition-colors"
               >
                 <RiAddLine size={14} />

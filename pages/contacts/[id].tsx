@@ -185,10 +185,11 @@ const LOG_TYPE_COLORS: Record<string, string> = {
   other: "bg-base-300 text-base-content/50",
 };
 
-function TodoDetailModal({ todo, onClose, onSave }: {
+function TodoDetailModal({ todo, onClose, onSave, onDuplicate }: {
   todo: Todo;
   onClose: () => void;
   onSave: (updated: Todo) => void;
+  onDuplicate?: (todo: Todo) => void;
 }) {
   const [title, setTitle] = useState(todo.title);
   const [description, setDescription] = useState(todo.description ?? "");
@@ -364,13 +365,15 @@ function LogDetailModal({ log, onClose, onSave }: {
   );
 }
 
-function TodoModal({ targetId, onClose, onSave }: {
+function TodoModal({ targetId, onClose, onSave, initialTitle = "", initialDescription = "" }: {
   targetId: string;
   onClose: () => void;
   onSave: (todo: Todo) => void;
+  initialTitle?: string;
+  initialDescription?: string;
 }) {
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
+  const [title, setTitle] = useState(initialTitle);
+  const [description, setDescription] = useState(initialDescription);
   const [dueDate, setDueDate] = useState("");
   const [saving, setSaving] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
@@ -719,6 +722,7 @@ export default function ContactDetailPage({
   // Todos state
   const [todos, setTodos] = useState<Todo[]>(initialTodos);
   const [showTodoModal, setShowTodoModal] = useState(false);
+  const [todoDefaults, setTodoDefaults] = useState({ title: "", description: "" });
   const [selectedTodo, setSelectedTodo] = useState<Todo | null>(null);
 
   // Activity log state
@@ -839,6 +843,8 @@ export default function ContactDetailPage({
       {showTodoModal && (
         <TodoModal
           targetId={target.id}
+          initialTitle={todoDefaults.title}
+          initialDescription={todoDefaults.description}
           onClose={() => setShowTodoModal(false)}
           onSave={(todo) => { setTodos((prev) => [todo, ...prev]); setShowTodoModal(false); toast.success("Todo created"); }}
         />
@@ -848,6 +854,7 @@ export default function ContactDetailPage({
           todo={selectedTodo}
           onClose={() => setSelectedTodo(null)}
           onSave={(updated) => { setTodos((prev) => prev.map((t) => t.id === updated.id ? updated : t)); setSelectedTodo(null); toast.success("Saved"); }}
+          onDuplicate={(t) => { setSelectedTodo(null); setTodoDefaults({ title: t.title, description: t.description || "" }); setShowTodoModal(true); }}
         />
       )}
       {showLogModal && (
@@ -1488,7 +1495,7 @@ export default function ContactDetailPage({
               )}
             </div>
             <button
-              onClick={() => setShowTodoModal(true)}
+              onClick={() => { setTodoDefaults({ title: "", description: "" }); setShowTodoModal(true); }}
               className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-base-content/50 hover:text-base-content hover:bg-base-300/60 transition-colors"
             >
               <RiAddLine size={13} /> Add
@@ -1497,7 +1504,7 @@ export default function ContactDetailPage({
 
           {todos.length === 0 ? (
             <button
-              onClick={() => setShowTodoModal(true)}
+              onClick={() => { setTodoDefaults({ title: "", description: "" }); setShowTodoModal(true); }}
               className="w-full py-6 rounded-xl border border-dashed border-base-300/50 text-xs text-base-content/25 hover:text-base-content/40 hover:border-base-300/70 transition-colors"
             >
               Add the first todo
