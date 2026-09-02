@@ -538,7 +538,11 @@ export default function ListDetailPage({
               : `${targets.length}`} leads
           </span>
           {initialList.sales_nav_url && (
-            <button className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-base-content/60 hover:text-base-content hover:bg-base-300/50 transition-colors" onClick={() => setShowSync(true)}>
+            <button 
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-base-content/60 hover:text-base-content hover:bg-base-300/50 transition-colors" 
+              onClick={() => setShowSync(true)}
+              title="Bulk checks who accepted your connection requests by re-scanning the original list URL"
+            >
               <RiRefreshLine size={15} /> Sync Status
             </button>
           )}
