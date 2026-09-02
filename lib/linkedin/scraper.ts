@@ -395,20 +395,34 @@ export async function scrapeNavigatorList(
   };
 }
 
-export async function scrapeSavedSearch(
+export async function scrapeSearch(
   ctx: BrowserContext,
-  savedSearchUrl: string,
+  searchUrl: string,
   opts: ScrapeOptions = {}
 ): Promise<WindowedScrapeResult> {
   const { startPage = 1, maxPages = 50, onProgress, isCanceled } = opts;
-  const savedSearchId = extractSavedSearchId(savedSearchUrl);
-  if (!savedSearchId) throw new Error(`Invalid Sales Navigator saved search URL: ${savedSearchUrl}`);
+  
+  if (!searchUrl.includes('/sales/search/people')) {
+    throw new Error(`Invalid Sales Navigator search URL: ${searchUrl}`);
+  }
 
   const allElements: SalesProfile[] = [];
   const seen = new Set<string>();
   const PAGE_SIZE = 25;
-  const buildUrl = (n: number) =>
-    `https://www.linkedin.com/sales/search/people?savedSearchId=${savedSearchId}${n > 1 ? `&page=${n}` : ""}`;
+  
+  const buildUrl = (n: number) => {
+    try {
+      const u = new URL(searchUrl);
+      if (n > 1) {
+        u.searchParams.set("page", n.toString());
+      } else {
+        u.searchParams.delete("page");
+      }
+      return u.toString();
+    } catch {
+      return searchUrl; // Fallback
+    }
+  };
 
   const page = await ctx.newPage();
   let knownTotal = 0;
@@ -533,11 +547,11 @@ export async function scrapeNavigatorUrl(
   url: string,
   opts: ScrapeOptions = {}
 ): Promise<WindowedScrapeResult> {
-  if (extractSavedSearchId(url)) {
-    return scrapeSavedSearch(ctx, url, opts);
+  if (url.includes('/sales/search/people')) {
+    return scrapeSearch(ctx, url, opts);
   }
   if (extractListId(url)) {
     return scrapeNavigatorList(ctx, url, opts);
   }
-  throw new Error(`Unrecognized Sales Navigator URL. Expected a list URL (/sales/lists/people/...) or saved search URL (?savedSearchId=...)`);
+  throw new Error(`Unrecognized Sales Navigator URL. Expected a list URL (/sales/lists/people/...) or search URL (/sales/search/people?...)`);
 }
