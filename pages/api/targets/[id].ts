@@ -29,6 +29,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
       "first_name", "last_name", "lead_status", "full_name", "title", "company", "location",
       "city", "country", "time_zone", "seniority",
       "email", "phone", "headline", "summary", "notes", "company_id",
+      "linkedin_url"
     ] as const;
 
     const body = req.body as Record<string, unknown>;
@@ -43,7 +44,14 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     }
     if (fields.length === 0) return res.status(400).json({ error: "No editable fields provided" });
     params.push(id);
-    db.prepare(`UPDATE targets SET ${fields.join(", ")} WHERE id = ?`).run(...params);
+    try {
+      db.prepare(`UPDATE targets SET ${fields.join(", ")} WHERE id = ?`).run(...params);
+    } catch (err: any) {
+      if (err.code === "SQLITE_CONSTRAINT_UNIQUE" && err.message.includes("linkedin_url")) {
+        return res.status(409).json({ error: "Another contact with this LinkedIn URL already exists." });
+      }
+      throw err;
+    }
 
     return res.json(db.prepare("SELECT * FROM targets WHERE id = ?").get(id));
   }

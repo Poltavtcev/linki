@@ -594,6 +594,10 @@ export default function ContactDetailPage({
   const [emailDraft, setEmailDraft] = useState(target.email ?? "");
   const emailInputRef = useRef<HTMLInputElement>(null);
 
+  const [editingLinkedinUrl, setEditingLinkedinUrl] = useState(false);
+  const [linkedinUrlDraft, setLinkedinUrlDraft] = useState(target.linkedin_url || "");
+  const linkedinUrlInputRef = useRef<HTMLInputElement>(null);
+
   const [phone, setPhone] = useState(target.phone ?? "");
   const [editingPhone, setEditingPhone] = useState(false);
   const [phoneDraft, setPhoneDraft] = useState(target.phone ?? "");
@@ -761,6 +765,25 @@ export default function ContactDetailPage({
       body: JSON.stringify({ first_name: fn, last_name: ln, full_name: full }),
     });
     toast.success("Name updated");
+  }
+
+  async function saveLinkedinUrl() {
+    if (linkedinUrlDraft === (target.linkedin_url || "")) {
+      setEditingLinkedinUrl(false);
+      return;
+    }
+    const res = await fetch(`/api/targets/${target.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ linkedin_url: linkedinUrlDraft }),
+    });
+    if (res.ok) {
+      setEditingLinkedinUrl(false);
+      window.location.reload();
+    } else {
+      const data = await res.json();
+      toast.error(data.error || "Failed to update LinkedIn URL");
+    }
   }
 
   async function saveEmail() {
@@ -1032,6 +1055,46 @@ export default function ContactDetailPage({
                 </span>
               ) : null
             } />
+            <div>
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <p className="text-[11px] text-base-content/40 uppercase tracking-wide">LinkedIn URL</p>
+                <button
+                  onClick={() => { setLinkedinUrlDraft(target.linkedin_url || ""); setEditingLinkedinUrl(true); setTimeout(() => linkedinUrlInputRef.current?.focus(), 50); }}
+                  className="text-base-content/30 hover:text-base-content/60 transition-colors"
+                  title="Edit LinkedIn URL"
+                >
+                  <RiEditLine size={11} />
+                </button>
+              </div>
+              {editingLinkedinUrl ? (
+                <div className="flex items-center gap-1.5">
+                  <input
+                    ref={linkedinUrlInputRef}
+                    type="url"
+                    value={linkedinUrlDraft}
+                    onChange={(e) => setLinkedinUrlDraft(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") saveLinkedinUrl(); if (e.key === "Escape") setEditingLinkedinUrl(false); }}
+                    className="flex-1 min-w-0 px-2 py-0.5 rounded bg-base-300 border border-primary/40 text-sm focus:outline-none focus:border-primary"
+                    placeholder="https://linkedin.com/in/..."
+                  />
+                  <button onClick={saveLinkedinUrl} className="text-success hover:text-success/80 shrink-0"><RiCheckLine size={14} /></button>
+                  <button onClick={() => setEditingLinkedinUrl(false)} className="text-base-content/40 hover:text-base-content/70 shrink-0"><RiCloseLine size={14} /></button>
+                </div>
+              ) : target.linkedin_url ? (
+                <div className="flex items-center gap-1.5 text-sm text-base-content/80 truncate max-w-full">
+                  <RiLinkedinBoxLine size={13} className="text-base-content/40 shrink-0" />
+                  <a href={target.linkedin_url} target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors truncate" title={target.linkedin_url}>{target.linkedin_url.replace("https://www.linkedin.com/in/", "").replace(/\/$/, "")}</a>
+                </div>
+              ) : (
+                <button
+                  onClick={() => { setLinkedinUrlDraft(""); setEditingLinkedinUrl(true); setTimeout(() => linkedinUrlInputRef.current?.focus(), 50); }}
+                  className="text-sm text-base-content/30 hover:text-base-content/60 transition-colors"
+                >
+                  + Add LinkedIn URL
+                </button>
+              )}
+            </div>
+            
             <div>
               <div className="flex items-center gap-1.5 mb-0.5">
                 <p className="text-[11px] text-base-content/40 uppercase tracking-wide">Phone</p>
