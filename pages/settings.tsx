@@ -1483,6 +1483,15 @@ const INTEGRATIONS: IntegrationDef[] = [
     placeholder: "ContactOut API key",
   },
   {
+    key: "openai",
+    name: "OpenAI",
+    description: "Powers AI personalized outreach (GPT-4o, GPT-4o-mini)",
+    badge: "OA",
+    badgeColor: "#10a37f",
+    accentColor: "#10a37f",
+    placeholder: "sk-proj-...",
+  },
+  {
     key: "openrouter",
     name: "OpenRouter",
     description: "Route AI requests across models (GPT-4, Claude, Llama…)",

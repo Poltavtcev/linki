@@ -596,8 +596,9 @@ async function executeStep(
           trAdvance(db, tr, steps);
           return;
         }
-        const integration = db.prepare("SELECT api_key FROM integrations WHERE key = 'openrouter'").get() as { api_key: string } | undefined;
-        const apiKey = process.env.OPENAI_API_KEY || (integration?.api_key ? decryptSecret(integration.api_key) : null);
+        const openaiInt = db.prepare("SELECT api_key FROM integrations WHERE key = 'openai'").get() as { api_key: string } | undefined;
+        const openrouterInt = db.prepare("SELECT api_key FROM integrations WHERE key = 'openrouter'").get() as { api_key: string } | undefined;
+        const apiKey = process.env.OPENAI_API_KEY || (openaiInt?.api_key ? decryptSecret(openaiInt.api_key) : null) || (openrouterInt?.api_key ? decryptSecret(openrouterInt.api_key) : null);
         const agentCfgForMsg = premium.ai.getAgentConfig();
         const resolvedMsgModel = step.ai_model || agentCfgForMsg.default_model || "gpt-4o-mini";
         if (!apiKey || !resolvedMsgModel) {
@@ -709,8 +710,9 @@ async function executeStep(
           trAdvance(db, tr, steps);
           return;
         }
-        const integration = db.prepare("SELECT api_key FROM integrations WHERE key = 'openrouter'").get() as { api_key: string } | undefined;
-        const apiKey = process.env.OPENAI_API_KEY || (integration?.api_key ? decryptSecret(integration.api_key) : null);
+        const openaiInt = db.prepare("SELECT api_key FROM integrations WHERE key = 'openai'").get() as { api_key: string } | undefined;
+        const openrouterInt = db.prepare("SELECT api_key FROM integrations WHERE key = 'openrouter'").get() as { api_key: string } | undefined;
+        const apiKey = process.env.OPENAI_API_KEY || (openaiInt?.api_key ? decryptSecret(openaiInt.api_key) : null) || (openrouterInt?.api_key ? decryptSecret(openrouterInt.api_key) : null);
         const agentCfgForMsg = premium.ai.getAgentConfig();
         const resolvedMsgModel = step.ai_model || agentCfgForMsg.default_model || "gpt-4o-mini";
         if (!apiKey || !resolvedMsgModel) {
@@ -826,8 +828,9 @@ async function executeStep(
           trAdvance(db, tr, steps);
           return;
         }
-        const integration = db.prepare("SELECT api_key FROM integrations WHERE key = 'openrouter'").get() as { api_key: string } | undefined;
-        const apiKey = process.env.OPENAI_API_KEY || (integration?.api_key ? decryptSecret(integration.api_key) : null);
+        const openaiInt = db.prepare("SELECT api_key FROM integrations WHERE key = 'openai'").get() as { api_key: string } | undefined;
+        const openrouterInt = db.prepare("SELECT api_key FROM integrations WHERE key = 'openrouter'").get() as { api_key: string } | undefined;
+        const apiKey = process.env.OPENAI_API_KEY || (openaiInt?.api_key ? decryptSecret(openaiInt.api_key) : null) || (openrouterInt?.api_key ? decryptSecret(openrouterInt.api_key) : null);
         const agentCfgForEmail = premium.ai.getAgentConfig();
         const resolvedEmailModel = step.ai_model || agentCfgForEmail.default_model || "gpt-4o-mini";
         if (!apiKey || !resolvedEmailModel) {

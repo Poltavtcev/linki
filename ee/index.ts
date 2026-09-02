@@ -92,7 +92,10 @@ async function generateContent(params: CommunityAiParams) {
     throw new Error("OPENAI_API_KEY environment variable is not set.");
   }
   
-  const openai = new OpenAI({ apiKey: params.apiKey });
+  const openai = new OpenAI({
+    apiKey: params.apiKey,
+    baseURL: params.apiKey.startsWith("sk-or-") ? "https://openrouter.ai/api/v1" : undefined
+  });
 
   const response = await openai.chat.completions.create({
     model: params.model || "gpt-4o-mini",
@@ -110,7 +113,10 @@ async function generateContent(params: CommunityAiParams) {
   const parsed = parseModelJson(content, params.stepType);
   const inputTokens = response.usage?.prompt_tokens ?? 0;
   const outputTokens = response.usage?.completion_tokens ?? 0;
-  const costUsd = (inputTokens * 0.150 / 1000000) + (outputTokens * 0.600 / 1000000);
+  const isMini = (params.model || "gpt-4o-mini").includes("mini");
+  const inRate = isMini ? 0.150 : 5.000;
+  const outRate = isMini ? 0.600 : 15.000;
+  const costUsd = (inputTokens * inRate / 1000000) + (outputTokens * outRate / 1000000);
 
   if (params.runId || params.targetId || params.stepId) {
     const db = getDb();
@@ -126,7 +132,7 @@ async function generateContent(params: CommunityAiParams) {
       params.model || "gpt-4o-mini",
       inputTokens,
       outputTokens,
-      null, // cost not calculated natively in MVP
+      costUsd,
       prompt,
       JSON.stringify(parsed),
     );
