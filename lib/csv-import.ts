@@ -71,27 +71,59 @@ interface ParsedRow {
   fields: Record<EditableField, string | null>;
 }
 
-function resolveCrmStatus(db: DB, rawStatus: string): string | null {
-  const s = rawStatus.trim().toLowerCase();
-  if (!s) return null;
-  const row = db.prepare("SELECT value FROM app_settings WHERE key = 'crm_statuses'").get() as { value: string } | undefined;
-  
-  let statuses = [
-    { id: "lead", label: "Lead" },
-    { id: "outreach", label: "Outreach" },
-    { id: "engaged", label: "Engaged" },
-    { id: "meeting", label: "Meeting" },
-    { id: "opportunity", label: "Opportunity" },
-    { id: "customer", label: "Customer" },
-    { id: "nurture", label: "Nurture" },
-    { id: "disqualified", label: "Disqualified" }
-  ];
-  if (row) {
-    try { statuses = JSON.parse(row.value); } catch(e) {}
+
+
+class CrmStatusResolver {
+  private statuses: any[];
+  private updated = false;
+
+  constructor(private db: DB) {
+    const row = db.prepare("SELECT value FROM app_settings WHERE key = 'crm_statuses'").get() as { value: string } | undefined;
+    this.statuses = [
+      { id: "lead", label: "Lead", color: "bg-base-300", blocks_enrollment: false },
+      { id: "outreach", label: "Outreach", color: "bg-info/20 text-info", blocks_enrollment: false },
+      { id: "engaged", label: "Engaged", color: "bg-primary/20 text-primary", blocks_enrollment: false },
+      { id: "meeting", label: "Meeting", color: "bg-warning/20 text-warning", blocks_enrollment: true },
+      { id: "opportunity", label: "Opportunity", color: "bg-success/20 text-success", blocks_enrollment: true },
+      { id: "customer", label: "Customer", color: "bg-success text-success-content", blocks_enrollment: true },
+      { id: "nurture", label: "Nurture", color: "bg-secondary/20 text-secondary", blocks_enrollment: false },
+      { id: "disqualified", label: "Disqualified", color: "bg-error/20 text-error", blocks_enrollment: true }
+    ];
+    if (row) {
+      try { this.statuses = JSON.parse(row.value); } catch(e) {}
+    }
   }
-  
-  const match = statuses.find(st => st.id === s || st.label.toLowerCase() === s);
-  return match ? match.id : null;
+
+  resolve(rawStatus: string): string | null {
+    const s = rawStatus.trim();
+    if (!s) return null;
+    const lower = s.toLowerCase();
+    
+    let match = this.statuses.find(st => st.id === lower || st.label.toLowerCase() === lower);
+    if (match) return match.id;
+
+    const id = lower.replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    if (!id) return null;
+
+    match = this.statuses.find(st => st.id === id);
+    if (match) return match.id;
+
+    this.statuses.push({
+      id,
+      label: s,
+      color: "bg-base-300",
+      blocks_enrollment: false
+    });
+    this.updated = true;
+    return id;
+  }
+
+  flush() {
+    if (this.updated) {
+      this.db.prepare("INSERT INTO app_settings (key, value) VALUES ('crm_statuses', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(JSON.stringify(this.statuses));
+      this.updated = false;
+    }
+  }
 }
 
 function get(row: Record<string, string>, key: string): string | null {
@@ -107,6 +139,7 @@ export function importCsv(db: DB, listId: string, csvText: string): CsvImportRes
     transformHeader: (h) => h.trim().toLowerCase().replace(/\s+/g, "_"),
   });
 
+  const statusResolver = new CrmStatusResolver(db);
   const errors: string[] = [];
   let imported = 0;
   let updated = 0;
@@ -117,7 +150,7 @@ export function importCsv(db: DB, listId: string, csvText: string): CsvImportRes
     const rowNum = idx + 2; // header is row 1
     const fields = Object.fromEntries(EDITABLE_FIELDS.map((f) => [f, get(raw, f)])) as Record<EditableField, string | null>;
     if (fields.lead_status) {
-      const resolved = resolveCrmStatus(db, fields.lead_status);
+      const resolved = statusResolver.resolve(fields.lead_status);
       if (resolved) fields.lead_status = resolved;
     }
     const full_name = [fields.first_name, fields.last_name].filter(Boolean).join(" ") || null;
@@ -164,6 +197,8 @@ export function importCsv(db: DB, listId: string, csvText: string): CsvImportRes
     WHERE id = ?
   `);
   const linkToList = db.prepare("INSERT OR IGNORE INTO list_targets (list_id, target_id) VALUES (?, ?)");
+
+  statusResolver.flush();
 
   db.transaction(() => {
     for (const row of rows) {
