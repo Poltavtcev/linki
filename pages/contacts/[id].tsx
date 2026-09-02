@@ -9,7 +9,7 @@ import {
   RiUserFollowLine, RiUserAddLine, RiMapPinLine, RiBriefcaseLine,
   RiTimeLine, RiGlobalLine, RiLinkedinBoxLine, RiCheckboxCircleLine,
   RiEditLine, RiCheckLine, RiCloseLine, RiFlowChart,
-  RiCheckboxBlankCircleLine, RiDeleteBinLine, RiCalendarLine,
+  RiCheckboxBlankCircleLine, RiDeleteBinLine, RiCalendarLine, RiFileCopyLine,
   RiAddLine, RiSearchLine, RiCloseCircleLine, RiPhoneLine, RiMailCheckLine, RiMessage2Line,
 } from "react-icons/ri";
 
@@ -1541,8 +1541,20 @@ export default function ContactDetailPage({
                       )}
                     </div>
                     <button
-                      onClick={() => deleteTodo(todo.id)}
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        setTodoDefaults({ title: todo.title, description: todo.description || "" }); 
+                        setShowTodoModal(true); 
+                      }} 
+                      className="shrink-0 opacity-0 group-hover:opacity-100 text-base-content/20 hover:text-base-content/60 transition-all"
+                      title="Duplicate task"
+                    >
+                      <RiFileCopyLine size={12} />
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); deleteTodo(todo.id); }}
                       className="shrink-0 opacity-0 group-hover:opacity-100 text-base-content/20 hover:text-error/60 transition-all"
+                      title="Delete task"
                     >
                       <RiDeleteBinLine size={12} />
                     </button>

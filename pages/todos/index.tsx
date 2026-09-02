@@ -345,20 +345,19 @@ export default function TodosPage({ initialTodos, targets }: { initialTodos: Tod
                           )}
                         </div>
                       </div>
-                      <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center pr-2 mt-0.5">
-                        <button 
+
+                      <div className="flex items-center gap-3 shrink-0">
+                        <button
                           onClick={(e) => { 
                             e.stopPropagation(); 
                             setModalDefaults({ title: todo.title, description: todo.description || "" }); 
                             setShowModal(true); 
                           }} 
-                          className="text-[10px] uppercase font-bold tracking-wider px-2 py-1 bg-base-300/60 hover:bg-base-300 rounded text-base-content/40 hover:text-base-content transition-colors"
+                          className="opacity-0 group-hover:opacity-100 text-base-content/25 hover:text-base-content/70 transition-all"
                           title="Duplicate task"
                         >
-                          Copy
+                          <svg stroke="currentColor" fill="currentColor" strokeWidth="0" viewBox="0 0 24 24" height="14" width="14" xmlns="http://www.w3.org/2000/svg"><path d="M7 6V3C7 2.44772 7.44772 2 8 2H20C20.5523 2 21 2.44772 21 3V17C21 17.5523 20.5523 18 20 18H17V21C17 21.5523 16.5523 22 16 22H4C3.44772 22 3 21.5523 3 21V7C3 6.44772 3.44772 6 4 6H7ZM5 8V20H15V8H5ZM9 4V6H17V16H19V4H9Z"></path></svg>
                         </button>
-                      </div>
-                      <div className="flex items-center gap-3 shrink-0">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
