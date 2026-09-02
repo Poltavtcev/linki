@@ -32,6 +32,9 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
           WHERE rt.run_profile_id = rp.id AND rt.state NOT IN ('failed','skipped')
         ) THEN rp.id END) AS failed_prospects,
         -- Log-based counts scoped to this workflow's runs only
+        COUNT(DISTINCT CASE WHEN EXISTS (
+          SELECT 1 FROM targets t WHERE t.id = rp.target_id AND t.enriched_profile_at IS NOT NULL
+        ) THEN rp.id END) AS linkedin_enriched,
         (SELECT COUNT(DISTINCT target_id) FROM logs
           WHERE run_id IN (${RUNS}) AND message LIKE 'Connection request sent%') AS connections_sent,
         (SELECT COUNT(DISTINCT target_id) FROM logs
@@ -65,6 +68,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
       profiles_visited: number;
       emails_enriched: number;
       hubspot_pushes: number;
+      linkedin_enriched: number;
     };
 
     const connections_sent = counts.connections_sent ?? 0;
@@ -96,6 +100,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
       profiles_visited: counts.profiles_visited ?? 0,
       emails_enriched: counts.emails_enriched ?? 0,
       hubspot_pushes: counts.hubspot_pushes ?? 0,
+      linkedin_enriched: counts.linkedin_enriched ?? 0,
       active_run: activeRun ?? null,
     });
   } catch (err) {

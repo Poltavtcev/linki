@@ -1,7 +1,7 @@
 import Head from "next/head";
 import { useEffect, useState, useRef } from "react";
 import { FiUserPlus, FiMessageSquare, FiEye, FiRepeat, FiUsers, FiRefreshCw, FiTrash2 } from "react-icons/fi";
-import { RiMailSendLine, RiReplyLine, RiRobot2Line, RiLinkedinBoxLine, RiFilterLine , RiPlugLine , RiDatabase2Line } from "react-icons/ri";
+import { RiMailSendLine, RiReplyLine, RiRobot2Line, RiLinkedinBoxLine, RiFilterLine , RiPlugLine, RiDatabase2Line, RiSearchEyeLine } from "react-icons/ri";
 
 interface DashboardStats {
   totals: {
@@ -18,6 +18,7 @@ interface DashboardStats {
     email_replies: number;
     profiles_visited: number;
     emails_enriched: number;
+    linkedin_enriched: number;
     hubspot_pushes: number;
   };
   today: {
@@ -650,12 +651,18 @@ export default function Dashboard() {
             label="LinkedIn"
             color="#5aa2ff"
           />
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-5 gap-3">
             <KpiCard
               label="Profiles visited"
               value={totals.profiles_visited ?? 0}
               color="#5aa2ff"
               icon={<FiEye size={13} />}
+            />
+            <KpiCard
+              label="LI Enriched"
+              value={totals.linkedin_enriched ?? 0}
+              color="#3b82f6"
+              icon={<RiSearchEyeLine size={13} />}
             />
             <KpiCard
               label="Connections sent"
@@ -729,7 +736,8 @@ export default function Dashboard() {
               <FunnelRow icon={<FiRepeat size={11} />}       color="#c084fc" label="LI replies"     value={totals.replies_received}    max={maxFunnelValue} />
               <FunnelRow icon={<RiMailSendLine size={11} />} color="#fb923c" label="Emails sent"    value={totals.emails_sent}         max={maxFunnelValue} />
               <FunnelRow icon={<RiReplyLine size={11} />}    color="#32d583" label="Email replies"  value={totals.email_replies}       max={maxFunnelValue} />
-              <FunnelRow icon={<RiPlugLine size={11} />}     color="#f4b740" label="Enriched"       value={totals.emails_enriched}     max={maxFunnelValue} />
+              <FunnelRow icon={<RiSearchEyeLine size={11} />} color="#3b82f6" label="LI Enriched"    value={totals.linkedin_enriched ?? 0} max={maxFunnelValue} />
+              <FunnelRow icon={<RiPlugLine size={11} />}     color="#f4b740" label="Email Enriched" value={totals.emails_enriched}     max={maxFunnelValue} />
               <FunnelRow icon={<RiDatabase2Line size={11} />} color="#20c997" label="Pushed CRM"     value={totals.hubspot_pushes}      max={maxFunnelValue} />
             </div>
           </div>

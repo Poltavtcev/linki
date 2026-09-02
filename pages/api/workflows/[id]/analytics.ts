@@ -97,6 +97,11 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
           WHERE run_id IN (${RUNS}) AND message LIKE 'Visited %') AS profiles_visited,
         (SELECT COUNT(DISTINCT target_id) FROM logs
           WHERE run_id IN (${RUNS}) AND message LIKE 'Email enriched via %') AS emails_enriched,
+        (SELECT COUNT(DISTINCT rp.target_id)
+          FROM run_profiles rp JOIN runs r ON r.id = rp.run_id
+          JOIN targets t ON t.id = rp.target_id
+          WHERE r.workflow_id = ? AND r.status IN ('running','paused','completed')
+            AND t.enriched_profile_at IS NOT NULL) AS linkedin_enriched,
         (SELECT COUNT(DISTINCT target_id) FROM logs
           WHERE run_id IN (${RUNS}) AND message LIKE 'Successfully pushed % to HubSpot CRM') AS hubspot_pushes,
 
@@ -114,12 +119,12 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     `).get(
       workflowId, workflowId, workflowId, workflowId,
       workflowId, workflowId, workflowId, workflowId, workflowId,
-      workflowId, workflowId, workflowId
+      workflowId, workflowId, workflowId, workflowId
     ) as {
       total: number; connections_sent: number; connected: number;
       messages_sent: number; inmails_sent: number; li_replies: number;
       emails_sent: number; email_replies: number; completed: number;
-      profiles_visited: number; emails_enriched: number; hubspot_pushes: number;
+      profiles_visited: number; emails_enriched: number; linkedin_enriched: number; hubspot_pushes: number;
     };
 
     // ── Daily activity ────────────────────────────────────────────────────────

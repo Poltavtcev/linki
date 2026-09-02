@@ -45,6 +45,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
           (SELECT COUNT(*) FROM targets WHERE ${ACTIVE} AND email_replied_at IS NOT NULL) AS email_replies,
           (SELECT COUNT(*) FROM logs WHERE message LIKE 'Visited %') AS profiles_visited,
           (SELECT COUNT(*) FROM logs WHERE message LIKE 'Email enriched via %') AS emails_enriched,
+          (SELECT COUNT(*) FROM targets WHERE ${ACTIVE} AND enriched_profile_at IS NOT NULL) AS linkedin_enriched,
           (SELECT COUNT(*) FROM logs WHERE message LIKE 'Successfully pushed % to HubSpot CRM') AS hubspot_pushes
       `).get() as Record<string, number>;
 
@@ -128,6 +129,10 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
         (SELECT COUNT(DISTINCT target_id) FROM logs
           WHERE run_id IN (${runsSubquery})
             AND message LIKE 'Email enriched via %') AS emails_enriched,
+        (SELECT COUNT(DISTINCT rp.target_id) FROM run_profiles rp
+          JOIN targets t ON t.id = rp.target_id
+          WHERE rp.run_id IN (${runsSubquery})
+            AND t.enriched_profile_at IS NOT NULL) AS linkedin_enriched,
         (SELECT COUNT(DISTINCT target_id) FROM logs
           WHERE run_id IN (${runsSubquery})
             AND message LIKE 'Successfully pushed % to HubSpot CRM') AS hubspot_pushes
@@ -142,6 +147,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
       runsArg,  // email_replies
       runsArg,  // profiles_visited
       runsArg,  // emails_enriched
+      runsArg,  // linkedin_enriched
       runsArg,  // hubspot_pushes
     ) as Record<string, number>;
 
