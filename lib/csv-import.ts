@@ -9,7 +9,8 @@ type DB = DatabaseType.Database;
 // importable. Mirrors the PATCH /api/targets/[id] editable set.
 const EDITABLE_FIELDS = [
   "first_name", "last_name", "title", "company", "location",
-  "city", "country", "phone", "headline", "summary", "notes",
+  "city", "country", "time_zone", "phone", "headline", "summary", "notes",
+  "lead_status", "seniority"
 ] as const;
 type EditableField = (typeof EDITABLE_FIELDS)[number];
 
@@ -31,6 +32,9 @@ const SAMPLE_VALUES: Record<EditableField, string> = {
   headline: "Head of Marketing @ Acme Inc",
   summary: "10+ years in B2B SaaS marketing.",
   notes: "Met at SaaStr 2026",
+  time_zone: "Europe/Berlin",
+  lead_status: "lead",
+  seniority: "Director",
 };
 
 export function buildCsvTemplate(): string {
