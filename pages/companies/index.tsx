@@ -36,7 +36,6 @@ export const getServerSideProps: GetServerSideProps = async () => {
 export default function CompaniesPage({ initialCompanies }: { initialCompanies: Company[] }) {
   const [companies, setCompanies] = useState<Company[]>(initialCompanies);
   const [showModal, setShowModal] = useState(false);
-  const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState(BLANK_FORM);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
@@ -49,24 +48,10 @@ export default function CompaniesPage({ initialCompanies }: { initialCompanies: 
   }
 
   function openCreate() {
-    setEditId(null);
     setForm(BLANK_FORM);
     setShowModal(true);
   }
 
-  function openEdit(c: Company) {
-    setEditId(c.id);
-    setForm({
-      name: c.name,
-      domain: c.domain ?? "",
-      industry: c.industry ?? "",
-      location: c.location ?? "",
-      linkedin_url: c.linkedin_url ?? "",
-      website: c.website ?? "",
-      notes: c.notes ?? "",
-    });
-    setShowModal(true);
-  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -80,12 +65,10 @@ export default function CompaniesPage({ initialCompanies }: { initialCompanies: 
       website: form.website || null,
       notes: form.notes || null,
     };
-    const res = editId
-      ? await fetch(`/api/companies/${editId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
-      : await fetch("/api/companies", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const res = await fetch("/api/companies", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     setLoading(false);
     if (!res.ok) { toast.error((await res.json()).error ?? "Failed"); return; }
-    toast.success(editId ? "Company updated" : "Company created");
+    toast.success("Company created");
     setShowModal(false);
     refresh();
   }
@@ -172,12 +155,7 @@ export default function CompaniesPage({ initialCompanies }: { initialCompanies: 
                     <td className="text-base-content/60 text-xs">{c.contact_count}</td>
                     <td>
                       <div className="flex justify-end gap-1">
-                        <button
-                          className="inline-flex items-center px-2 py-1 rounded-md text-xs text-base-content/40 hover:text-base-content hover:bg-base-300/50 transition-colors"
-                          onClick={() => openEdit(c)}
-                        >
-                          Edit
-                        </button>
+
                         <button
                           className="inline-flex items-center px-2 py-1 rounded-md text-xs bg-error/10 text-error border border-error/20 hover:bg-error/20 transition-colors"
                           onClick={() => deleteCompany(c.id)}
@@ -196,7 +174,7 @@ export default function CompaniesPage({ initialCompanies }: { initialCompanies: 
         {showModal && (
           <div className="modal modal-open">
             <div className="modal-box bg-base-200 border border-base-300/50 max-w-md">
-              <h3 className="font-semibold text-base mb-4">{editId ? "Edit Company" : "Add Company"}</h3>
+              <h3 className="font-semibold text-base mb-4">Add Company</h3>
               <form onSubmit={submit} className="flex flex-col gap-3">
                 <div>
                   <label className="label text-xs text-base-content/50 pb-1">Company name <span className="text-error">*</span></label>
@@ -233,7 +211,7 @@ export default function CompaniesPage({ initialCompanies }: { initialCompanies: 
                 <div className="modal-action mt-1">
                   <button type="button" className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm text-base-content/60 hover:text-base-content hover:bg-base-300/50 transition-colors" onClick={() => setShowModal(false)}>Cancel</button>
                   <button type="submit" className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium bg-primary text-primary-content hover:bg-primary/90 transition-colors disabled:opacity-50" disabled={loading}>
-                    {loading ? <span className="loading loading-spinner loading-xs" /> : (editId ? "Save Changes" : "Add Company")}
+                    {loading ? <span className="loading loading-spinner loading-xs" /> : "Add Company"}
                   </button>
                 </div>
               </form>
