@@ -10,9 +10,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(403).json({ error: "AI Premium feature not available." });
   }
 
-  const apiKey = process.env.OPENAI_API_KEY;
+  const db = require("@/lib/db").getDb();
+  const openaiInt = db.prepare("SELECT api_key FROM integrations WHERE key = 'openai'").get();
+  const openrouterInt = db.prepare("SELECT api_key FROM integrations WHERE key = 'openrouter'").get();
+  const { decryptSecret } = require("@/lib/crypto");
+  
+  const apiKey = process.env.OPENAI_API_KEY || 
+    (openaiInt?.api_key ? decryptSecret(openaiInt.api_key) : null) || 
+    (openrouterInt?.api_key ? decryptSecret(openrouterInt.api_key) : null);
+  
   if (!apiKey) {
-    return res.status(500).json({ error: "OPENAI_API_KEY is not configured" });
+    return res.status(500).json({ error: "OPENAI_API_KEY or OpenRouter key is not configured in Integrations" });
   }
 
   try {
