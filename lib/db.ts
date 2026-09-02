@@ -59,7 +59,7 @@ export function getDb(): Database.Database {
   // Safely migrate track CHECK constraint for workflow_steps
   try {
     const tableInfo = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='workflow_steps'").get() as { sql: string } | undefined;
-    if (tableInfo && !tableInfo.sql.includes("'change_status'")) {
+    if (tableInfo && !tableInfo.sql.includes("'linkedin_enrich'")) {
       db.exec("PRAGMA foreign_keys = OFF;");
       
       const columnsQuery = db.prepare("PRAGMA table_info(workflow_steps)").all() as any[];
@@ -69,7 +69,7 @@ export function getDb(): Database.Database {
       id TEXT PRIMARY KEY,
       workflow_id TEXT REFERENCES workflows(id) ON DELETE CASCADE,
       step_order INTEGER NOT NULL,
-      step_type TEXT NOT NULL CHECK(step_type IN ('visit', 'connect', 'message', 'delay', 'email', 'sales_inmail', 'integration', 'change_status')),
+      step_type TEXT NOT NULL CHECK(step_type IN ('visit', 'connect', 'message', 'delay', 'email', 'sales_inmail', 'integration', 'change_status', 'linkedin_enrich')),
       template_id TEXT REFERENCES templates(id),
       delay_seconds INTEGER DEFAULT 0,
       connect_note TEXT,
@@ -968,7 +968,7 @@ function initDb(db: Database.Database) {
       id TEXT PRIMARY KEY,
       workflow_id TEXT REFERENCES workflows(id) ON DELETE CASCADE,
       step_order INTEGER NOT NULL,
-      step_type TEXT NOT NULL CHECK(step_type IN ('visit', 'connect', 'message', 'delay', 'email', 'sales_inmail', 'integration', 'change_status')),
+      step_type TEXT NOT NULL CHECK(step_type IN ('visit', 'connect', 'message', 'delay', 'email', 'sales_inmail', 'integration', 'change_status', 'linkedin_enrich')),
       template_id TEXT REFERENCES templates(id),
       delay_seconds INTEGER DEFAULT 0,
       connect_note TEXT,
