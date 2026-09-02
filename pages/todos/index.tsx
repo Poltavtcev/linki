@@ -345,6 +345,19 @@ export default function TodosPage({ initialTodos, targets }: { initialTodos: Tod
                           )}
                         </div>
                       </div>
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center pr-2 mt-0.5">
+                        <button 
+                          onClick={(e) => { 
+                            e.stopPropagation(); 
+                            setModalDefaults({ title: todo.title, description: todo.description || "" }); 
+                            setShowModal(true); 
+                          }} 
+                          className="text-[10px] uppercase font-bold tracking-wider px-2 py-1 bg-base-300/60 hover:bg-base-300 rounded text-base-content/40 hover:text-base-content transition-colors"
+                          title="Duplicate task"
+                        >
+                          Copy
+                        </button>
+                      </div>
                       <div className="flex items-center gap-3 shrink-0">
                         <button
                           onClick={(e) => {
