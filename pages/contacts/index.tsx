@@ -10,7 +10,7 @@ import {
   RiMessage2Line, RiReplyLine, RiMailCheckLine, RiAtLine, RiMailLine,
   RiSearchLine, RiAddLine, RiListCheck2, RiDeleteBinLine,
 } from "react-icons/ri";
-import FilterBar, { ActiveFilter, filtersToParams } from "@/components/ui/FilterBar";
+import FilterBar, { ActiveFilter, filtersToParams, paramsToFilters } from "@/components/ui/FilterBar";
 
 const PAGE_SIZE = 50;
 
@@ -84,10 +84,31 @@ export default function ContactsPage({ lists, total: initialTotal }: { lists: Li
     const newPage = typeof p === "function" ? p(page) : p;
     router.push({ pathname: router.pathname, query: { ...router.query, page: newPage + 1 } }, undefined, { shallow: true });
   };
-  const [listId, setListId] = useState("");
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [filters, setFilters] = useState<ActiveFilter[]>([]);
+  const [listId, setListId] = useState(() => (router.query.list_id as string) || "");
+  const [search, setSearch] = useState(() => (router.query.search as string) || "");
+  const [debouncedSearch, setDebouncedSearch] = useState(() => (router.query.search as string) || "");
+  const [filters, setFilters] = useState<ActiveFilter[]>(() => paramsToFilters(router.query as Record<string, string | string[] | undefined>));
+
+  // Sync URL changes BACK to state (e.g. Browser Back Button)
+  useEffect(() => {
+    if (!router.isReady) return;
+    const qListId = (router.query.list_id as string) || "";
+    if (listId !== qListId) setListId(qListId);
+
+    const qSearch = (router.query.search as string) || "";
+    if (search !== qSearch) {
+      setSearch(qSearch);
+      setDebouncedSearch(qSearch);
+    }
+
+    const qFilters = paramsToFilters(router.query as Record<string, string | string[] | undefined>);
+    const currentSig = JSON.stringify(filters.map((f: ActiveFilter) => ({ f: f.field, o: f.op, v: f.value })));
+    const nextSig = JSON.stringify(qFilters.map((f: ActiveFilter) => ({ f: f.field, o: f.op, v: f.value })));
+    if (currentSig !== nextSig) {
+      setFilters(qFilters);
+    }
+  }, [router.query, router.isReady]); // intentionally omit listId, search, filters
+
   const [crmStatuses, setCrmStatuses] = useState<any[]>([]);
   useEffect(() => {
     fetch("/api/settings/crm-statuses").then(r => r.json()).then(setCrmStatuses).catch(() => {});
@@ -136,9 +157,29 @@ export default function ContactsPage({ lists, total: initialTotal }: { lists: Li
     setSelected(new Set());
   }, [page, listId, debouncedSearch, filters, fetch_]);
 
-  function changeList(lid: string) { setListId(lid); setPage(0); }
-  function changeSearch(q: string) { setSearch(q); setPage(0); }
-  function changeFilters(f: ActiveFilter[]) { setFilters(f); setPage(0); }
+  function changeList(lid: string) { 
+    setListId(lid); 
+    setPage(0); 
+    const query: Record<string, any> = { ...router.query, page: 1, list_id: lid };
+    if (!lid) delete query.list_id;
+    router.push({ pathname: router.pathname, query }, undefined, { shallow: true });
+  }
+  function changeSearch(q: string) { 
+    setSearch(q); 
+    setPage(0); 
+    const query: Record<string, any> = { ...router.query, page: 1, search: q };
+    if (!q) delete query.search;
+    router.replace({ pathname: router.pathname, query }, undefined, { shallow: true });
+  }
+  function changeFilters(f: ActiveFilter[]) { 
+    setFilters(f); 
+    setPage(0);
+    const query: Record<string, any> = { ...router.query, page: 1 };
+    Object.keys(query).forEach(k => { if (k.startsWith('f[')) delete query[k]; });
+    const fp = filtersToParams(f);
+    fp.forEach((v, k) => query[k] = v);
+    router.push({ pathname: router.pathname, query }, undefined, { shallow: true });
+  }
 
   const allPageSelected = contacts.length > 0 && contacts.every((c) => selected.has(c.id));
 

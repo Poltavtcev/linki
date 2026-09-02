@@ -12,7 +12,7 @@ import {
   RiMessage2Line, RiMailCheckLine, RiMailLine, RiAtLine,
   RiArrowRightLine, RiSearchLine, RiPlayLine, RiHistoryLine,
 } from "react-icons/ri";
-import FilterBar, { ActiveFilter, applyFiltersClient } from "@/components/ui/FilterBar";
+import FilterBar, { ActiveFilter, applyFiltersClient, filtersToParams, paramsToFilters } from "@/components/ui/FilterBar";
 
 const PAGE_SIZE = 25;
 
@@ -162,8 +162,22 @@ export default function ListDetailPage({
   }
 
   const [targets, setTargets] = useState<Target[]>(initialList.targets);
-  const [search, setSearch] = useState("");
-  const [filters, setFilters] = useState<ActiveFilter[]>([]);
+  const [search, setSearch] = useState(() => (router.query.search as string) || "");
+  const [filters, setFilters] = useState<ActiveFilter[]>(() => paramsToFilters(router.query as Record<string, string | string[] | undefined>));
+
+  // Sync URL changes BACK to state (e.g. Browser Back Button)
+  useEffect(() => {
+    if (!router.isReady) return;
+    const qSearch = (router.query.search as string) || "";
+    if (search !== qSearch) setSearch(qSearch);
+
+    const qFilters = paramsToFilters(router.query as Record<string, string | string[] | undefined>);
+    const currentSig = JSON.stringify(filters.map((f: ActiveFilter) => ({ f: f.field, o: f.op, v: f.value })));
+    const nextSig = JSON.stringify(qFilters.map((f: ActiveFilter) => ({ f: f.field, o: f.op, v: f.value })));
+    if (currentSig !== nextSig) {
+      setFilters(qFilters);
+    }
+  }, [router.query, router.isReady]); // intentionally omit search, filters
   const queryPage = parseInt(router.query.page as string, 10);
   const page = isNaN(queryPage) ? 0 : Math.max(0, queryPage - 1);
   const setPage = (p: number | ((prev: number) => number)) => {
@@ -561,13 +575,28 @@ export default function ListDetailPage({
               className="w-52 bg-base-200 border border-base-300/50 rounded-lg pl-8 pr-3 py-1.5 text-sm text-base-content placeholder:text-base-content/30 focus:outline-none focus:border-primary/40"
               placeholder="Search name, company…"
               value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(0); }}
+              onChange={(e) => {
+                const q = e.target.value;
+                setSearch(q); 
+                setPage(0);
+                const query: Record<string, any> = { ...router.query, page: 1, search: q };
+                if (!q) delete query.search;
+                router.replace({ pathname: router.pathname, query }, undefined, { shallow: true });
+              }}
             />
           </div>
           <div className="w-px h-4 bg-base-300/60" />
           <FilterBar
             filters={filters}
-            onChange={(f) => { setFilters(f); setPage(0); }}
+            onChange={(f) => {
+              setFilters(f); 
+              setPage(0);
+              const query: Record<string, any> = { ...router.query, page: 1 };
+              Object.keys(query).forEach(k => { if (k.startsWith('f[')) delete query[k]; });
+              const fp = filtersToParams(f);
+              fp.forEach((v, k) => query[k] = v);
+              router.push({ pathname: router.pathname, query }, undefined, { shallow: true });
+            }}
           />
         </div>
       )}
