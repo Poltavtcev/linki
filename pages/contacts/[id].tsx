@@ -959,10 +959,16 @@ export default function ContactDetailPage({
                   <button onClick={() => setEditingTitle(false)} className="text-base-content/40 hover:text-base-content/70 shrink-0"><RiCloseLine size={16} /></button>
                 </div>
               ) : (
-                <div className="flex items-center gap-2 group mt-0.5">
-                  <p className="text-base-content/60 text-sm">{contactTitle || <span className="italic text-base-content/30">No title</span>}</p>
-                  <button onClick={() => { setTitleDraft(contactTitle || ""); setEditingTitle(true); setTimeout(() => titleInputRef.current?.focus(), 50); }} className="text-base-content/0 group-hover:text-base-content/30 hover:!text-base-content/60 transition-colors" title="Edit title"><RiEditLine size={12} /></button>
-                </div>
+                contactTitle ? (
+                  <div className="flex items-center gap-2 group mt-0.5">
+                    <p className="text-base-content/60 text-sm">{contactTitle}</p>
+                    <button onClick={() => { setTitleDraft(contactTitle); setEditingTitle(true); setTimeout(() => titleInputRef.current?.focus(), 50); }} className="text-base-content/0 group-hover:text-base-content/30 hover:!text-base-content/60 transition-colors" title="Edit title"><RiEditLine size={12} /></button>
+                  </div>
+                ) : (
+                  <button onClick={() => { setTitleDraft(""); setEditingTitle(true); setTimeout(() => titleInputRef.current?.focus(), 50); }} className="text-[11px] text-base-content/30 hover:text-base-content/60 transition-colors mt-0.5 block">
+                    + Add title
+                  </button>
+                )
               )}
               {target.headline && target.headline !== target.title && (
                 <p className="text-base-content/40 text-xs mt-1 italic">{target.headline}</p>
@@ -1102,11 +1108,17 @@ export default function ContactDetailPage({
                   <button onClick={() => setEditingLocation(false)} className="text-base-content/40 hover:text-base-content/70 shrink-0"><RiCloseLine size={16} /></button>
                 </div>
               ) : (
-                <div className="flex items-center gap-1.5 group">
-                  <RiMapPinLine size={13} className="text-base-content/40 shrink-0" />
-                  <span>{contactLocation || <span className="italic text-base-content/30">No location</span>}</span>
-                  <button onClick={() => { setLocationDraft(contactLocation || ""); setEditingLocation(true); setTimeout(() => locationInputRef.current?.focus(), 50); }} className="opacity-0 group-hover:opacity-100 text-base-content/30 hover:text-base-content/60 transition-colors" title="Edit location"><RiEditLine size={12} /></button>
-                </div>
+                contactLocation ? (
+                  <div className="flex items-center gap-1.5 group">
+                    <RiMapPinLine size={13} className="text-base-content/40 shrink-0" />
+                    <span>{contactLocation}</span>
+                    <button onClick={() => { setLocationDraft(contactLocation); setEditingLocation(true); setTimeout(() => locationInputRef.current?.focus(), 50); }} className="opacity-0 group-hover:opacity-100 text-base-content/30 hover:text-base-content/60 transition-colors" title="Edit location"><RiEditLine size={12} /></button>
+                  </div>
+                ) : (
+                  <button onClick={() => { setLocationDraft(""); setEditingLocation(true); setTimeout(() => locationInputRef.current?.focus(), 50); }} className="text-sm text-base-content/30 hover:text-base-content/60 transition-colors">
+                    + Add location
+                  </button>
+                )
               )
             } />
             <div>
@@ -1445,10 +1457,16 @@ export default function ContactDetailPage({
                   <button onClick={() => setEditingCompany(false)} className="text-base-content/40 hover:text-base-content/70 shrink-0"><RiCloseLine size={16} /></button>
                 </div>
               ) : (
-                <div className="flex items-center gap-2 group">
-                  <span className="text-sm text-base-content/80">{contactCompany || <span className="italic text-base-content/30">No raw company text</span>}</span>
-                  <button onClick={() => { setCompanyDraft(contactCompany || ""); setEditingCompany(true); setTimeout(() => companyInputRef.current?.focus(), 50); }} className="opacity-0 group-hover:opacity-100 text-base-content/30 hover:text-base-content/60 transition-colors" title="Edit company raw string"><RiEditLine size={12} /></button>
-                </div>
+                contactCompany ? (
+                  <div className="flex items-center gap-2 group">
+                    <span className="text-sm text-base-content/80">{contactCompany}</span>
+                    <button onClick={() => { setCompanyDraft(contactCompany); setEditingCompany(true); setTimeout(() => companyInputRef.current?.focus(), 50); }} className="opacity-0 group-hover:opacity-100 text-base-content/30 hover:text-base-content/60 transition-colors" title="Edit company raw string"><RiEditLine size={12} /></button>
+                  </div>
+                ) : (
+                  <button onClick={() => { setCompanyDraft(""); setEditingCompany(true); setTimeout(() => companyInputRef.current?.focus(), 50); }} className="text-sm text-base-content/30 hover:text-base-content/60 transition-colors">
+                    + Add raw company name
+                  </button>
+                )
               )}
             </div>
           )}
