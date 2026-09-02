@@ -93,6 +93,7 @@ interface Target {
   company_location: string | null;
   tenure_months: number | null;
   positions_json: string | null;
+  skills_json: string | null;
   connection_requested_at: string | null;
   connected_at: string | null;
   message_sent_at: string | null;
@@ -583,6 +584,7 @@ export default function ContactDetailPage({
   const functions: string[] = target.apollo_functions ? JSON.parse(target.apollo_functions) : [];
   const positions: { title: string; companyName: string; startDate?: string; endDate?: string; current?: boolean; description?: string }[] =
     target.positions_json ? JSON.parse(target.positions_json) : [];
+  const skills: string[] = target.skills_json ? JSON.parse(target.skills_json) : [];
 
   const [email, setEmail] = useState(target.email ?? "");
   const [firstName, setFirstName] = useState(target?.first_name ?? "");
@@ -1391,6 +1393,20 @@ export default function ContactDetailPage({
                     <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary self-start mt-0.5">Current</span>
                   )}
                 </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Skills */}
+        {skills.length > 0 && (
+          <div className="bg-base-200 border border-base-300/50 rounded-xl p-5 mb-4">
+            <p className="text-[11px] text-base-content/40 uppercase tracking-wide mb-3">Skills</p>
+            <div className="flex flex-wrap gap-2">
+              {skills.map((skill, i) => (
+                <span key={i} className="px-2 py-1 bg-base-300/50 border border-base-300 rounded-md text-xs text-base-content/70">
+                  {skill}
+                </span>
               ))}
             </div>
           </div>
