@@ -613,6 +613,20 @@ export default function ContactDetailPage({
   const [lastNameDraft, setLastNameDraft] = useState("");
   const nameInputRef = useRef<HTMLInputElement>(null);
   const [notesDraft, setNotesDraft] = useState(target.notes ?? "");
+  const [contactTitle, setContactTitle] = useState(target.title ?? "");
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(target.title ?? "");
+  const titleInputRef = useRef<HTMLInputElement>(null);
+
+  const [contactLocation, setContactLocation] = useState(target.location ?? "");
+  const [editingLocation, setEditingLocation] = useState(false);
+  const [locationDraft, setLocationDraft] = useState(target.location ?? "");
+  const locationInputRef = useRef<HTMLInputElement>(null);
+
+  const [contactCompany, setContactCompany] = useState(target.company_name ?? "");
+  const [editingCompany, setEditingCompany] = useState(false);
+  const [companyDraft, setCompanyDraft] = useState(target.company_name ?? "");
+  const companyInputRef = useRef<HTMLInputElement>(null);
 
   const [companyObj, setCompanyObj] = useState(target.companyObj);
   const [showCompanyModal, setShowCompanyModal] = useState(false);
@@ -816,6 +830,21 @@ export default function ContactDetailPage({
     toast.success("Phone saved");
   }
 
+  async function saveTitle() {
+    const res = await fetch(`/api/targets/${target.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: titleDraft }) });
+    if (res.ok) { setContactTitle(titleDraft); setEditingTitle(false); }
+    else { toast.error("Failed to update title"); }
+  }
+  async function saveLocation() {
+    const res = await fetch(`/api/targets/${target.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ location: locationDraft }) });
+    if (res.ok) { setContactLocation(locationDraft); setEditingLocation(false); }
+    else { toast.error("Failed to update location"); }
+  }
+  async function saveCompany() {
+    const res = await fetch(`/api/targets/${target.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ company: companyDraft }) });
+    if (res.ok) { setContactCompany(companyDraft); setEditingCompany(false); }
+    else { toast.error("Failed to update company"); }
+  }
   async function saveNotes() {
     const res = await fetch(`/api/targets/${target.id}`, {
       method: "PATCH",
@@ -923,7 +952,18 @@ export default function ContactDetailPage({
                   </button>
                 </div>
               )}
-              {target.title && <p className="text-base-content/60 text-sm mt-0.5">{target.title}</p>}
+              {editingTitle ? (
+                <div className="flex items-center gap-1 mt-1 mb-1">
+                  <input ref={titleInputRef} type="text" value={titleDraft} onChange={(e) => setTitleDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") saveTitle(); if (e.key === "Escape") setEditingTitle(false); }} className="px-2 py-0.5 rounded bg-base-300 border border-primary/40 text-sm focus:outline-none focus:border-primary w-64" placeholder="Job title" />
+                  <button onClick={saveTitle} className="text-success hover:text-success/70 shrink-0"><RiCheckLine size={16} /></button>
+                  <button onClick={() => setEditingTitle(false)} className="text-base-content/40 hover:text-base-content/70 shrink-0"><RiCloseLine size={16} /></button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 group mt-0.5">
+                  <p className="text-base-content/60 text-sm">{contactTitle || <span className="italic text-base-content/30">No title</span>}</p>
+                  <button onClick={() => { setTitleDraft(contactTitle || ""); setEditingTitle(true); setTimeout(() => titleInputRef.current?.focus(), 50); }} className="text-base-content/0 group-hover:text-base-content/30 hover:!text-base-content/60 transition-colors" title="Edit title"><RiEditLine size={12} /></button>
+                </div>
+              )}
               {target.headline && target.headline !== target.title && (
                 <p className="text-base-content/40 text-xs mt-1 italic">{target.headline}</p>
               )}
@@ -1055,12 +1095,19 @@ export default function ContactDetailPage({
               )}
             </div>
             <Field label="Location" value={
-              target.location ? (
-                <span className="flex items-center gap-1.5">
+              editingLocation ? (
+                <div className="flex items-center gap-1">
+                  <input ref={locationInputRef} type="text" value={locationDraft} onChange={(e) => setLocationDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") saveLocation(); if (e.key === "Escape") setEditingLocation(false); }} className="px-2 py-0.5 rounded bg-base-300 border border-primary/40 text-sm focus:outline-none focus:border-primary flex-1 min-w-0" placeholder="Location" />
+                  <button onClick={saveLocation} className="text-success hover:text-success/70 shrink-0"><RiCheckLine size={16} /></button>
+                  <button onClick={() => setEditingLocation(false)} className="text-base-content/40 hover:text-base-content/70 shrink-0"><RiCloseLine size={16} /></button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 group">
                   <RiMapPinLine size={13} className="text-base-content/40 shrink-0" />
-                  {target.location}
-                </span>
-              ) : null
+                  <span>{contactLocation || <span className="italic text-base-content/30">No location</span>}</span>
+                  <button onClick={() => { setLocationDraft(contactLocation || ""); setEditingLocation(true); setTimeout(() => locationInputRef.current?.focus(), 50); }} className="opacity-0 group-hover:opacity-100 text-base-content/30 hover:text-base-content/60 transition-colors" title="Edit location"><RiEditLine size={12} /></button>
+                </div>
+              )
             } />
             <div>
               <div className="flex items-center gap-1.5 mb-0.5">
@@ -1390,8 +1437,19 @@ export default function ContactDetailPage({
               </div>
             </div>
           ) : (
-            <div className="flex items-center justify-center py-3 border border-dashed border-base-300/50 rounded-lg">
-              <button onClick={() => setShowCompanyModal(true)} className="text-xs text-primary hover:underline">Select a company</button>
+            <div className="py-2">
+              {editingCompany ? (
+                <div className="flex items-center gap-1">
+                  <input ref={companyInputRef} type="text" value={companyDraft} onChange={(e) => setCompanyDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") saveCompany(); if (e.key === "Escape") setEditingCompany(false); }} className="px-2 py-0.5 rounded bg-base-300 border border-primary/40 text-sm focus:outline-none focus:border-primary flex-1 min-w-0" placeholder="Raw company text" />
+                  <button onClick={saveCompany} className="text-success hover:text-success/70 shrink-0"><RiCheckLine size={16} /></button>
+                  <button onClick={() => setEditingCompany(false)} className="text-base-content/40 hover:text-base-content/70 shrink-0"><RiCloseLine size={16} /></button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 group">
+                  <span className="text-sm text-base-content/80">{contactCompany || <span className="italic text-base-content/30">No raw company text</span>}</span>
+                  <button onClick={() => { setCompanyDraft(contactCompany || ""); setEditingCompany(true); setTimeout(() => companyInputRef.current?.focus(), 50); }} className="opacity-0 group-hover:opacity-100 text-base-content/30 hover:text-base-content/60 transition-colors" title="Edit company raw string"><RiEditLine size={12} /></button>
+                </div>
+              )}
             </div>
           )}
         </div>
