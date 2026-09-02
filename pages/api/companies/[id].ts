@@ -14,25 +14,24 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     return res.json({ ...company as object, contacts });
   }
 
-  if (req.method === "PUT" || req.method === "PATCH") {
-    const updates = { ...req.body };
-    delete updates.id;
-    delete updates.created_at;
-    delete updates.contacts;
-    
-    if (Object.keys(updates).length > 0) {
-      const keys = Object.keys(updates);
-      const setClause = keys.map(k => `${k} = ?`).join(', ');
-      const values = keys.map(k => updates[k]);
-      
-      db.prepare(`
-        UPDATE companies SET ${setClause} WHERE id = ?
-      `).run(...values, id);
-    }
-    
-    const updated = db.prepare("SELECT * FROM companies WHERE id = ?").get(id);
-    const contacts = db.prepare("SELECT id, full_name, title, email, linkedin_url FROM targets WHERE company_id = ? ORDER BY full_name").all(id);
-    return res.json({ ...(updated as object), contacts });
+  if (req.method === "PUT") {
+    const { name, domain, industry, location, linkedin_url, website, notes } = req.body;
+    db.prepare(`
+      UPDATE companies SET
+        name = COALESCE(?, name),
+        domain = ?,
+        industry = ?,
+        location = ?,
+        linkedin_url = ?,
+        website = ?,
+        notes = ?
+      WHERE id = ?
+    `).run(
+      name ?? null, domain ?? null, industry ?? null,
+      location ?? null, linkedin_url ?? null, website ?? null, notes ?? null,
+      id
+    );
+    return res.json(db.prepare("SELECT * FROM companies WHERE id = ?").get(id));
   }
 
   if (req.method === "DELETE") {
