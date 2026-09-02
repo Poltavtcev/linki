@@ -3,7 +3,7 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import Head from "next/head";
 import Sidebar from "@/components/layout/Sidebar";
 import { getDb } from "@/lib/db";
-import { RiCloseLine, RiCheckboxBlankCircleLine, RiCheckboxCircleFill, RiAddLine, RiSearchLine, RiBuildingLine, RiCalendarLine } from "react-icons/ri";
+import { RiCloseLine, RiCheckboxBlankCircleLine, RiCheckboxCircleFill, RiAddLine, RiSearchLine, RiBuildingLine, RiCalendarLine , RiArrowLeftSLine, RiArrowRightSLine } from "react-icons/ri";
 import { toast } from "sonner";
 import ContactSelect from "@/components/ui/ContactSelect";
 
@@ -364,6 +364,31 @@ export default function TodosPage({ initialTodos }: { initialTodos: Todo[] }) {
                 })
               )}
             </div>
+            
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between mt-5 pt-3 border-t border-base-300/40 text-[11px] text-base-content/50">
+                <span>
+                  {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, filteredTodos.length)} of {filteredTodos.length}
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    className="inline-flex items-center justify-center w-6 h-6 rounded text-base-content/50 hover:text-base-content hover:bg-base-300 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    onClick={() => setPage((p) => p - 1)}
+                    disabled={page === 0}
+                  >
+                    <RiArrowLeftSLine size={15} />
+                  </button>
+                  <span className="px-1.5">{page + 1} / {totalPages}</span>
+                  <button
+                    className="inline-flex items-center justify-center w-6 h-6 rounded text-base-content/50 hover:text-base-content hover:bg-base-300 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    onClick={() => setPage((p) => p + 1)}
+                    disabled={page >= totalPages - 1}
+                  >
+                    <RiArrowRightSLine size={15} />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </main>
       </div>
