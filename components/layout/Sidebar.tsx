@@ -275,17 +275,7 @@ export default function Sidebar({ onCollapse }: { onCollapse?: (collapsed: boole
             onClick={() => setTheme(resolvedTheme === "light" ? "dark" : "light")}
             className="flex items-center gap-2.5 px-3 h-9 rounded-lg text-sm text-base-content/70 hover:text-base-content/80 hover:bg-base-300/40 transition-colors w-full text-left"
           >
-            {resolvedTheme === "light" ? (
-              <>
-                <RiMoonLine size={14} />
-                <span>Dark Mode</span>
-              </>
-            ) : (
-              <>
-                <RiSunLine size={14} />
-                <span>Light Mode</span>
-              </>
-            )}
+            {resolvedTheme === "light" ? "Dark Mode" : "Light Mode"}
           </button>
           {(() => {
             const active = isActive("/settings");
