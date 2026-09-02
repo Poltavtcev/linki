@@ -72,7 +72,7 @@ export default function ContactSelect({
   }
 
   if (value && selectedTarget) {
-    const name = `${selectedTarget.first_name || ""} ${selectedTarget.last_name || ""}`.trim();
+    const name = `${selectedTarget.first_name || ""} ${selectedTarget.last_name || ""}`.trim() || (selectedTarget as any).full_name;
     const comp = selectedTarget.company || selectedTarget.company_name;
     return (
       <div className="relative w-full">
@@ -111,7 +111,7 @@ export default function ContactSelect({
             <div className="p-3 text-xs text-center text-base-content/40">No contacts found</div>
           )}
           {results.map(t => {
-            const name = `${t.first_name || ""} ${t.last_name || ""}`.trim();
+            const name = `${t.first_name || ""} ${t.last_name || ""}`.trim() || (t as any).full_name;
             const comp = t.company || t.company_name;
             return (
               <button

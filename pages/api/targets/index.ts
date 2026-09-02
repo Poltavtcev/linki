@@ -193,7 +193,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     (extraClauses.length > 0 ? " AND " + extraClauses.join(" AND ") : "") + filterSql;
   const allExtraParams = [...extraParams, ...filterParams];
 
-  const SELECT = `SELECT t.id, t.linkedin_url, t.lead_status, t.full_name, t.title, t.company, t.location,
+  const SELECT = `SELECT t.id, t.linkedin_url, t.lead_status, t.first_name, t.last_name, t.full_name, t.title, t.company, t.location,
           t.email, t.email_status, t.degree,
           t.connection_requested_at, t.connected_at, t.message_sent_at, t.last_replied_at,
           t.apollo_enriched_at, t.seniority, t.created_at
