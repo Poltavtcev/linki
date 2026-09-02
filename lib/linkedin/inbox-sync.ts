@@ -303,40 +303,27 @@ function resolveTarget(
   scoped: ScopedTarget[],
   allTargets: ScopedTarget[]
 ): TargetResolution | { reason: LinkedInInboxSkipReason } {
-  const urnIds = normalized.senderMessagingUrn ? idsForMessagingUrn(scoped, normalized.senderMessagingUrn) : [];
-  const vanityIds = normalized.senderVanity ? idsForVanity(scoped, normalized.senderVanity) : [];
-  const globalUrnIds = normalized.senderMessagingUrn ? idsForMessagingUrn(allTargets, normalized.senderMessagingUrn) : [];
-  const globalVanityIds = normalized.senderVanity ? idsForVanity(allTargets, normalized.senderVanity) : [];
+  const urnIds = normalized.senderMessagingUrn ? idsForMessagingUrn(allTargets, normalized.senderMessagingUrn) : [];
+  const vanityIds = normalized.senderVanity ? idsForVanity(allTargets, normalized.senderVanity) : [];
 
   if (normalized.senderMessagingUrn && normalized.senderVanity) {
     if (urnIds.length > 1 || vanityIds.length > 1) return { reason: "ambiguous_target" };
     if (urnIds.length === 1 && vanityIds.length === 1 && urnIds[0] !== vanityIds[0]) {
       return { reason: "identity_conflict" };
     }
-    if (urnIds.length === 1 && vanityIds.length === 0) {
-      return globalVanityIds.length > 0 ? { reason: "identity_conflict" } : { reason: "unmatched_target" };
-    }
-    if (urnIds.length === 0 && vanityIds.length === 1) {
-      return globalUrnIds.length > 0 ? { reason: "identity_conflict" } : { reason: "unmatched_target" };
-    }
-    if (urnIds.length === 0 || vanityIds.length === 0) {
-      return globalUrnIds.length > 0 || globalVanityIds.length > 0
-        ? { reason: "wrong_account_ownership" }
-        : { reason: "unmatched_target" };
-    }
-    return { targetId: urnIds[0], identityMode: "messaging_urn+profile_url" };
+    if (urnIds.length === 1) return { targetId: urnIds[0], identityMode: "messaging_urn" };
+    if (vanityIds.length === 1) return { targetId: vanityIds[0], identityMode: "profile_url" };
+    return { reason: "unmatched_target" };
   }
 
   if (normalized.senderMessagingUrn) {
     if (urnIds.length > 1) return { reason: "ambiguous_target" };
     if (urnIds.length === 1) return { targetId: urnIds[0], identityMode: "messaging_urn" };
-    if (globalUrnIds.length > 0) return { reason: "wrong_account_ownership" };
     return { reason: "unmatched_target" };
   }
 
   if (vanityIds.length > 1) return { reason: "ambiguous_target" };
   if (vanityIds.length === 1) return { targetId: vanityIds[0], identityMode: "profile_url" };
-  if (globalVanityIds.length > 0) return { reason: "wrong_account_ownership" };
   return { reason: "unmatched_target" };
 }
 
