@@ -71,6 +71,29 @@ interface ParsedRow {
   fields: Record<EditableField, string | null>;
 }
 
+function resolveCrmStatus(db: DB, rawStatus: string): string | null {
+  const s = rawStatus.trim().toLowerCase();
+  if (!s) return null;
+  const row = db.prepare("SELECT value FROM app_settings WHERE key = 'crm_statuses'").get() as { value: string } | undefined;
+  
+  let statuses = [
+    { id: "lead", label: "Lead" },
+    { id: "outreach", label: "Outreach" },
+    { id: "engaged", label: "Engaged" },
+    { id: "meeting", label: "Meeting" },
+    { id: "opportunity", label: "Opportunity" },
+    { id: "customer", label: "Customer" },
+    { id: "nurture", label: "Nurture" },
+    { id: "disqualified", label: "Disqualified" }
+  ];
+  if (row) {
+    try { statuses = JSON.parse(row.value); } catch(e) {}
+  }
+  
+  const match = statuses.find(st => st.id === s || st.label.toLowerCase() === s);
+  return match ? match.id : null;
+}
+
 function get(row: Record<string, string>, key: string): string | null {
   const v = row[key];
   const t = typeof v === "string" ? v.trim() : "";
@@ -93,6 +116,10 @@ export function importCsv(db: DB, listId: string, csvText: string): CsvImportRes
   parsed.data.forEach((raw, idx) => {
     const rowNum = idx + 2; // header is row 1
     const fields = Object.fromEntries(EDITABLE_FIELDS.map((f) => [f, get(raw, f)])) as Record<EditableField, string | null>;
+    if (fields.lead_status) {
+      const resolved = resolveCrmStatus(db, fields.lead_status);
+      if (resolved) fields.lead_status = resolved;
+    }
     const full_name = [fields.first_name, fields.last_name].filter(Boolean).join(" ") || null;
 
     const rawUrl = get(raw, "linkedin_url");
