@@ -153,6 +153,7 @@ interface EmailAccount {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const STEP_ICONS: Record<string, React.ReactNode> = {
+  linkedin_enrich: <RiSearchEyeLine size={15} />,
   visit: <RiEyeLine size={15} />,
   connect: <RiLinkedinBoxLine size={15} />,
   message: <RiMessage2Line size={15} />,
@@ -220,6 +221,7 @@ const AI_LANGUAGES = [
 ];
 
 const STEP_COLORS: Record<string, string> = {
+  linkedin_enrich: "bg-blue-500/10 text-blue-500 border-blue-500/20",
   visit: "bg-info/10 text-info border-info/20",
   connect: "bg-primary/10 text-primary border-primary/20",
   message: "bg-success/10 text-success border-success/20",
