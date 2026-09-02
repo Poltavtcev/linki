@@ -131,7 +131,7 @@ interface WorkflowStep {
   id: string;
   step_order: number;
   track: "linkedin" | "email";
-  step_type: "visit" | "connect" | "message" | "sales_inmail" | "delay" | "email" | "integration";
+  step_type: "visit" | "connect" | "message" | "sales_inmail" | "delay" | "email" | "integration" | "linkedin_enrich";
   template_id: string | null;
   delay_seconds: number;
   connect_note: string | null;
@@ -503,6 +503,19 @@ async function executeStep(
     if (step.step_type === "delay") {
       trAdvance(db, tr, steps);
       log(db, runId, target.id, "info", `Delay step passed for ${name}`);
+      return;
+    }
+
+    if (step.step_type === "linkedin_enrich") {
+      db.prepare("UPDATE run_profile_tracks SET last_step_at = datetime('now') WHERE id = ?").run(tr.id);
+      const fresh = db.prepare("SELECT enriched_profile_at FROM targets WHERE id = ?").get(target.id) as { enriched_profile_at: string | null } | undefined;
+      if (fresh?.enriched_profile_at) {
+        log(db, runId, target.id, "info", `${name} is already enriched — skipping scrape`);
+      } else {
+        log(db, runId, target.id, "info", `Enriching Sales Navigator profile for ${name}`);
+        await ensureSalesNavEnriched(db, target, accountId);
+      }
+      trAdvance(db, tr, steps);
       return;
     }
 

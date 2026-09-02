@@ -26,7 +26,7 @@ import {
   RiMailLine,
   RiEditLine,
   RiRobot2Line,
-  RiSearchLine,
+  RiSearchLine, RiSearchEyeLine,
   RiLoader4Line,
   RiUser3Line,
   RiArrowDownSLine,
@@ -37,7 +37,7 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type StepType = "visit" | "connect" | "message" | "sales_inmail" | "delay" | "email" | "integration" | "change_status";
+type StepType = "visit" | "connect" | "message" | "sales_inmail" | "delay" | "email" | "integration" | "change_status" | "linkedin_enrich";
 type Track = "linkedin" | "email" | "integration";
 
 interface Step {
@@ -353,7 +353,7 @@ type WizardPage = "prospects" | "prompt" | "linkedin-steps" | "email-steps" | "i
 
 interface WizardStep {
   track: Track;
-  type: "visit" | "connect" | "message" | "sales_inmail" | "email" | "integration" | "change_status";
+  type: "visit" | "connect" | "message" | "sales_inmail" | "email" | "integration" | "change_status" | "linkedin_enrich";
   delayDaysBefore: number; // delay before this step (0 for first step within its track)
   connectNote: string;
   messageBody: string;
@@ -384,7 +384,7 @@ function buildWizardSteps(steps: Step[]): WizardStep[] {
       const raw = s as unknown as Record<string, unknown>;
       result.push({
         track,
-        type: s.step_type as "visit" | "connect" | "message" | "sales_inmail" | "email" | "integration",
+        type: s.step_type as "visit" | "connect" | "message" | "sales_inmail" | "email" | "integration" | "change_status" | "linkedin_enrich",
         delayDaysBefore: pendingDelay[track] ?? 0,
         connectNote: s.connect_note ?? "",
         messageBody: s.message_body ?? "",
@@ -2660,6 +2660,7 @@ const ANALYTICS_SERIES = [
 const DAY_OPTS = [7, 14, 30, 90];
 
 const STEP_TYPE_LABEL: Record<string, string> = {
+  linkedin_enrich: "Enrich Profile",
   visit: "Visit", connect: "Connect", message: "LI Message", sales_inmail: "InMail", email: "Email",
   integration: "Integration",
 };
