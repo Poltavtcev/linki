@@ -384,6 +384,8 @@ export default function TodosPage({ initialTodos, targets }: { initialTodos: Tod
       {showModal && (
         <GlobalTodoModal
           targets={targets}
+          initialTitle={modalDefaults.title}
+          initialDescription={modalDefaults.description}
           onClose={() => setShowModal(false)}
           onSave={(todo) => {
             setTodos(prev => [todo, ...prev]);
