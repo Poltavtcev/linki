@@ -166,6 +166,7 @@ const STEP_ICONS: Record<string, React.ReactNode> = {
 // Static base labels — email steps use getEmailStepLabel() for dynamic numbering
 const STEP_LABELS: Record<string, string> = {
   visit: "Visit Profile",
+  linkedin_enrich: "Enrich Profile",
   connect: "LinkedIn Connect",
   message: "LinkedIn Message",
   sales_inmail: "Sales Nav InMail",
@@ -789,7 +790,7 @@ function Wizard({
 
   const hasConnect = wizardSteps.some((s) => s.type === "connect");
 
-  async function addWizardStep(type: "visit" | "connect" | "message" | "sales_inmail" | "email" | "integration" | "change_status", explicitTrack?: Track) {
+  async function addWizardStep(type: "visit" | "connect" | "message" | "sales_inmail" | "email" | "integration" | "change_status" | "linkedin_enrich", explicitTrack?: Track) {
     const track: Track = explicitTrack || (type === "integration" ? "integration" : type === "email" ? "email" : "linkedin");
     setWizardSteps((prev) => {
       const trackSteps = prev.filter((s) => s.track === track);
@@ -1453,7 +1454,7 @@ function Wizard({
                       <span className="text-xs text-base-content/30 mr-1">Add step:</span>
                       {track === "linkedin" ? (
                           <>
-                            {(["visit", "connect", "message", "sales_inmail"] as const)
+                            {(["visit", "linkedin_enrich", "connect", "message", "sales_inmail"] as const)
                               .filter((type) => type !== "sales_inmail" || hasPremium)
                               .map((type) => {
                               const disabled = type === "connect" && hasConnect;
