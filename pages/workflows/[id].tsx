@@ -1733,9 +1733,10 @@ function Wizard({
                             )}
                           </div>
                           {isDualSummary ? (
-                            <div className="grid grid-cols-2 divide-x divide-base-300/30">
-                              <SummaryTrack steps={summaryLiSteps} trackLabel="LinkedIn" trackColor="text-primary/60" />
-                              <SummaryTrack steps={summaryEmSteps} trackLabel="Email" trackColor="text-warning/60" />
+                            <div className={`grid ${[summaryLiSteps, summaryEmSteps, summaryInSteps].filter(s => s.length > 0).length === 3 ? 'grid-cols-3' : 'grid-cols-2'} divide-x divide-base-300/30`}>
+                              {summaryLiSteps.length > 0 && <SummaryTrack steps={summaryLiSteps} trackLabel="LinkedIn" trackColor="text-primary/60" />}
+                              {summaryEmSteps.length > 0 && <SummaryTrack steps={summaryEmSteps} trackLabel="Email" trackColor="text-warning/60" />}
+                              {summaryInSteps.length > 0 && <SummaryTrack steps={summaryInSteps} trackLabel="Integrations" trackColor="text-secondary/60" />}
                             </div>
                           ) : (
                             <div className="divide-y divide-base-300/30">
