@@ -112,8 +112,67 @@ export class LinkedInNetworkObserver implements LinkedInInboxObservationSource {
       console.log(`[observer] Navigating to messaging...`);
       await page.goto("https://www.linkedin.com/messaging/", { waitUntil: "domcontentloaded" });
     
+    
     // Wait for GraphQL to complete
     await page.waitForTimeout(5000);
+
+    // EMERGENCY FALLBACK: Scan HTML <code> tags for embedded JSON state
+    try {
+      const embeddedState = await page.evaluate(() => {
+        const codes = Array.from(document.querySelectorAll('code'));
+        const states = [];
+        for (const c of codes) {
+          try {
+            const txt = c.textContent?.trim() || "";
+            if (txt.includes("messengerConversationsBySyncToken") || txt.includes("messengerConversationsBySyncState") || txt.includes("urn:li:fsd_conversation:")) {
+              states.push(JSON.parse(txt));
+            }
+          } catch(e) {}
+        }
+        return states;
+      });
+      
+      console.log(`[observer] Found ${embeddedState.length} embedded state blocks in HTML`);
+      for (const json of embeddedState) {
+          const graphqlElements = json?.data?.messengerConversationsBySyncToken?.elements || json?.data?.messengerConversationsBySyncState?.elements || json?.included || [];
+          
+          for (const conv of graphqlElements) {
+            const threadUrn = conv.entityUrn || "";
+            const threadId = threadUrn.replace("urn:li:msg_conversation:", "").replace("urn:li:fsd_conversation:", "");
+            if (!threadId) continue;
+            
+            let messages = conv.messages?.elements || [];
+            if (!messages.length && conv.events) {
+               messages = conv.events.map((e: any) => ({
+                 body: { text: e.eventContent?.["*message"] || e.eventContent?.message?.text || "" },
+                 sender: { hostIdentityUrn: e.from?.["*miniProfile"] || e.from || "" },
+                 createdAt: e.createdAt,
+                 entityUrn: e.entityUrn
+               }));
+            }
+            
+            for (const msg of messages) {
+              const text = msg.body?.text || msg.body;
+              if (text && typeof text === "string") {
+                const senderUrn = msg.sender?.hostIdentityUrn || msg.sender || "";
+                
+                observations.push({
+                  externalThreadId: threadId,
+                  externalMessageId: msg.entityUrn || Math.random().toString(),
+                  direction: "inbound", // Assume inbound, inbox-sync will fix it
+                  senderExternalId: senderUrn,
+                  senderName: "LinkedIn Member",
+                  body: text,
+                  receivedAt: new Date(msg.createdAt || Date.now()).toISOString()
+                });
+              }
+            }
+          }
+      }
+    } catch (e) {
+      console.error("[observer] Failed to parse embedded HTML state", e);
+    }
+
 
       // console.log(`[observer] Captured ${observations.length} observations from network.`);
       require("fs").writeFileSync("/share/linki/inbox_dump.json", JSON.stringify(dumps, null, 2));
