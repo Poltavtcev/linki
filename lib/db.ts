@@ -676,6 +676,7 @@ function runMigrations(db: Database.Database) {
     // gated off the same counter, starving one whenever the other was busy.
     "ALTER TABLE accounts ADD COLUMN daily_inmail_limit INTEGER DEFAULT 15",
     "ALTER TABLE accounts ADD COLUMN weekly_connection_limit INTEGER DEFAULT 200",
+    "ALTER TABLE accounts ADD COLUMN daily_visit_limit INTEGER DEFAULT 150",
     // Sales Nav search: persistent cache of resolved filter values (typeahead
     // ids). Dedup on (filter_type, id) — LinkedIn ids are stable (e.g. Berlin's
     // geoUrn never changes), so once resolved a value is reused forever with no
@@ -907,6 +908,7 @@ function initDb(db: Database.Database) {
       withdraw_invites_after_days INTEGER DEFAULT 14,
       daily_connection_limit INTEGER DEFAULT 20,
       weekly_connection_limit INTEGER DEFAULT 200,
+      daily_visit_limit INTEGER DEFAULT 150,
       daily_message_limit INTEGER DEFAULT 50,
       daily_inmail_limit INTEGER DEFAULT 15,
       active_hours_start INTEGER DEFAULT 9,

@@ -1240,6 +1240,7 @@ async function tickActions(db: ReturnType<typeof getDb>): Promise<void> {
   const connectsSentThisWeek = new Map<string, number>();
   const messagesSentToday = new Map<string, number>();
   const inmailsSentToday = new Map<string, number>();
+  const visitsSentToday = new Map<string, number>();
   for (const [accountId] of accountLimitsMap) {
     const c = (db.prepare(
       `SELECT COUNT(*) as c FROM logs WHERE run_id IN (SELECT id FROM runs WHERE account_id = ?)
@@ -1421,6 +1422,7 @@ async function tickActions(db: ReturnType<typeof getDb>): Promise<void> {
   const connectsPlanned = new Map<string, number>(Array.from(accountLimitsMap.keys()).map(id => [id, 0]));
   const messagesPlanned = new Map<string, number>(Array.from(accountLimitsMap.keys()).map(id => [id, 0]));
   const inmailsPlanned = new Map<string, number>(Array.from(accountLimitsMap.keys()).map(id => [id, 0]));
+  const visitsPlanned = new Map<string, number>(Array.from(accountLimitsMap.keys()).map(id => [id, 0]));
   const emailsPlanned = new Map<string, number>(emailAccountIds.map(id => [id, 0]));
 
   for (const tr of dueTrackRuns) {
@@ -1430,7 +1432,16 @@ async function tickActions(db: ReturnType<typeof getDb>): Promise<void> {
     const step = steps[stepIndex];
     const limits = accountLimitsMap.get(tr.account_id)!;
 
-    if (step.step_type === "connect") {
+    if (step.step_type === "visit") {
+      const sentToday = visitsSentToday.get(tr.account_id) ?? 0;
+      const planned = visitsPlanned.get(tr.account_id) ?? 0;
+      if (sentToday + planned >= calculateDailyJitteredLimit((limits as any).daily_visit_limit ?? 150, tr.account_id, todayLocalDate())) {
+        toReschedule.push(tr);
+      } else {
+        visitsPlanned.set(tr.account_id, planned + 1);
+        toExecute.push(tr);
+      }
+    } else if (step.step_type === "connect") {
       // A connect step is "due" both when it's about to send a NEW request and when
       // it's just rechecking an already-sent one for acceptance (see the `degree === 1`
       // check in executeStep). Only the former spends a daily connect slot — the recheck

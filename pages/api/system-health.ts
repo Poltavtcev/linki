@@ -148,7 +148,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
       },
       visits: {
         sentToday: counts.visits_today,
-        limitToday: calculateDailyJitteredLimit(150, a.id, todayStr) // Generic hard cap assumption based on Waalaxy for visits
+        limitToday: calculateDailyJitteredLimit(a.daily_visit_limit ?? 150, a.id, todayStr)
       },
       inmails: {
         sentToday: counts.inmails_today,
