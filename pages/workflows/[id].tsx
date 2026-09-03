@@ -1717,14 +1717,15 @@ function Wizard({
                     <p className="text-base-content/50 text-sm">Automatically draft and send replies when prospects respond to this playbook.</p>
                   </div>
                   
-                  <label className="flex items-center gap-4 p-5 rounded-2xl bg-base-200 border border-base-300 cursor-pointer hover:border-primary/40 transition-colors">
-                    <input type="checkbox" className="toggle toggle-primary toggle-lg" checked={arActive} onChange={(e) => setArActive(e.target.checked)} />
+                  <div onClick={() => setArActive(!arActive)} className="flex items-center gap-4 p-5 rounded-2xl bg-base-200 border border-base-300 cursor-pointer hover:border-primary/40 transition-colors select-none">
+                    <div className={`w-14 h-8 flex items-center rounded-full p-1 transition-colors duration-300 ease-in-out cursor-pointer shrink-0 ${arActive ? 'bg-primary' : 'bg-base-300'}`}>
+                      <div className={`bg-white w-6 h-6 rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${arActive ? 'translate-x-6' : 'translate-x-0'}`} />
+                    </div>
                     <div>
                       <p className="font-bold text-base text-base-content/90 mb-0.5">Enable AI Auto-Replies</p>
                       <p className="text-sm text-base-content/50">GPT-4o will automatically draft and handle incoming LinkedIn and Email messages.</p>
                     </div>
-                  </label>
-                  
+                  </div>
                   {arActive && (
                     <div className="space-y-4">
                       <div>
