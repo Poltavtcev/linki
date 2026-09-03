@@ -118,10 +118,25 @@ export async function syncAcceptedConnections(accountId: string): Promise<number
         }
         if (!c.vanity) continue;
 
-        for (const m of findByVanity.all(`%/in/${c.vanity}/%`) as Array<{
-          id: string; full_name: string | null; connected_at: string | null; degree: number | null;
-        }>) {
-          if (m.degree === 1 && m.connected_at) continue; // already correct
+        for (const m of findByVanity.all(`%/in/${c.vanity}/%`) as Array<{ id: string; full_name: string | null; connected_at: string | null; degree: number | null; email: string | null; }>) {
+          if (m.degree === 1 && m.connected_at) {
+            // Already stamped, but maybe missing email? Let's skip for now to avoid hammering API on old contacts
+            // unless we want to do a full backfill. For now, only fetch for new accepts.
+            continue; 
+          }
+          
+          let emailToSave = null;
+          if (!m.email) {
+            await page.waitForTimeout(500 + Math.random() * 500); // polite delay before fetching
+            emailToSave = await fetchContactInfoEmail(page, c.vanity || "");
+            if (emailToSave) {
+              await page.waitForTimeout(1000 + Math.random() * 1000); // polite delay after fetching contact info
+
+              console.log(`[sync-accepted] ${m.full_name ?? c.vanity}: Found native LinkedIn email (${emailToSave})`);
+              db.prepare("UPDATE targets SET email = ? WHERE id = ?").run(emailToSave, m.id);
+            }
+          }
+          
           stampAccepted.run(msToSqlite(c.createdAt), m.id);
           console.log(`[sync-accepted] Accepted: ${m.full_name ?? c.vanity}`);
           stamped++;
@@ -189,6 +204,46 @@ export async function syncAcceptedConnections(accountId: string): Promise<number
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
+
+async function fetchContactInfoEmail(page: Page, vanity: string): Promise<string | null> {
+  return page.evaluate(
+    async ({ vanity }: { vanity: string }) => {
+      const cookies = document.cookie.split("; ").reduce((a: Record<string, string>, c) => {
+        const i = c.indexOf("=");
+        if (i > 0) a[c.slice(0, i)] = c.slice(i + 1);
+        return a;
+      }, {});
+      const csrf = (cookies["JSESSIONID"] || "").replace(/"/g, "");
+      const url = `https://www.linkedin.com/voyager/api/identity/profiles/${encodeURIComponent(vanity)}/profileContactInfo`;
+
+      try {
+        const response = await fetch(url, {
+          headers: {
+            accept: "application/vnd.linkedin.normalized+json+2.1",
+            "csrf-token": csrf,
+          },
+        });
+        if (!response.ok) return null;
+        const json = await response.json();
+        
+        // The API returns emailAddress in the root data or inside included array
+        if (json?.data?.emailAddress) return json.data.emailAddress;
+        if (json?.emailAddress) return json.emailAddress;
+        
+        if (json?.included) {
+          const profileInfo = json.included.find((x: any) => x.$type === "com.linkedin.voyager.identity.profile.ProfileContactInfo");
+          if (profileInfo?.emailAddress) return profileInfo.emailAddress;
+        }
+        
+        return null;
+      } catch (e) {
+        return null;
+      }
+    },
+    { vanity }
+  );
+}
+
 
 function msToSqlite(ms: number): string {
   return new Date(ms).toISOString().replace("T", " ").slice(0, 19);
