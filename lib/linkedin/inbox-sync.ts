@@ -97,7 +97,7 @@ export class LinkedInInboxAuthenticationError extends Error {
   }
 }
 
-interface ScopedTarget {
+interface ScopedTarget { full_name: string | null;
   id: string;
   messaging_urn: string | null;
   linkedin_url: string | null;
@@ -279,7 +279,7 @@ function accountIsReady(db: Database.Database, accountId: string): void {
 
 function loadScopedTargets(db: Database.Database, accountId: string): ScopedTarget[] {
   return db.prepare(`
-    SELECT DISTINCT t.id, t.messaging_urn, t.linkedin_url
+    SELECT DISTINCT t.id, t.messaging_urn, t.linkedin_url, t.full_name
     FROM targets t
     JOIN run_profiles rp ON rp.target_id = t.id
     JOIN runs r ON r.id = rp.run_id
@@ -288,7 +288,7 @@ function loadScopedTargets(db: Database.Database, accountId: string): ScopedTarg
 }
 
 function loadAllTargets(db: Database.Database): ScopedTarget[] {
-  return db.prepare("SELECT id, messaging_urn, linkedin_url FROM targets").all() as ScopedTarget[];
+  return db.prepare("SELECT id, messaging_urn, linkedin_url, full_name FROM targets").all() as ScopedTarget[];
 }
 
 function idsForMessagingUrn(targets: ScopedTarget[], urn: string): string[] {
@@ -297,6 +297,16 @@ function idsForMessagingUrn(targets: ScopedTarget[], urn: string): string[] {
 
 function idsForVanity(targets: ScopedTarget[], vanity: string): string[] {
   return [...new Set(targets.filter((target) => normalizeTargetVanity(target.linkedin_url) === vanity).map((target) => target.id))];
+}
+
+function idsForFullName(targets: ScopedTarget[], fullName: string): string[] {
+  const norm = (s: string) => (s || "").toLowerCase().trim();
+  const search = norm(fullName);
+  return [...new Set(targets.filter((target) => {
+    // If we can't fetch full targets here, wait, ScopedTarget only has id, messaging_urn, linkedin_url!
+    // We need full_name in ScopedTarget!
+    return (target as any).full_name && norm((target as any).full_name) === search;
+  }).map((target) => target.id))];
 }
 
 function resolveTarget(
@@ -316,7 +326,13 @@ function resolveTarget(
     }
     if (urnIds.length === 1) return { targetId: urnIds[0], identityMode: "messaging_urn" };
     if (vanityIds.length === 1) return { targetId: vanityIds[0], identityMode: "profile_url" };
-    return { reason: "unmatched_target" };
+  
+  if (normalized.senderName) {
+    const nameIds = idsForFullName(allTargets, normalized.senderName);
+    if (nameIds.length === 1) return { targetId: nameIds[0], identityMode: "profile_url" };
+  }
+
+  return { reason: "unmatched_target" };
   }
 
   if (normalized.senderMessagingUrn) {
@@ -404,6 +420,9 @@ export function captureLinkedInInboxObservations(
 
     const resolution = resolveTarget(db, accountId, normalized, scopedTargets, allTargets);
     if ("reason" in resolution) {
+      if (resolution.reason === "unmatched_target") {
+        console.warn(`[inbox-sync] Unmatched target: name="${normalized.senderName}", vanity="${normalized.senderVanity}", urn="${normalized.senderMessagingUrn}"`);
+      }
       if (resolution.reason !== "unmatched_target" && resolution.reason !== "identity_conflict") {
         console.warn(`[inbox-sync] Skipped message from vanity=${normalized.senderVanity} / urn=${normalized.senderMessagingUrn}: ${resolution.reason}`);
       }
