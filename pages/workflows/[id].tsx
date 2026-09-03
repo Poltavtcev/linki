@@ -885,7 +885,7 @@ function Wizard({
       connectNote: "", messageBody: "", templateId: null, templateIds: [], emailSubject: "", emailBody: "", emailSignature: null,
       aiEnabled: false, aiModel: "gpt-4o", aiPrompt: "", aiMaxWordsEnabled: false, aiMaxWords: 100, aiLanguage: "English",
       config: type === "integration" ? JSON.stringify({ action_type: "enrich_email", provider_chain: ["prospeo", "apollo", "snov", "skrapp", "hunter", "lusha", "contactout"] }) : type === "change_status" ? JSON.stringify({ status_id: "lead" }) : type === "ai_qualify" ? JSON.stringify({ rules: "Determine if prospect is a fit." }) : null,
-      branches: type === "ai_qualify" ? { FIT: [], MAYBE: [], NOT_FIT: [] } : undefined
+      branches: type === "ai_qualify" ? { FIT: [], MAYBE: [], NOT_FIT: [] } : (type === "connect" ? { ACCEPTED: [] } : (type === "message" || type === "sales_inmail" || type === "email" ? { REPLIED: [] } : undefined))
     };
 
     setWizardSteps((prev) => {
@@ -943,7 +943,21 @@ function Wizard({
         if (ws.branches) {
           for (const [bName, bSteps] of Object.entries(ws.branches)) {
             const bFirstId = await saveSequenceBackward(bSteps, currentNextId);
-            if (bFirstId) edges[bName] = bFirstId;
+            if (bFirstId) {
+               // map internal branch names to edge names
+               if (bName === "ACCEPTED") edges["on_accepted"] = bFirstId;
+               else if (bName === "REPLIED") edges["on_replied"] = bFirstId;
+               else if (bName === "FIT") edges["on_fit"] = bFirstId;
+               else if (bName === "MAYBE") edges["on_maybe"] = bFirstId;
+               else if (bName === "NOT_FIT") edges["on_not_fit"] = bFirstId;
+               else edges[bName] = bFirstId;
+            } else if (bName === "ACCEPTED" || bName === "REPLIED") {
+               // fallback to main sequence
+               if (currentNextId) {
+                  if (bName === "ACCEPTED") edges["on_accepted"] = currentNextId;
+                  if (bName === "REPLIED") edges["on_replied"] = currentNextId;
+               }
+            }
           }
         }
 
@@ -1533,7 +1547,7 @@ function Wizard({
                     </div>
                     
                     <div className="flex justify-center">
-                      <div className="dropdown dropdown-top dropdown-center">
+                      <div className="dropdown dropdown dropdown-end">
                         <label tabIndex={0} className="btn btn-primary shadow-lg shadow-primary/20 gap-2 rounded-full px-6">
                           <RiAddLine size={18} /> Add Step
                         </label>
