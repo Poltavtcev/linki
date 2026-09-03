@@ -683,7 +683,7 @@ function Wizard({
                               {path.length === 1 && prevWs && ["message", "email", "sales_inmail", "connect"].includes(prevWs.type) && (
                                 <span className={`px-2.5 py-0.5 rounded-full border text-[10px] font-bold shadow-sm ${
                                   prevWs.type === "connect" 
-                                    ? "bg-secondary/10 border-secondary/30 text-secondary" 
+                                    ? "bg-info/10 border-info/30 text-info" 
                                     : "bg-warning/10 border-warning/30 text-warning"
                                 }`}>
                                   {prevWs.type === "connect" ? "If not accepted" : "If no reply"}

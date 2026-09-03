@@ -69,7 +69,7 @@ export function getDb(): Database.Database {
       id TEXT PRIMARY KEY,
       workflow_id TEXT REFERENCES workflows(id) ON DELETE CASCADE,
       step_order INTEGER NOT NULL,
-      step_type TEXT NOT NULL CHECK(step_type IN ('visit', 'connect', 'message', 'delay', 'email', 'sales_inmail', 'integration', 'change_status', 'linkedin_enrich')),
+      step_type TEXT NOT NULL ,
       template_id TEXT REFERENCES templates(id),
       delay_seconds INTEGER DEFAULT 0,
       connect_note TEXT,
@@ -106,7 +106,7 @@ export function getDb(): Database.Database {
         id TEXT PRIMARY KEY,
         workflow_id TEXT REFERENCES workflows(id) ON DELETE CASCADE,
         step_order INTEGER NOT NULL,
-        step_type TEXT NOT NULL CHECK(step_type IN ('visit', 'connect', 'message', 'sales_inmail', 'delay', 'email', 'integration')),
+        step_type TEXT NOT NULL ,
         template_id TEXT REFERENCES templates(id),
         track TEXT NOT NULL DEFAULT 'linkedin' CHECK(track IN ('linkedin', 'email', 'integration'))`;
         
@@ -732,7 +732,7 @@ function runMigrations(db: Database.Database) {
         id TEXT PRIMARY KEY,
         workflow_id TEXT REFERENCES workflows(id) ON DELETE CASCADE,
         step_order INTEGER NOT NULL,
-        step_type TEXT NOT NULL CHECK(step_type IN ('visit', 'connect', 'message', 'sales_inmail', 'delay', 'email', 'integration')),
+        step_type TEXT NOT NULL ,
         template_id TEXT REFERENCES templates(id)`;
         
       for (const col of columnsQuery) {
@@ -768,7 +768,7 @@ function runMigrations(db: Database.Database) {
           id TEXT PRIMARY KEY,
           workflow_id TEXT REFERENCES workflows(id) ON DELETE CASCADE,
           step_order INTEGER NOT NULL,
-          step_type TEXT NOT NULL CHECK(step_type IN ('visit', 'connect', 'message', 'sales_inmail', 'delay', 'email')),
+          step_type TEXT NOT NULL ,
           template_id TEXT REFERENCES templates(id),
           delay_seconds INTEGER DEFAULT 0,
           connect_note TEXT,
@@ -1015,7 +1015,7 @@ function initDb(db: Database.Database) {
       id TEXT PRIMARY KEY,
       workflow_id TEXT REFERENCES workflows(id) ON DELETE CASCADE,
       step_order INTEGER NOT NULL,
-      step_type TEXT NOT NULL CHECK(step_type IN ('visit', 'connect', 'message', 'delay', 'email', 'sales_inmail', 'integration', 'change_status', 'linkedin_enrich')),
+      step_type TEXT NOT NULL ,
       template_id TEXT REFERENCES templates(id),
       delay_seconds INTEGER DEFAULT 0,
       connect_note TEXT,
