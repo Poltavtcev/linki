@@ -37,8 +37,8 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type StepType = "visit" | "connect" | "message" | "sales_inmail" | "delay" | "email" | "integration" | "change_status" | "linkedin_enrich";
-type Track = "linkedin" | "email" | "integration";
+type StepType = "visit" | "connect" | "message" | "sales_inmail" | "delay" | "email" | "integration" | "change_status" | "linkedin_enrich" | "ai_qualify" | "ai_comment";
+type Track = "linkedin" | "email" | "integration" | "playbook";
 
 interface Step {
   id: string;
@@ -55,6 +55,7 @@ interface Step {
   email_subject: string | null;
   email_body: string | null;
   config: string | null;
+  edges_json?: string | null;
 }
 
 interface WorkflowData {
@@ -164,6 +165,8 @@ const STEP_ICONS: Record<string, React.ReactNode> = {
   email: <RiMailLine size={15} />,
   integration: <RiPlugLine size={15} />,
   change_status: <RiGroupLine size={15} />,
+  ai_qualify: <RiRobot2Line size={15} />,
+  ai_comment: <RiMessage2Line size={15} />,
 };
 
 // Static base labels — email steps use getEmailStepLabel() for dynamic numbering
@@ -176,6 +179,8 @@ const STEP_LABELS: Record<string, string> = {
   email: "Cold Email",
   integration: "Integration",
   change_status: "Change CRM Status",
+  ai_qualify: "AI Qualify",
+  ai_comment: "AI Comment",
 };
 
 // Returns dynamic label for an email step based on its position among all email steps
@@ -357,24 +362,27 @@ const PROVIDER_NAMES: Record<string, string> = {
 type WizardPage = "prospects" | "prompt" | "sequence" | "account" | "summary";
 
 interface WizardStep {
+  id?: string;
   track: Track;
-  type: "visit" | "connect" | "message" | "sales_inmail" | "email" | "integration" | "change_status" | "linkedin_enrich";
-  delayDaysBefore: number; // delay before this step (0 for first step within its track)
+  type: StepType;
+  delayDaysBefore: number;
   connectNote: string;
   messageBody: string;
-  templateId: string | null;       // legacy single-template (kept for backwards compat)
-  templateIds: string[];            // multi-template pool for A/B
+  templateId: string | null;
+  templateIds: string[];
   emailSubject: string;
   emailBody: string;
-  emailSignature: string | null; // null = use email account default
-  // AI mode
+  emailSignature: string | null;
   aiEnabled: boolean;
   aiModel: string;
   aiPrompt: string;
   aiMaxWordsEnabled: boolean;
   aiMaxWords: number;
   aiLanguage: string;
-  config: string | null; // For JSON config of integration step
+  config: string | null;
+  branches?: Record<string, WizardStep[]>;
+  emailPosition?: number;
+  messagePosition?: number;
 }
 
 function buildWizardSteps(steps: Step[]): WizardStep[] {
@@ -867,25 +875,28 @@ function Wizard({
     }
   }
 
-  const hasConnect = wizardSteps.some((s) => s.type === "connect");
+  const hasConnect = wizardSteps.some((s) => s.type === "connect" || (s.branches && Object.values(s.branches).some(b => b.some(x => x.type === "connect"))));
 
-  async function addWizardStep(type: "visit" | "connect" | "message" | "sales_inmail" | "email" | "integration" | "change_status" | "linkedin_enrich", explicitTrack?: Track) {
-    const track: Track = explicitTrack || (type === "integration" ? "integration" : type === "email" ? "email" : "linkedin");
+  function addWizardStep(type: StepType) {
+    const newStep: WizardStep = {
+      track: "playbook",
+      type,
+      delayDaysBefore: wizardSteps.length === 0 ? 0 : 1,
+      connectNote: "", messageBody: "", templateId: null, templateIds: [], emailSubject: "", emailBody: "", emailSignature: null,
+      aiEnabled: false, aiModel: "gpt-4o", aiPrompt: "", aiMaxWordsEnabled: false, aiMaxWords: 100, aiLanguage: "English",
+      config: type === "integration" ? JSON.stringify({ action_type: "enrich_email", provider_chain: ["prospeo", "apollo", "snov", "skrapp", "hunter", "lusha", "contactout"] }) : type === "change_status" ? JSON.stringify({ status_id: "lead" }) : type === "ai_qualify" ? JSON.stringify({ rules: "Determine if prospect is a fit." }) : null,
+      branches: type === "ai_qualify" ? { FIT: [], MAYBE: [], NOT_FIT: [] } : undefined
+    };
+
     setWizardSteps((prev) => {
-      const trackSteps = prev.filter((s) => s.track === track);
-      const isFirstInTrack = trackSteps.length === 0;
-      const newStep: WizardStep = { track, type, delayDaysBefore: isFirstInTrack ? 0 : 1, connectNote: "", messageBody: "", templateId: null, templateIds: [], emailSubject: "", emailBody: "", emailSignature: null, aiEnabled: false, aiModel: "", aiPrompt: "", aiMaxWordsEnabled: false, aiMaxWords: 100, aiLanguage: "English", config: type === "integration" ? JSON.stringify({ action_type: "enrich_email", provider_chain: ["prospeo", "apollo", "snov", "skrapp", "hunter", "lusha", "contactout"] }) : type === "change_status" ? JSON.stringify({ status_id: "lead" }) : null };
-
       if (type === "connect") {
-        // Insert before the first linkedin message step
-        const firstMsgIdx = prev.findIndex((s) => s.type === "message");
+        const firstMsgIdx = prev.findIndex((s) => s.type === "message" || s.type === "sales_inmail");
         if (firstMsgIdx !== -1) {
           const inserted = [...prev];
           inserted.splice(firstMsgIdx, 0, newStep);
           return inserted;
         }
       }
-
       return [...prev, newStep];
     });
   }
@@ -899,77 +910,94 @@ function Wizard({
     setWizardSteps((prev) => prev.map((s, i) => (i === idx ? { ...s, ...patch } : s)));
   }
 
-  // Save steps to DB (replaces all existing steps for this workflow)
   async function saveStepsToDB() {
     setSaving(true);
-    // Save campaign prompt alongside steps
     await fetch(`/api/workflows/${workflowId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt: campaignPrompt }),
     });
-    // Delete all existing steps
+
     const existing = await fetch(`/api/workflows/${workflowId}/steps`);
     const existingSteps: Step[] = existing.ok ? await existing.json() : [];
-    await Promise.all(
-      existingSteps.map((s) =>
-        fetch(`/api/workflows/${workflowId}/steps/${s.id}`, { method: "DELETE" })
-      )
-    );
-    // Save per-track: each track's steps saved in order with correct delays
-    // We interleave all steps together (API auto-assigns track from step_type / track field)
-    // Process linkedin steps then email steps (order within each track matters, cross-track order is irrelevant)
-    const byTrack: Record<Track, WizardStep[]> = { linkedin: [], email: [], integration: [] };
-    for (const ws of wizardSteps) {
-      byTrack[ws.track].push(ws);
+    await Promise.all(existingSteps.map((s) => fetch(`/api/workflows/${workflowId}/steps/${s.id}`, { method: "DELETE" })));
+
+    let totalEmails = 0;
+    let totalMessages = 0;
+    function assignPositions(steps: WizardStep[]) {
+      for (const ws of steps) {
+        if (ws.type === "email") ws.emailPosition = ++totalEmails;
+        if (ws.type === "message" || ws.type === "sales_inmail") ws.messagePosition = ++totalMessages;
+        if (ws.branches) Object.values(ws.branches).forEach(b => assignPositions(b));
+      }
     }
-    let emailPosition = 1;
-    let messagePosition = 1;
-    // Save all steps flat — the track field tells the API which track each step belongs to
-    // We must save them interleaved so positions increment correctly per type
-    const allOrdered = [...byTrack.linkedin, ...byTrack.email, ...byTrack.integration];
-    // Re-calculate positions independently
-    emailPosition = 1; messagePosition = 1;
-    for (const ws of allOrdered) {
-      if (ws.delayDaysBefore > 0) {
-        await fetch(`/api/workflows/${workflowId}/steps`, {
+    assignPositions(wizardSteps);
+
+    async function saveSequenceBackward(steps: WizardStep[], nextId: string | null) {
+      let currentNextId = nextId;
+      for (let i = steps.length - 1; i >= 0; i--) {
+        const ws = steps[i];
+        let edges: Record<string, string> = {};
+        if (currentNextId) edges["next"] = currentNextId;
+
+        if (ws.branches) {
+          for (const [bName, bSteps] of Object.entries(ws.branches)) {
+            const bFirstId = await saveSequenceBackward(bSteps, currentNextId);
+            if (bFirstId) edges[bName] = bFirstId;
+          }
+        }
+
+        const isEmail = ws.type === "email";
+        const isInMail = ws.type === "sales_inmail";
+        const isMessage = ws.type === "message" || isInMail;
+        const hasAI = isMessage || isEmail || ws.type === "ai_comment" || ws.type === "ai_qualify";
+
+        const res = await fetch(`/api/workflows/${workflowId}/steps`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ step_type: "delay", track: ws.track, delay_seconds: ws.delayDaysBefore * 86400 }),
+          body: JSON.stringify({
+            step_type: ws.type,
+            track: "playbook",
+            connect_note: ws.type === "connect" ? (ws.connectNote || null) : null,
+            message_body: isMessage ? (ws.messageBody || null) : null,
+            template_id: isMessage && ws.templateIds.length === 0 ? (ws.templateId ?? null) : null,
+            template_ids: isMessage ? ws.templateIds : [],
+            email_subject: isEmail || isInMail ? (ws.emailSubject || null) : null,
+            email_body: isEmail ? (ws.emailBody || null) : null,
+            email_signature: isEmail ? ws.emailSignature : null,
+            email_position: ws.emailPosition || null,
+            message_position: ws.messagePosition || null,
+            ai_enabled: hasAI ? (ws.aiEnabled ? 1 : 0) : 0,
+            ai_model: hasAI ? (ws.aiModel || null) : null,
+            ai_prompt: hasAI ? (ws.aiPrompt || null) : null,
+            ai_max_words: hasAI && ws.aiEnabled && ws.aiMaxWordsEnabled ? ws.aiMaxWords : null,
+            ai_language: hasAI ? (ws.aiLanguage || "English") : null,
+            config: ws.config || null,
+            edges_json: Object.keys(edges).length > 0 ? JSON.stringify(edges) : null,
+          }),
         });
+        const data = await res.json();
+        currentNextId = data.id;
+
+        if (ws.delayDaysBefore > 0) {
+           const dRes = await fetch(`/api/workflows/${workflowId}/steps`, {
+             method: "POST",
+             headers: { "Content-Type": "application/json" },
+             body: JSON.stringify({
+               step_type: "delay",
+               track: "playbook",
+               delay_seconds: ws.delayDaysBefore * 86400,
+               edges_json: JSON.stringify({ next: currentNextId })
+             })
+           });
+           const dData = await dRes.json();
+           currentNextId = dData.id;
+        }
       }
-      const isEmail = ws.type === "email";
-      const isInMail = ws.type === "sales_inmail";
-      // sales_inmail behaves like message (body + optional AI + templates) plus a subject.
-      const isMessage = ws.type === "message" || isInMail;
-      const hasAI = isMessage || isEmail;
-      await fetch(`/api/workflows/${workflowId}/steps`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          step_type: ws.type,
-          track: ws.track,
-          connect_note: ws.type === "connect" ? (ws.connectNote || null) : null,
-          message_body: isMessage ? (ws.messageBody || null) : null,
-          template_id: isMessage && ws.templateIds.length === 0 ? (ws.templateId ?? null) : null,
-          template_ids: isMessage ? ws.templateIds : [],
-          // InMail subject reuses the email_subject column (an InMail step never sends email).
-          email_subject: isEmail ? (ws.emailSubject || null) : isInMail ? (ws.emailSubject || null) : null,
-          email_body: isEmail ? (ws.emailBody || null) : null,
-          email_signature: isEmail ? (ws.emailSignature) : null,
-          email_position: isEmail ? emailPosition : null,
-          message_position: isMessage ? messagePosition : null,
-          ai_enabled: hasAI ? (ws.aiEnabled ? 1 : 0) : 0,
-          ai_model: hasAI ? (ws.aiModel || null) : null,
-          ai_prompt: hasAI ? (ws.aiPrompt || null) : null,
-          ai_max_words: hasAI && ws.aiEnabled && ws.aiMaxWordsEnabled ? ws.aiMaxWords : null,
-          ai_language: hasAI ? (ws.aiLanguage || "English") : null,
-          config: (ws.type === "integration" || ws.type === "change_status") ? ws.config : null,
-        }),
-      });
-      if (isEmail) emailPosition++;
-      if (isMessage) messagePosition++;
+      return currentNextId;
     }
+
+    await saveSequenceBackward(wizardSteps, null);
     setSaving(false);
   }
 
@@ -1434,139 +1462,106 @@ function Wizard({
               {page === "sequence" && (() => {
                 function StepCard({ ws, idx, isFirst }: { ws: WizardStep; idx: number; isFirst: boolean }) {
                   return (
-                    <div>
+                    <div className="relative">
                       {(!isFirst || ws.delayDaysBefore > 0) && (
-                        <div className="flex items-center gap-2 py-1 pl-3">
+                        <div className="flex items-center gap-2 py-1.5 pl-6">
                           <div className="flex flex-col items-center gap-0.5">
-                            {!isFirst && <div className="w-px h-2 bg-base-300/60" />}
-                            <RiTimeLine size={11} className="text-base-content/30" />
-                            <div className="w-px h-2 bg-base-300/60" />
+                            {!isFirst && <div className="w-px h-3 bg-base-300/80" />}
+                            <RiTimeLine size={13} className="text-base-content/40" />
+                            <div className="w-px h-3 bg-base-300/80" />
                           </div>
-                          <span className="text-[10px] text-base-content/30 uppercase tracking-wider">
-                            {ws.delayDaysBefore > 0 ? `Wait ${ws.delayDaysBefore}d` : "Immediately"}
+                          <span className="text-[11px] text-base-content/40 font-medium tracking-wide">
+                            {ws.delayDaysBefore > 0 ? `Wait ${ws.delayDaysBefore} day${ws.delayDaysBefore > 1 ? 's' : ''}` : "Immediately"}
                           </span>
                         </div>
                       )}
                       <div
-                        className="flex items-center gap-2 border rounded-xl px-2 py-2 cursor-pointer transition-colors bg-base-200 border-base-300/50 hover:border-primary/30 hover:bg-base-200/80 group"
-                        onClick={() => setConfigIdx(idx)}
+                        className="flex flex-col border rounded-xl overflow-hidden bg-base-200 border-base-300/50 hover:border-primary/30 transition-colors group mx-auto w-full max-w-2xl"
                       >
-                        <span className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 border ${STEP_COLORS[ws.type]}`}>
-                          {STEP_ICONS[ws.type]}
-                        </span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium truncate">
-                            {getDynamicStepLabel(ws, wizardSteps, idx)}
-                          </p>
-                          {ws.type === "connect" && ws.connectNote && (
-                            <p className="text-[10px] text-base-content/40 truncate">Note: {ws.connectNote}</p>
-                          )}
-                        </div>
-                        <button
-                          className="inline-flex items-center p-1 rounded-md bg-error/5 text-error/60 border border-error/10 hover:bg-error/20 hover:text-error hover:border-error/30 transition-colors shrink-0"
-                          onClick={(e) => { e.stopPropagation(); removeWizardStep(idx); }}
-                        >
-                          <RiDeleteBinLine size={11} />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                }
-
-                function TrackColumn({ track, title, icon, desc, addButtons }: { track: Track; title: string; icon: React.ReactNode; desc: string; addButtons: React.ReactNode }) {
-                  const trackSteps = wizardSteps.map((ws, idx) => ({ ws, idx })).filter(({ ws }) => ws.track === track);
-                  return (
-                    <div className="flex flex-col bg-base-200/30 border border-base-300/40 rounded-2xl p-4">
-                      <div className="flex items-center gap-2 mb-1">
-                        {icon}
-                        <h3 className="font-semibold text-sm">{title}</h3>
-                      </div>
-                      <p className="text-[10px] text-base-content/40 mb-4 leading-relaxed min-h-[30px]">{desc}</p>
-                      
-                      <div className="space-y-0 mb-4 min-h-[100px]">
-                        {trackSteps.length === 0 ? (
-                          <div className="text-center py-6 border border-dashed border-base-300/40 rounded-xl text-base-content/30 text-xs">
-                            No {title.toLowerCase()} steps yet.
+                        <div className="flex items-center gap-3 px-4 py-3 cursor-pointer" onClick={() => setConfigIdx(idx)}>
+                          <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${STEP_COLORS[ws.type] || 'bg-base-300 text-base-content border-base-300'}`}>
+                            {STEP_ICONS[ws.type]}
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-base-content/90">
+                              {getDynamicStepLabel(ws, wizardSteps, idx)}
+                            </p>
+                            {ws.type === "connect" && ws.connectNote && (
+                              <p className="text-xs text-base-content/50 truncate">Note: {ws.connectNote}</p>
+                            )}
                           </div>
-                        ) : (
-                          trackSteps.map(({ ws, idx }, pos) => <StepCard key={idx} ws={ws} idx={idx} isFirst={pos === 0} />)
+                          <button
+                            className="inline-flex items-center p-1.5 rounded-md bg-error/5 text-error/60 border border-error/10 hover:bg-error/20 hover:text-error hover:border-error/30 transition-colors shrink-0"
+                            onClick={(e) => { e.stopPropagation(); removeWizardStep(idx); }}
+                          >
+                            <RiDeleteBinLine size={14} />
+                          </button>
+                        </div>
+
+                        {ws.branches && (
+                          <div className="border-t border-base-300/30 bg-base-200/50 p-3 flex gap-2">
+                            {Object.entries(ws.branches).map(([bName, bSteps]) => (
+                              <div key={bName} className="flex-1 bg-base-100 rounded-lg border border-base-300/50 p-2">
+                                <p className="text-[10px] font-bold text-base-content/40 mb-2">{bName}</p>
+                                <div className="text-xs text-base-content/30 italic">
+                                  {bSteps.length > 0 ? `${bSteps.length} step(s)` : "Flow rejoins main sequence"}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         )}
-                      </div>
-                      
-                      <div className="flex flex-wrap gap-1.5 mt-auto">
-                        {addButtons}
                       </div>
                     </div>
                   );
                 }
 
                 return (
-                  <div>
-                    <h2 className="text-xl font-semibold mb-1">Parallel Sequences</h2>
-                    <p className="text-base-content/50 text-sm mb-6">
-                      Build your outreach. Each column executes independently and in parallel.
+                  <div className="max-w-3xl mx-auto pb-20">
+                    <h2 className="text-2xl font-bold mb-2">Playbook Sequence</h2>
+                    <p className="text-base-content/60 text-sm mb-8">
+                      Build your outreach timeline. Steps execute sequentially as a unified flow.
                     </p>
                     
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                      <TrackColumn
-                        track="linkedin"
-                        title="LinkedIn"
-                        icon={<RiLinkedinBoxLine size={16} className="text-primary" />}
-                        desc="Profile visits, connection requests, and DMs."
-                        addButtons={
-                          <>
-                            {(["visit", "linkedin_enrich", "connect", "message", "sales_inmail"] as const)
-                              .filter((type) => type !== "sales_inmail" || hasPremium)
-                              .map((type) => {
-                              const disabled = type === "connect" && hasConnect;
-                              return (
-                                <button key={type} onClick={() => !disabled && addWizardStep(type, "linkedin")} title={disabled ? "Connection step can only be added once" : undefined}
-                                  className={`flex items-center gap-1 px-2 py-1 rounded-md border transition-colors text-[10px] ${disabled ? "border-base-300/20 bg-base-200/40 text-base-content/20 cursor-not-allowed" : "border-primary/20 bg-primary/5 hover:bg-primary/10 text-primary/70 hover:text-primary"}`}>
-                                  <RiAddLine size={10} /> {STEP_LABELS[type].replace("LinkedIn ", "")}
-                                </button>
-                              );
-                            })}
-                            <button onClick={() => addWizardStep("change_status", "linkedin")} className="flex items-center gap-1 px-2 py-1 rounded-md border transition-colors text-[10px] border-secondary/20 bg-secondary/5 hover:bg-secondary/10 text-secondary/70 hover:text-secondary"><RiAddLine size={10} /> CRM Status</button>
-                          </>
-                        }
-                      />
-                      
-                      <TrackColumn
-                        track="email"
-                        title="Email"
-                        icon={<RiMailLine size={16} className="text-warning" />}
-                        desc="Cold emails and follow-ups via connected mailboxes."
-                        addButtons={
-                          <>
-                            <button onClick={() => addWizardStep("email", "email")}
-                              className="flex items-center gap-1 px-2 py-1 rounded-md border transition-colors text-[10px] border-warning/20 bg-warning/5 hover:bg-warning/10 text-warning/70 hover:text-warning">
-                              <RiAddLine size={10} /> Cold Email
-                            </button>
-                            <button onClick={() => addWizardStep("change_status", "email")} className="flex items-center gap-1 px-2 py-1 rounded-md border transition-colors text-[10px] border-secondary/20 bg-secondary/5 hover:bg-secondary/10 text-secondary/70 hover:text-secondary"><RiAddLine size={10} /> CRM Status</button>
-                          </>
-                        }
-                      />
-                      
-                      <TrackColumn
-                        track="integration"
-                        title="Integrations"
-                        icon={<RiPlugLine size={16} className="text-accent" />}
-                        desc="Webhooks, enrichments, and CRM pushes."
-                        addButtons={
-                          <>
-                            <button onClick={() => addWizardStep("integration", "integration")}
-                              className="flex items-center gap-1 px-2 py-1 rounded-md border transition-colors text-[10px] border-primary/20 bg-primary/5 hover:bg-primary/10 text-primary/70 hover:text-primary">
-                              <RiAddLine size={10} /> {STEP_LABELS["integration"]}
-                            </button>
-                            <button onClick={() => addWizardStep("change_status", "integration")} className="flex items-center gap-1 px-2 py-1 rounded-md border transition-colors text-[10px] border-secondary/20 bg-secondary/5 hover:bg-secondary/10 text-secondary/70 hover:text-secondary"><RiAddLine size={10} /> CRM Status</button>
-                          </>
-                        }
-                      />
+                    <div className="space-y-0 mb-8">
+                      {wizardSteps.length === 0 ? (
+                        <div className="text-center py-12 border-2 border-dashed border-base-300/40 rounded-2xl bg-base-200/20 text-base-content/40 text-sm">
+                          No steps yet. Add one below to start your sequence.
+                        </div>
+                      ) : (
+                        wizardSteps.map((ws, idx) => <StepCard key={idx} ws={ws} idx={idx} isFirst={idx === 0} />)
+                      )}
+                    </div>
+                    
+                    <div className="flex justify-center">
+                      <div className="dropdown dropdown-top dropdown-center">
+                        <label tabIndex={0} className="btn btn-primary shadow-lg shadow-primary/20 gap-2 rounded-full px-6">
+                          <RiAddLine size={18} /> Add Step
+                        </label>
+                        <ul tabIndex={0} className="dropdown-content z-[10] menu p-2 shadow-xl bg-base-100 rounded-xl w-64 mb-4 border border-base-300/50">
+                          <li className="menu-title"><span className="text-xs font-bold text-base-content/40 uppercase tracking-wider">LinkedIn</span></li>
+                          <li><a onClick={() => addWizardStep("visit")} className="gap-3"><RiEyeLine size={14} className="text-info"/> Visit Profile</a></li>
+                          <li><a onClick={() => addWizardStep("linkedin_enrich")} className="gap-3"><RiSearchEyeLine size={14} className="text-info"/> Enrich Profile</a></li>
+                          {!hasConnect && <li><a onClick={() => addWizardStep("connect")} className="gap-3"><RiLinkedinBoxLine size={14} className="text-primary"/> Connect</a></li>}
+                          <li><a onClick={() => addWizardStep("message")} className="gap-3"><RiMessage2Line size={14} className="text-success"/> Message</a></li>
+                          {hasPremium && <li><a onClick={() => addWizardStep("sales_inmail")} className="gap-3"><RiSendPlaneLine size={14} className="text-primary"/> Sales Nav InMail</a></li>}
+                          
+                          <li className="menu-title mt-2"><span className="text-xs font-bold text-base-content/40 uppercase tracking-wider">Email</span></li>
+                          <li><a onClick={() => addWizardStep("email")} className="gap-3"><RiMailLine size={14} className="text-warning"/> Cold Email</a></li>
+                          
+                          <li className="menu-title mt-2"><span className="text-xs font-bold text-base-content/40 uppercase tracking-wider">Integrations</span></li>
+                          <li><a onClick={() => addWizardStep("integration")} className="gap-3"><RiPlugLine size={14} className="text-accent"/> Integration</a></li>
+                          <li><a onClick={() => addWizardStep("change_status")} className="gap-3"><RiGroupLine size={14} className="text-secondary"/> CRM Status</a></li>
+                          
+                          <li className="menu-title mt-2"><span className="text-xs font-bold text-base-content/40 uppercase tracking-wider">AI Agents</span></li>
+                          <li><a onClick={() => addWizardStep("ai_qualify")} className="gap-3"><RiRobot2Line size={14} className="text-secondary"/> AI Qualify</a></li>
+                          <li><a onClick={() => addWizardStep("ai_comment")} className="gap-3"><RiMessage2Line size={14} className="text-secondary"/> AI Comment</a></li>
+                        </ul>
+                      </div>
                     </div>
                   </div>
                 );
               })()}
-
+              
               {/* ── Page: Account ── */}
               {page === "account" && (
                 <div>
