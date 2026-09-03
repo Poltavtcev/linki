@@ -650,6 +650,64 @@ function Wizard({
   }, []);
   const [configPath, setConfigPath] = useState<(number | string)[] | null>(null);
   const [drawerPath, setDrawerPath] = useState<(number | string)[] | null>(null); // which step is being configured
+                function StepCard({ ws, path, isFirst }: { ws: WizardStep; path: (number | string)[]; isFirst: boolean }) {
+                  return (
+                    <div className="relative">
+                      {(!isFirst || ws.delayDaysBefore > 0) && (
+                        <div className="flex items-center gap-2 py-1.5 pl-6">
+                          <div className="flex flex-col items-center gap-0.5">
+                            {!isFirst && <div className="w-px h-3 bg-base-300/80" />}
+                            <RiTimeLine size={13} className="text-base-content/40" />
+                            <div className="w-px h-3 bg-base-300/80" />
+                          </div>
+                          <span className="text-[11px] text-base-content/40 font-medium tracking-wide">
+                            {ws.delayDaysBefore > 0 ? `Wait ${ws.delayDaysBefore} day${ws.delayDaysBefore > 1 ? 's' : ''}` : "Immediately"}
+                          </span>
+                        </div>
+                      )}
+                      <div
+                        className="flex flex-col border rounded-xl bg-base-200 border-base-300/50 hover:border-primary/30 transition-colors group mx-auto w-full max-w-2xl"
+                      >
+                        <div className="flex items-center gap-3 px-4 py-3 cursor-pointer" onClick={() => setConfigPath(path)}>
+                          <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${STEP_COLORS[ws.type] || 'bg-base-300 text-base-content border-base-300'}`}>
+                            {STEP_ICONS[ws.type]}
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-base-content/90">
+                              {getDynamicStepLabel(ws, wizardSteps, path[path.length - 1] as number)}
+                            </p>
+                            {ws.type === "connect" && ws.connectNote && (
+                              <p className="text-xs text-base-content/50 truncate">Note: {ws.connectNote}</p>
+                            )}
+                          </div>
+                          <button
+                            className="inline-flex items-center p-1.5 rounded-md bg-error/5 text-error/60 border border-error/10 hover:bg-error/20 hover:text-error hover:border-error/30 transition-colors shrink-0"
+                            onClick={(e) => { e.stopPropagation(); removeWizardStep(path); }}
+                          >
+                            <RiDeleteBinLine size={14} />
+                          </button>
+                        </div>
+
+                        {Object.keys(ws.branches || {}).length > 0 && (
+                          <div className="flex flex-wrap gap-2 px-4 py-3 bg-base-300/50 border-t border-base-300/50">
+                            {Object.entries(ws.branches!).map(([bName, bSteps]) => (
+                              <button 
+                                key={bName}
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); setDrawerPath([...path, "branches", bName]); }}
+                                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold bg-base-100 border border-base-300 hover:border-primary/50 transition-colors shadow-sm"
+                              >
+                                <RiGitBranchLine size={13} className="text-primary" />
+                                {bName}
+                                <span className="text-[10px] text-base-content/50 bg-base-200 px-1.5 rounded-full">{bSteps.length}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                }
   const [launching, setLaunching] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -1530,64 +1588,6 @@ function Wizard({
 
               {/* ── Page: Sequence ── */}
               {page === "sequence" && (() => {
-                function StepCard({ ws, path, isFirst }: { ws: WizardStep; path: (number | string)[]; isFirst: boolean }) {
-                  return (
-                    <div className="relative">
-                      {(!isFirst || ws.delayDaysBefore > 0) && (
-                        <div className="flex items-center gap-2 py-1.5 pl-6">
-                          <div className="flex flex-col items-center gap-0.5">
-                            {!isFirst && <div className="w-px h-3 bg-base-300/80" />}
-                            <RiTimeLine size={13} className="text-base-content/40" />
-                            <div className="w-px h-3 bg-base-300/80" />
-                          </div>
-                          <span className="text-[11px] text-base-content/40 font-medium tracking-wide">
-                            {ws.delayDaysBefore > 0 ? `Wait ${ws.delayDaysBefore} day${ws.delayDaysBefore > 1 ? 's' : ''}` : "Immediately"}
-                          </span>
-                        </div>
-                      )}
-                      <div
-                        className="flex flex-col border rounded-xl bg-base-200 border-base-300/50 hover:border-primary/30 transition-colors group mx-auto w-full max-w-2xl"
-                      >
-                        <div className="flex items-center gap-3 px-4 py-3 cursor-pointer" onClick={() => setConfigPath(path)}>
-                          <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${STEP_COLORS[ws.type] || 'bg-base-300 text-base-content border-base-300'}`}>
-                            {STEP_ICONS[ws.type]}
-                          </span>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-base-content/90">
-                              {getDynamicStepLabel(ws, wizardSteps, path[path.length - 1] as number)}
-                            </p>
-                            {ws.type === "connect" && ws.connectNote && (
-                              <p className="text-xs text-base-content/50 truncate">Note: {ws.connectNote}</p>
-                            )}
-                          </div>
-                          <button
-                            className="inline-flex items-center p-1.5 rounded-md bg-error/5 text-error/60 border border-error/10 hover:bg-error/20 hover:text-error hover:border-error/30 transition-colors shrink-0"
-                            onClick={(e) => { e.stopPropagation(); removeWizardStep(path); }}
-                          >
-                            <RiDeleteBinLine size={14} />
-                          </button>
-                        </div>
-
-                        {Object.keys(ws.branches || {}).length > 0 && (
-                          <div className="flex flex-wrap gap-2 px-4 py-3 bg-base-300/50 border-t border-base-300/50">
-                            {Object.entries(ws.branches!).map(([bName, bSteps]) => (
-                              <button 
-                                key={bName}
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); setDrawerPath([...path, "branches", bName]); }}
-                                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold bg-base-100 border border-base-300 hover:border-primary/50 transition-colors shadow-sm"
-                              >
-                                <RiGitBranchLine size={13} className="text-primary" />
-                                {bName}
-                                <span className="text-[10px] text-base-content/50 bg-base-200 px-1.5 rounded-full">{bSteps.length}</span>
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                }
 
                 return (
                   <div className="max-w-3xl mx-auto pb-20">
@@ -2158,6 +2158,7 @@ function Wizard({
                      </div>
                    </div>
                  </div>
+               </div>
              </>
            );
       })()}
