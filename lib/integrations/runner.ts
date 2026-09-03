@@ -156,6 +156,7 @@ export async function executeEnrichmentWaterfall(db: ReturnType<typeof getDb>, t
             email = res.data.person.email.email;
           }
         } else if (provider === "hunter") {
+          if (!target.company) throw new Error("Missing company name required by Hunter.io");
           const query = new URLSearchParams({
             first_name: target.first_name || "",
             last_name: target.last_name || "",
@@ -172,6 +173,7 @@ export async function executeEnrichmentWaterfall(db: ReturnType<typeof getDb>, t
             email = res.data.data.email;
           }
         } else if (provider === "skrapp") {
+          if (!target.company) throw new Error("Missing company name required by Skrapp");
           const query = new URLSearchParams({
               firstName: target.first_name || "",
               lastName: target.last_name || "",
