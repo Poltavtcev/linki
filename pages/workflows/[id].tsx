@@ -33,7 +33,7 @@ import {
   RiRefreshLine,
   RiErrorWarningLine,
   RiGroupLine, RiRouteLine, RiGitBranchLine, RiCloseLine,
-} from "react-icons/ri";
+RiCheckLine, RiArrowDownLine } from "react-icons/ri";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -695,7 +695,10 @@ function Wizard({
                                                              if (ws.type === 'ai_qualify') {
                                                                 try { 
                                                                   const cfg = JSON.parse(ws.config || '{}'); 
-                                                                  if ((cfg.continue_main_on || 'FIT') === bName) return false; 
+                                                                  let mainOutcomes = ["FIT"];
+                                                                  if (Array.isArray(cfg.continue_main_on)) mainOutcomes = cfg.continue_main_on;
+                                                                  else if (typeof cfg.continue_main_on === 'string') mainOutcomes = [cfg.continue_main_on];
+                                                                  if (mainOutcomes.includes(bName)) return false; 
                                                                 } catch {}
                                                              }
                                                              return true;
@@ -715,6 +718,36 @@ function Wizard({
                           </div>
                         )}
                       </div>
+                      
+                      {/* Trunk Visual for Gating Nodes */}
+                      {ws.type === 'ai_qualify' && path.length === 1 && (() => {
+                          let mainOutcomes = ["FIT"];
+                          try {
+                            const cfg = JSON.parse(ws.config || '{}');
+                            if (Array.isArray(cfg.continue_main_on)) mainOutcomes = cfg.continue_main_on;
+                            else if (typeof cfg.continue_main_on === 'string') mainOutcomes = [cfg.continue_main_on];
+                          } catch {}
+                          
+                          return (
+                            <div className="flex flex-col items-center mt-0 opacity-80">
+                               <div className="w-px h-4 bg-base-300/80"></div>
+                               <div className="flex gap-2">
+                                  {mainOutcomes.map(out => (
+                                    <span key={out} className={`px-2 py-0.5 rounded-full border text-[10px] font-bold ${
+                                      out === 'FIT' ? 'bg-success/10 border-success/30 text-success' : 
+                                      out === 'MAYBE' ? 'bg-warning/10 border-warning/30 text-warning' : 
+                                      'bg-error/10 border-error/30 text-error'
+                                    }`}>
+                                      {out}
+                                    </span>
+                                  ))}
+                               </div>
+                               <div className="w-px h-4 bg-base-300/80"></div>
+                               <RiArrowDownLine size={14} className="text-base-300 mb-2" />
+                            </div>
+                          );
+                      })()}
+
                     </div>
                   );
                 }
@@ -2290,16 +2323,42 @@ function Wizard({
                                 {ws.type === "ai_qualify" && (
                   <div className="space-y-4">
                     <div>
-                      <label className="text-xs text-base-content/40 mb-1.5 block">Continue main sequence if outcome is:</label>
-                      <select value={(() => { try { return (JSON.parse(ws.config || '{}') as any).continue_main_on || 'FIT'; } catch { return 'FIT'; } })()} onChange={(e) => {
-                          let c: any = {}; try { c = JSON.parse(ws.config || '{}'); } catch {}
-                          c.continue_main_on = e.target.value;
-                          updateStep(path, { config: JSON.stringify(c) });
-                      }} className="w-full bg-base-300/50 border border-base-300/50 rounded-xl px-3 py-2 text-sm text-base-content focus:outline-none focus:border-secondary/40">
-                        <option value="FIT">FIT</option>
-                        <option value="NOT_FIT">NOT_FIT</option>
-                        <option value="MAYBE">MAYBE</option>
-                      </select>
+                      <label className="text-xs text-base-content/40 mb-1.5 block">Continue outreach for (Main Sequence)</label>
+                      <div className="flex flex-wrap gap-2">
+                        {["FIT", "MAYBE", "NOT_FIT"].map(opt => {
+                           let selectedArr: string[] = ["FIT"];
+                           try { 
+                             const cfg = JSON.parse(ws.config || '{}'); 
+                             if (Array.isArray(cfg.continue_main_on)) selectedArr = cfg.continue_main_on;
+                             else if (typeof cfg.continue_main_on === 'string') selectedArr = [cfg.continue_main_on];
+                           } catch {}
+                           const isSelected = selectedArr.includes(opt);
+                           
+                           return (
+                             <button
+                               key={opt}
+                               type="button"
+                               onClick={(e) => {
+                                 let c: any = {}; try { c = JSON.parse(ws.config || '{}'); } catch {}
+                                 let newArr = [...selectedArr];
+                                 if (isSelected) newArr = newArr.filter(x => x !== opt);
+                                 else newArr.push(opt);
+                                 if (newArr.length === 0) newArr = ["FIT"]; // prevent empty
+                                 c.continue_main_on = newArr;
+                                 updateStep(path, { config: JSON.stringify(c) });
+                               }}
+                               className={`inline-flex items-center justify-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                                 isSelected 
+                                   ? opt === 'FIT' ? 'border-success/40 bg-success/10 text-success' : opt === 'MAYBE' ? 'border-warning/40 bg-warning/10 text-warning' : 'border-error/40 bg-error/10 text-error'
+                                   : 'border-base-300 bg-transparent text-base-content/40 hover:bg-base-200'
+                               }`}
+                             >
+                               {isSelected && <RiCheckLine size={12} />}
+                               {opt}
+                             </button>
+                           );
+                        })}
+                      </div>
                       <p className="text-[10px] text-base-content/30 mt-2 leading-relaxed">
                         The selected outcome will continue down the main sequence trunk. The other outcomes will become isolated side-panel branches.
                       </p>
