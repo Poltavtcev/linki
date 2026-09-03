@@ -13,7 +13,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
          FROM workflow_steps ws
          LEFT JOIN templates t ON t.id = ws.template_id
          WHERE ws.workflow_id = ?
-         ORDER BY ws.track, ws.step_order`
+         ORDER BY ws.step_order`
       )
       .all(workflowId);
 
@@ -26,29 +26,30 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     );
     const stepsWithTemplates = (steps as Array<Record<string, unknown>>).map((s) => ({
       ...s,
-      template_ids: (getTemplateIds.all(s.id) as Array<{ template_id: string; name: string }>).map((r) => r.template_id),
-      template_names: (getTemplateIds.all(s.id) as Array<{ template_id: string; name: string }>).map((r) => r.name),
+      template_ids: (getTemplateIds.all(s.id as string) as Array<{ template_id: string; name: string }>).map((r) => r.template_id),
+      template_names: (getTemplateIds.all(s.id as string) as Array<{ template_id: string; name: string }>).map((r) => r.name),
     }));
 
     return res.json(stepsWithTemplates);
   }
 
   if (req.method === "POST") {
-    const { step_type, track: trackIn, template_id, template_ids, delay_seconds, connect_note, message_body, email_subject, email_body, email_signature, email_position, message_position, ai_enabled, ai_model, ai_prompt, ai_max_words, ai_language, config } = req.body;
+    const { step_type, track: trackIn, template_id, template_ids, delay_seconds, connect_note, message_body, email_subject, email_body, email_signature, email_position, message_position, ai_enabled, ai_model, ai_prompt, ai_max_words, ai_language, config, edges_json, ai_qualification_rules, ai_comment_prompt } = req.body;
     if (!step_type) return res.status(400).json({ error: "step_type required" });
 
-    // Auto-assign track: email step_type always goes on the email track; everything else linkedin
-    const track: "linkedin" | "email" | "integration" = trackIn === "integration" || step_type === "integration" ? "integration" : trackIn === "email" || step_type === "email" ? "email" : "linkedin";
+    // Fallback track to playbook if not provided
+    const track = trackIn || "playbook";
 
+    // Fallback step_order to flat list
     const maxRow = db
-      .prepare("SELECT MAX(step_order) as max_order FROM workflow_steps WHERE workflow_id = ? AND track = ?")
-      .get(workflowId, track) as { max_order: number | null };
+      .prepare("SELECT MAX(step_order) as max_order FROM workflow_steps WHERE workflow_id = ?")
+      .get(workflowId) as { max_order: number | null };
     const nextOrder = (maxRow.max_order ?? 0) + 1;
 
     const id = randomUUID();
     db.prepare(
-      "INSERT INTO workflow_steps (id, workflow_id, step_order, track, step_type, template_id, delay_seconds, connect_note, message_body, email_subject, email_body, email_signature, email_position, message_position, ai_enabled, ai_model, ai_prompt, ai_max_words, ai_language, config) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-    ).run(id, workflowId, nextOrder, track, step_type, template_id ?? null, delay_seconds ?? 0, connect_note ?? null, message_body ?? null, email_subject ?? null, email_body ?? null, email_signature !== undefined ? email_signature : null, email_position ?? 1, message_position ?? 1, ai_enabled ?? 0, ai_model ?? null, ai_prompt ?? null, ai_max_words ?? null, ai_language ?? null, config !== undefined ? String(config) : null);
+      "INSERT INTO workflow_steps (id, workflow_id, step_order, track, step_type, template_id, delay_seconds, connect_note, message_body, email_subject, email_body, email_signature, email_position, message_position, ai_enabled, ai_model, ai_prompt, ai_max_words, ai_language, config, edges_json, ai_qualification_rules, ai_comment_prompt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    ).run(id, workflowId, nextOrder, track, step_type, template_id ?? null, delay_seconds ?? 0, connect_note ?? null, message_body ?? null, email_subject ?? null, email_body ?? null, email_signature !== undefined ? email_signature : null, email_position ?? 1, message_position ?? 1, ai_enabled ?? 0, ai_model ?? null, ai_prompt ?? null, ai_max_words ?? null, ai_language ?? null, config !== undefined ? String(config) : null, edges_json ?? null, ai_qualification_rules ?? null, ai_comment_prompt ?? null);
 
     // Insert multi-template associations
     if (Array.isArray(template_ids) && template_ids.length > 0) {

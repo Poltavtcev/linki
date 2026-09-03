@@ -859,6 +859,48 @@ function runMigrations(db: Database.Database) {
     db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_run_profiles_unique ON run_profiles(run_id, target_id);");
   } catch { /* ignore */ }
 
+
+  try {
+    const ti = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='workflow_steps'").get() as { sql: string } | undefined;
+    if (ti && ti.sql.includes("CHECK(track IN")) {
+      const cols = db.prepare("PRAGMA table_info(workflow_steps)").all() as any[];
+      const colList = cols.map(c => c.name).join(", ");
+      db.exec(`
+        PRAGMA foreign_keys = OFF;
+        CREATE TABLE workflow_steps_new (
+          id TEXT PRIMARY KEY,
+          workflow_id TEXT REFERENCES workflows(id) ON DELETE CASCADE,
+          step_order INTEGER NOT NULL,
+          step_type TEXT NOT NULL,
+          template_id TEXT REFERENCES templates(id),
+          delay_seconds INTEGER DEFAULT 0,
+          connect_note TEXT,
+          message_body TEXT,
+          email_subject TEXT,
+          email_body TEXT,
+          enabled INTEGER DEFAULT 1,
+          ai_enabled INTEGER DEFAULT 0,
+          ai_model TEXT,
+          ai_prompt TEXT,
+          ai_max_words INTEGER,
+          email_position INTEGER DEFAULT 1,
+          message_position INTEGER DEFAULT 1,
+          ai_language TEXT DEFAULT 'English',
+          track TEXT NOT NULL DEFAULT 'linkedin',
+          email_signature TEXT,
+          config TEXT,
+          edges_json TEXT,
+          ai_qualification_rules TEXT,
+          ai_comment_prompt TEXT
+        );
+        INSERT INTO workflow_steps_new (${colList}) SELECT ${colList} FROM workflow_steps;
+        DROP TABLE workflow_steps;
+        ALTER TABLE workflow_steps_new RENAME TO workflow_steps;
+        PRAGMA foreign_keys = ON;
+      `);
+    }
+  } catch (e) { console.error("Migration error playbook track:", e); }
+
   encryptLegacySecretsMigration(db);
 }
 
@@ -909,6 +951,7 @@ function initDb(db: Database.Database) {
       daily_connection_limit INTEGER DEFAULT 20,
       weekly_connection_limit INTEGER DEFAULT 200,
       daily_visit_limit INTEGER DEFAULT 150,
+      daily_comment_limit INTEGER DEFAULT 15,
       daily_message_limit INTEGER DEFAULT 50,
       daily_inmail_limit INTEGER DEFAULT 15,
       active_hours_start INTEGER DEFAULT 9,
