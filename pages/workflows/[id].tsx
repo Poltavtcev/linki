@@ -336,8 +336,11 @@ export const getServerSideProps: GetServerSideProps = async ({ params, query }) 
       ).all(activeRun.id) as Array<{ email_account_id: string }>).map((r) => r.email_account_id)
     : [];
 
+  const replyContext = db.prepare("SELECT * FROM reply_contexts WHERE workflow_id = ?").get(id) || null;
+
   return {
     props: {
+      replyContext,
       workflow: { ...(workflow as object), steps, active_run: activeRun ?? null },
       lists,
       accounts,
@@ -599,6 +602,7 @@ function Wizard({
   activeRunId,
   activeRunListId,
   activeRunEmailAccountIds = [],
+  initialReplyContext,
   onClose,
   onLaunched,
   onRenamed,
@@ -617,6 +621,7 @@ function Wizard({
   activeRunId?: string | null;
   activeRunListId?: string | null;
   activeRunEmailAccountIds?: string[];
+  initialReplyContext?: any;
   onClose: () => void;
   onLaunched: () => void;
   onRenamed: (name: string) => void;
@@ -626,11 +631,11 @@ function Wizard({
   const isAddContacts = mode === "add-contacts";
   const [page, setPage] = useState<WizardPage>(isEditMode ? "sequence" : "prospects");
   const [campaignPrompt, setCampaignPrompt] = useState(initialPrompt);
-  const [arActive, setArActive] = useState(false);
-  const [arSender, setArSender] = useState("");
-  const [arCompany, setArCompany] = useState("");
-  const [arOffers, setArOffers] = useState("");
-  const [arVoice, setArVoice] = useState("");
+  const [arActive, setArActive] = useState(!!initialReplyContext?.is_active);
+  const [arSender, setArSender] = useState(initialReplyContext?.sender_profile || "");
+  const [arCompany, setArCompany] = useState(initialReplyContext?.company_product || "");
+  const [arOffers, setArOffers] = useState(initialReplyContext?.offers_playbook || "");
+  const [arVoice, setArVoice] = useState(initialReplyContext?.voice_rules || "");
   const [crossOverlap, setCrossOverlap] = useState(allowCrossCampaignOverlap);
   const [listId, setListId] = useState("");
   const [accountId, setAccountId] = useState("");
@@ -3367,6 +3372,7 @@ export default function WorkflowDetailPage({
   templates,
   activeRunEmailAccountIds,
   autoSetup,
+  replyContext,
 }: {
   workflow: WorkflowData;
   lists: List[];
@@ -3375,6 +3381,7 @@ export default function WorkflowDetailPage({
   templates: Template[];
   activeRunEmailAccountIds: string[];
   autoSetup: boolean;
+  replyContext: any;
 }) {
   const [workflowName, setWorkflowName] = useState(initial.name);
   const [steps, setSteps] = useState<Step[]>(initial.steps);
