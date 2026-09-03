@@ -2129,8 +2129,8 @@ function Wizard({
                         branchSteps.map((bWs, bIdx) => <StepCard key={bIdx} ws={bWs} path={[...drawerPath, bIdx]} isFirst={bIdx === 0} />)
                      )}
                      
-                     <div className="mt-8 flex justify-center pb-12">
-                       <div className="dropdown dropdown-end dropdown-top">
+                     <div className="mt-8 flex justify-center pb-64">
+                       <div className="dropdown dropdown-end dropdown-bottom">
                           <label tabIndex={0} className="btn btn-sm btn-outline shadow-sm gap-1.5 rounded-full px-4 text-xs font-semibold">
                             <RiAddLine size={14} /> Add Step
                           </label>
@@ -2301,6 +2301,22 @@ function Wizard({
                          }} className="w-full bg-base-300/50 border border-base-300/50 rounded-xl px-3 py-2 text-sm text-base-content focus:outline-none focus:border-secondary/40" />
                        </div>
                     </div>
+                  </div>
+                )}
+
+                {ws.type === "linkedin_like" && (
+                  <div className="space-y-4">
+                     <div>
+                       <label className="text-xs text-base-content/40 mb-1.5 block">Like N Recent Posts</label>
+                       <p className="text-[10px] text-base-content/30 mb-2 leading-relaxed">
+                         How many of the prospect's most recent posts should be liked? (Default is 1).
+                       </p>
+                       <input type="number" min="1" max="10" value={(() => { try { return (JSON.parse(ws.config || '{}') as any).like_n_posts || 1; } catch { return 1; } })()} onChange={(e) => {
+                          let c: any = {}; try { c = JSON.parse(ws.config || '{}'); } catch {}
+                          c.like_n_posts = Number(e.target.value);
+                          updateStep(path, { config: JSON.stringify(c) });
+                       }} className="w-full max-w-[200px] bg-base-300/50 border border-base-300/50 rounded-xl px-3 py-2 text-sm text-base-content focus:outline-none focus:border-secondary/40" />
+                     </div>
                   </div>
                 )}
 
