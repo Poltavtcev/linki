@@ -902,7 +902,7 @@ function Wizard({
       connectNote: "", messageBody: "", templateId: null, templateIds: [], emailSubject: "", emailBody: "", emailSignature: null,
       aiEnabled: false, aiModel: "gpt-4o", aiPrompt: "", aiMaxWordsEnabled: false, aiMaxWords: 100, aiLanguage: "English",
       config: type === "integration" ? JSON.stringify({ action_type: "enrich_email", provider_chain: ["prospeo", "apollo", "snov", "skrapp", "hunter", "lusha", "contactout"] }) : type === "change_status" ? JSON.stringify({ status_id: "lead" }) : type === "ai_qualify" ? JSON.stringify({ rules: "Determine if prospect is a fit." }) : (type === "linkedin_like" ? JSON.stringify({ like_n_posts: 1 }) : (type === "ai_comment" ? JSON.stringify({ max_age_days: 30, like_n_posts: 0 }) : null)),
-      branches: type === "ai_qualify" ? { FIT: [], MAYBE: [], NOT_FIT: [] } : (type === "connect" ? { ACCEPTED: [] } : (type === "message" || type === "sales_inmail" || type === "email" ? { REPLIED: [] } : undefined))
+      branches: type === "ai_qualify" ? { FIT: [], MAYBE: [], NOT_FIT: [] } : (type === "connect" ? { "IF ACCEPTED": [], "IF NOT ACCEPTED (Timeout)": [] } : (type === "message" || type === "sales_inmail" || type === "email" ? { "IF REPLIED": [] } : undefined))
     };
 
     setWizardSteps((prev) => {
@@ -982,17 +982,17 @@ function Wizard({
             const bFirstId = await saveSequenceBackward(bSteps, currentNextId);
             if (bFirstId) {
                // map internal branch names to edge names
-               if (bName === "ACCEPTED") edges["on_accepted"] = bFirstId;
-               else if (bName === "REPLIED") edges["on_replied"] = bFirstId;
+               if (bName === "IF ACCEPTED" || bName === "ACCEPTED") edges["on_accepted"] = bFirstId;
+               else if (bName === "IF REPLIED" || bName === "REPLIED") edges["on_replied"] = bFirstId;
                else if (bName === "FIT") edges["on_fit"] = bFirstId;
                else if (bName === "MAYBE") edges["on_maybe"] = bFirstId;
                else if (bName === "NOT_FIT") edges["on_not_fit"] = bFirstId;
-               else edges[bName] = bFirstId;
-            } else if (bName === "ACCEPTED" || bName === "REPLIED") {
+               else if (bName === "IF NOT ACCEPTED (Timeout)") edges["on_timeout"] = bFirstId; else edges[bName] = bFirstId;
+            } else if (bName === "IF ACCEPTED" || bName === "IF REPLIED" || bName === "ACCEPTED" || bName === "REPLIED") {
                // fallback to main sequence
                if (currentNextId) {
-                  if (bName === "ACCEPTED") edges["on_accepted"] = currentNextId;
-                  if (bName === "REPLIED") edges["on_replied"] = currentNextId;
+                  if (bName === "IF ACCEPTED" || bName === "ACCEPTED") edges["on_accepted"] = currentNextId;
+                  if (bName === "IF REPLIED" || bName === "REPLIED") edges["on_replied"] = currentNextId;
                }
             }
           }
@@ -1545,7 +1545,7 @@ function Wizard({
                         </div>
                       )}
                       <div
-                        className="flex flex-col border rounded-xl overflow-hidden bg-base-200 border-base-300/50 hover:border-primary/30 transition-colors group mx-auto w-full max-w-2xl"
+                        className="flex flex-col border rounded-xl bg-base-200 border-base-300/50 hover:border-primary/30 transition-colors group mx-auto w-full max-w-2xl"
                       >
                         <div className="flex items-center gap-3 px-4 py-3 cursor-pointer" onClick={() => setConfigPath(path)}>
                           <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${STEP_COLORS[ws.type] || 'bg-base-300 text-base-content border-base-300'}`}>
@@ -1571,22 +1571,32 @@ function Wizard({
                           <div className="border-t border-base-300/30 bg-base-200/50 p-4 flex flex-col gap-4">
                             {Object.entries(ws.branches).map(([bName, bSteps]) => (
                               <div key={bName} className="flex-1 bg-base-100 rounded-lg border border-base-300/50 p-4">
-                                <div className="flex items-center justify-between mb-4">
-                                  <p className="text-xs font-bold text-base-content/50 uppercase tracking-wider">{bName}</p>
+                                <div className="flex items-center justify-between mb-1">
+                                  <p className="text-[11px] font-extrabold text-base-content/60 uppercase tracking-wider">{bName}</p>
                                   
                                   <div className="dropdown dropdown-bottom dropdown-end">
                                     <label tabIndex={0} className="btn btn-xs btn-outline bg-base-100 hover:bg-base-200 gap-1 rounded-md">
                                       <RiAddLine size={12} /> Add Step
                                     </label>
-                                    <ul tabIndex={0} className="dropdown-content z-[20] menu p-2 shadow-xl bg-base-100 rounded-xl w-56 mb-4 border border-base-300/50">
+                                    <ul tabIndex={0} className="dropdown-content z-[20] menu p-2 shadow-xl bg-base-100 rounded-xl w-60 mb-4 border border-base-300/50">
                                       <li className="menu-title"><span className="text-[10px] font-bold text-base-content/40 uppercase tracking-wider">LinkedIn</span></li>
                                       <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("visit", [...path, "branches", bName]); }} className="gap-3 text-xs"><RiEyeLine size={12} className="text-info"/> Visit Profile</a></li>
                                       <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("linkedin_enrich", [...path, "branches", bName]); }} className="gap-3 text-xs"><RiSearchEyeLine size={12} className="text-info"/> Enrich Profile</a></li>
                                       <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("connect", [...path, "branches", bName]); }} className="gap-3 text-xs"><RiLinkedinBoxLine size={12} className="text-primary"/> Connect</a></li>
                                       <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("message", [...path, "branches", bName]); }} className="gap-3 text-xs"><RiMessage2Line size={12} className="text-success"/> Message</a></li>
+                                      {hasPremium && <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("sales_inmail", [...path, "branches", bName]); }} className="gap-3 text-xs"><RiSendPlaneLine size={12} className="text-primary"/> Sales Nav InMail</a></li>}
                                       
-                                      <li className="menu-title mt-2"><span className="text-[10px] font-bold text-base-content/40 uppercase tracking-wider">Integrations</span></li>
+                                      <li className="menu-title mt-1"><span className="text-[10px] font-bold text-base-content/40 uppercase tracking-wider">Email</span></li>
+                                      <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("email", [...path, "branches", bName]); }} className="gap-3 text-xs"><RiMailLine size={12} className="text-warning"/> Cold Email</a></li>
+                                      
+                                      <li className="menu-title mt-1"><span className="text-[10px] font-bold text-base-content/40 uppercase tracking-wider">Integrations</span></li>
+                                      <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("integration", [...path, "branches", bName]); }} className="gap-3 text-xs"><RiPlugLine size={12} className="text-accent"/> Integration</a></li>
                                       <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("change_status", [...path, "branches", bName]); }} className="gap-3 text-xs"><RiGroupLine size={12} className="text-secondary"/> CRM Status</a></li>
+                                      
+                                      <li className="menu-title mt-1"><span className="text-[10px] font-bold text-base-content/40 uppercase tracking-wider">AI Agents</span></li>
+                                      <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("ai_qualify", [...path, "branches", bName]); }} className="gap-3 text-xs"><RiRobot2Line size={12} className="text-secondary"/> AI Qualify</a></li>
+                                      <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("ai_comment", [...path, "branches", bName]); }} className="gap-3 text-xs"><RiMessage2Line size={12} className="text-secondary"/> AI Comment</a></li>
+                                      <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("linkedin_like", [...path, "branches", bName]); }} className="gap-3 text-xs"><RiThumbUpLine size={12} className="text-primary"/> Like Recent Posts</a></li>
                                     </ul>
                                   </div>
                                   
@@ -1597,7 +1607,13 @@ function Wizard({
                                       <StepCard key={bIdx} ws={bStep} path={[...path, "branches", bName, bIdx]} isFirst={bIdx === 0} />
                                     ))
                                   ) : (
-                                    <div className="text-xs text-base-content/30 italic">Flow rejoins main sequence</div>
+                                    <div className="text-[10px] text-base-content/40 italic px-2 py-1 bg-base-200/50 rounded">
+  {bName === "IF REPLIED" ? "Sequence marks as Responded and stops here." : 
+   bName === "IF ACCEPTED" ? "Sequence continues to next step in main trunk." : 
+   bName === "IF NOT ACCEPTED (Timeout)" ? "Sequence skips to here if invite expires." : 
+   bName === "FIT" || bName === "NOT_FIT" || bName === "MAYBE" ? "Sequence ends." : 
+   "Flow rejoins main sequence."}
+</div>
                                   )}
                                 </div>
                               </div>
@@ -1635,7 +1651,7 @@ function Wizard({
                           <li className="menu-title"><span className="text-xs font-bold text-base-content/40 uppercase tracking-wider">LinkedIn</span></li>
                           <li><a onClick={() => addWizardStep("visit")} className="gap-3"><RiEyeLine size={14} className="text-info"/> Visit Profile</a></li>
                           <li><a onClick={() => addWizardStep("linkedin_enrich")} className="gap-3"><RiSearchEyeLine size={14} className="text-info"/> Enrich Profile</a></li>
-                          {!hasConnect && <li><a onClick={() => addWizardStep("connect")} className="gap-3"><RiLinkedinBoxLine size={14} className="text-primary"/> Connect</a></li>}
+                          <li><a onClick={() => addWizardStep("connect")} className="gap-3"><RiLinkedinBoxLine size={14} className="text-primary"/> Connect</a></li>
                           <li><a onClick={() => addWizardStep("message")} className="gap-3"><RiMessage2Line size={14} className="text-success"/> Message</a></li>
                           {hasPremium && <li><a onClick={() => addWizardStep("sales_inmail")} className="gap-3"><RiSendPlaneLine size={14} className="text-primary"/> Sales Nav InMail</a></li>}
                           
@@ -1649,6 +1665,7 @@ function Wizard({
                           <li className="menu-title mt-2"><span className="text-xs font-bold text-base-content/40 uppercase tracking-wider">AI Agents</span></li>
                           <li><a onClick={() => addWizardStep("ai_qualify")} className="gap-3"><RiRobot2Line size={14} className="text-secondary"/> AI Qualify</a></li>
                           <li><a onClick={() => addWizardStep("ai_comment")} className="gap-3"><RiMessage2Line size={14} className="text-secondary"/> AI Comment</a></li>
+                          <li><a onClick={() => addWizardStep("linkedin_like")} className="gap-3"><RiThumbUpLine size={14} className="text-primary"/> Like Recent Posts</a></li>
                         </ul>
                       </div>
                     </div>
@@ -1665,13 +1682,13 @@ function Wizard({
                     <p className="text-base-content/50 text-sm">Automatically draft and send replies when prospects respond to this playbook.</p>
                   </div>
                   
-                  <div className="flex items-center gap-3 p-4 rounded-2xl bg-base-200 border border-base-300">
-                    <input type="checkbox" className="toggle toggle-primary" checked={arActive} onChange={(e) => setArActive(e.target.checked)} />
+                  <label className="flex items-center gap-4 p-5 rounded-2xl bg-base-200 border border-base-300 cursor-pointer hover:border-primary/40 transition-colors">
+                    <input type="checkbox" className="toggle toggle-primary toggle-lg" checked={arActive} onChange={(e) => setArActive(e.target.checked)} />
                     <div>
-                      <p className="font-semibold text-sm">Enable AI Auto-Replies</p>
-                      <p className="text-xs text-base-content/50">GPT-4o will handle incoming LinkedIn messages.</p>
+                      <p className="font-bold text-base text-base-content/90 mb-0.5">Enable AI Auto-Replies</p>
+                      <p className="text-sm text-base-content/50">GPT-4o will automatically draft and handle incoming LinkedIn and Email messages.</p>
                     </div>
-                  </div>
+                  </label>
                   
                   {arActive && (
                     <div className="space-y-4">
@@ -2194,6 +2211,59 @@ function Wizard({
                         <p className="text-xs text-base-content/30 mt-1">{ws.connectNote.length}/300 chars</p>
                       </div>
                     )}
+                  </div>
+                )}
+                
+                {ws.type === "ai_qualify" && (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-xs text-base-content/40 mb-1.5 block">ICP Definition / Qualification Rules</label>
+                      <p className="text-[10px] text-base-content/30 mb-2 leading-relaxed">
+                        Describe your Ideal Customer Profile. The AI will output FIT, MAYBE, or NOT_FIT based on these rules. You can use standard text or specific instructions.
+                      </p>
+                      <textarea rows={6} placeholder="e.g. FIT if title contains 'CEO' and company is in IT..." value={(() => { try { return (JSON.parse(ws.config || '{}') as any).rules || ""; } catch { return ""; } })()} onChange={(e) => {
+                          let c: any = {}; try { c = JSON.parse(ws.config || '{}'); } catch {}
+                          c.rules = e.target.value;
+                          updateStep(path, { config: JSON.stringify(c) });
+                      }} className="w-full bg-base-300/50 border border-base-300/50 rounded-xl px-3 py-2.5 text-sm text-base-content placeholder:text-base-content/20 focus:outline-none focus:border-secondary/40 resize-none font-mono" />
+                    </div>
+                    <div className="bg-secondary/5 border border-secondary/20 p-3 rounded-xl flex items-start gap-2">
+                       <RiRobot2Line size={16} className="text-secondary/70 mt-0.5 shrink-0" />
+                       <div>
+                          <p className="text-xs font-semibold text-secondary/90">DAG Execution Branches</p>
+                          <p className="text-[10px] text-base-content/50 mt-1">This step automatically creates 3 branches: FIT, MAYBE, and NOT_FIT. Add steps under them in the sequence view.</p>
+                       </div>
+                    </div>
+                  </div>
+                )}
+                
+                {ws.type === "ai_comment" && (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-xs text-base-content/40 mb-1.5 block">Comment Guidance</label>
+                      <p className="text-[10px] text-base-content/30 mb-2 leading-relaxed">
+                        Instructions for the AI on how to write the comment (tone, length, specific angles).
+                      </p>
+                      <textarea rows={4} placeholder="e.g. Write a brief, professional comment agreeing with the main point." value={ws.aiPrompt} onChange={(e) => updateStep(path, { aiPrompt: e.target.value })} className="w-full bg-base-300/50 border border-base-300/50 rounded-xl px-3 py-2.5 text-sm text-base-content placeholder:text-base-content/20 focus:outline-none focus:border-secondary/40 resize-none" />
+                    </div>
+                    <div className="flex gap-4">
+                       <div className="flex-1">
+                         <label className="text-xs text-base-content/40 mb-1.5 block">Maximum Post Age (Days)</label>
+                         <input type="number" value={(() => { try { return (JSON.parse(ws.config || '{}') as any).max_age_days || 30; } catch { return 30; } })()} onChange={(e) => {
+                            let c: any = {}; try { c = JSON.parse(ws.config || '{}'); } catch {}
+                            c.max_age_days = Number(e.target.value);
+                            updateStep(path, { config: JSON.stringify(c) });
+                         }} className="w-full bg-base-300/50 border border-base-300/50 rounded-xl px-3 py-2 text-sm text-base-content focus:outline-none focus:border-secondary/40" />
+                       </div>
+                       <div className="flex-1">
+                         <label className="text-xs text-base-content/40 mb-1.5 block">Like N Recent Posts</label>
+                         <input type="number" value={(() => { try { return (JSON.parse(ws.config || '{}') as any).like_n_posts || 0; } catch { return 0; } })()} onChange={(e) => {
+                            let c: any = {}; try { c = JSON.parse(ws.config || '{}'); } catch {}
+                            c.like_n_posts = Number(e.target.value);
+                            updateStep(path, { config: JSON.stringify(c) });
+                         }} className="w-full bg-base-300/50 border border-base-300/50 rounded-xl px-3 py-2 text-sm text-base-content focus:outline-none focus:border-secondary/40" />
+                       </div>
+                    </div>
                   </div>
                 )}
 
