@@ -32,7 +32,7 @@ import {
   RiArrowDownSLine,
   RiRefreshLine,
   RiErrorWarningLine,
-  RiGroupLine,
+  RiGroupLine, RiRouteLine,
 } from "react-icons/ri";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -354,7 +354,7 @@ const PROVIDER_NAMES: Record<string, string> = {
   contactout: "ContactOut"
 };
 
-type WizardPage = "prospects" | "prompt" | "linkedin-steps" | "email-steps" | "integration-steps" | "account" | "summary";
+type WizardPage = "prospects" | "prompt" | "sequence" | "account" | "summary";
 
 interface WizardStep {
   track: Track;
@@ -597,7 +597,7 @@ function Wizard({
   const isEditMode = mode === "edit" || editOnly;
   const isStepsOnly = mode === "steps" || (editOnly && mode === "launch");
   const isAddContacts = mode === "add-contacts";
-  const [page, setPage] = useState<WizardPage>(isEditMode ? "linkedin-steps" : "prospects");
+  const [page, setPage] = useState<WizardPage>(isEditMode ? "sequence" : "prospects");
   const [campaignPrompt, setCampaignPrompt] = useState(initialPrompt);
   const [crossOverlap, setCrossOverlap] = useState(allowCrossCampaignOverlap);
   const [listId, setListId] = useState("");
@@ -998,12 +998,12 @@ function Wizard({
   }
 
   const basePages: WizardPage[] = isStepsOnly
-    ? ["prompt", "linkedin-steps", "email-steps", "integration-steps"]
+    ? ["prompt", "sequence"]
     : isEditMode
-    ? ["prompt", "linkedin-steps", "email-steps", "integration-steps", "account"]
+    ? ["prompt", "sequence", "account"]
     : isAddContacts
     ? ["prospects"]
-    : ["prospects", "prompt", "linkedin-steps", "email-steps", "integration-steps", "account", "summary"];
+    : ["prospects", "prompt", "sequence", "account", "summary"];
   // Open-core: "Campaign Context" is AI-only (feeds the AI writer). Hide it entirely
   // in the free build — no page, no nav entry, no upgrade stub.
   const pages = hasPremium ? basePages : basePages.filter((p) => p !== "prompt");
@@ -1014,17 +1014,15 @@ function Wizard({
 
   function canGoTo(p: WizardPage) {
     if (p === "prompt" && !hasPremium) return false; // AI-only page, hidden in free build
-    if (isStepsOnly) return p === "prompt" || p === "linkedin-steps" || p === "email-steps" || p === "integration-steps";
+    if (isStepsOnly) return p === "prompt" || p === "sequence";
     if (isEditMode) {
-      if (p === "prompt" || p === "linkedin-steps" || p === "email-steps" || p === "integration-steps") return true;
+      if (p === "prompt" || p === "sequence") return true;
       if (p === "account") return stepsReady;
       return false;
     }
     if (p === "prospects") return true;
     if (p === "prompt") return prospectsReady;
-    if (p === "linkedin-steps") return prospectsReady;
-    if (p === "email-steps") return prospectsReady;
-    if (p === "integration-steps") return prospectsReady;
+    if (p === "sequence") return prospectsReady;
     if (p === "account") return prospectsReady && stepsReady;
     if (p === "summary") return prospectsReady && stepsReady && !!accountId;
     return false;
@@ -1033,9 +1031,7 @@ function Wizard({
   const PAGE_LABELS: Record<WizardPage, string> = {
     prospects: "Choose Prospects",
     prompt: "Campaign Context",
-    "linkedin-steps": "LinkedIn Steps",
-    "email-steps": "Email Steps",
-    "integration-steps": "Integration Steps",
+    sequence: "Sequence",
     account: "Choose Account",
     summary: "Summary",
   };
@@ -1043,9 +1039,7 @@ function Wizard({
   const PAGE_ICONS: Record<WizardPage, React.ReactNode> = {
     prospects: <RiAddLine size={14} />,
     prompt: <RiRobot2Line size={14} />,
-    "linkedin-steps": <RiLinkedinBoxLine size={14} />,
-    "email-steps": <RiMailLine size={14} />,
-    "integration-steps": <RiPlugLine size={14} />,
+    sequence: <RiRouteLine size={14} />,
     account: <RiUser3Line size={14} />,
     summary: "✓",
   };
@@ -1118,14 +1112,8 @@ function Wizard({
                   {p === "prospects" && selectedList && (
                     <p className="text-xs text-base-content/40 truncate">{selectedList.name}</p>
                   )}
-                  {p === "linkedin-steps" && wizardSteps.filter(s => s.track === "linkedin").length > 0 && (
-                    <p className="text-xs text-base-content/40">{wizardSteps.filter(s => s.track === "linkedin").length} step{wizardSteps.filter(s => s.track === "linkedin").length !== 1 ? "s" : ""}</p>
-                  )}
-                  {p === "email-steps" && wizardSteps.filter(s => s.track === "email").length > 0 && (
-                    <p className="text-xs text-base-content/40">{wizardSteps.filter(s => s.track === "email").length} step{wizardSteps.filter(s => s.track === "email").length !== 1 ? "s" : ""}</p>
-                  )}
-                  {p === "integration-steps" && wizardSteps.filter(s => s.track === "integration").length > 0 && (
-                    <p className="text-xs text-base-content/40">{wizardSteps.filter(s => s.track === "integration").length} step{wizardSteps.filter(s => s.track === "integration").length !== 1 ? "s" : ""}</p>
+                  {p === "sequence" && wizardSteps.length > 0 && (
+                    <p className="text-xs text-base-content/40">{wizardSteps.length} step{wizardSteps.length !== 1 ? "s" : ""}</p>
                   )}
                   {p === "prompt" && campaignPrompt.trim() && (
                     <p className="text-xs text-base-content/40 truncate">{campaignPrompt.trim().slice(0, 24)}{campaignPrompt.trim().length > 24 ? "…" : ""}</p>
@@ -1353,11 +1341,8 @@ function Wizard({
                 </div>
               )}
 
-              {/* ── Pages: LinkedIn Steps / Email Steps ── */}
-              {(page === "linkedin-steps" || page === "email-steps" || page === "integration-steps") && (() => {
-                const track: Track = page === "linkedin-steps" ? "linkedin" : page === "email-steps" ? "email" : "integration";
-                const trackSteps = wizardSteps.map((ws, idx) => ({ ws, idx })).filter(({ ws }) => ws.track === track);
-
+              {/* ── Page: Sequence ── */}
+              {page === "sequence" && (() => {
                 function StepCard({ ws, idx, isFirst }: { ws: WizardStep; idx: number; isFirst: boolean }) {
                   return (
                     <div>
@@ -1368,16 +1353,16 @@ function Wizard({
                             <RiTimeLine size={11} className="text-base-content/30" />
                             <div className="w-px h-2 bg-base-300/60" />
                           </div>
-                          <span className="text-xs text-base-content/30">
+                          <span className="text-[10px] text-base-content/30 uppercase tracking-wider">
                             {ws.delayDaysBefore > 0 ? `Wait ${ws.delayDaysBefore}d` : "Immediately"}
                           </span>
                         </div>
                       )}
                       <div
-                        className="flex items-center gap-2 border rounded-xl px-3 py-2.5 cursor-pointer transition-colors bg-base-200 border-base-300/50 hover:border-primary/30 hover:bg-base-200/80 group"
+                        className="flex items-center gap-2 border rounded-xl px-2 py-2 cursor-pointer transition-colors bg-base-200 border-base-300/50 hover:border-primary/30 hover:bg-base-200/80 group"
                         onClick={() => setConfigIdx(idx)}
                       >
-                        <span className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border ${STEP_COLORS[ws.type]}`}>
+                        <span className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 border ${STEP_COLORS[ws.type]}`}>
                           {STEP_ICONS[ws.type]}
                         </span>
                         <div className="flex-1 min-w-0">
@@ -1387,28 +1372,9 @@ function Wizard({
                           {ws.type === "connect" && ws.connectNote && (
                             <p className="text-[10px] text-base-content/40 truncate">Note: {ws.connectNote}</p>
                           )}
-                          {(ws.type === "message" || ws.type === "sales_inmail") && ws.templateIds.length > 0 && (
-                            <p className="text-[10px] text-base-content/40">{ws.templateIds.length} template{ws.templateIds.length > 1 ? "s" : ""}</p>
-                          )}
-                          {ws.type === "sales_inmail" && hasPremium && ws.aiEnabled && (
-                            <p className="text-[10px] text-base-content/40 italic">AI writes subject + body</p>
-                          )}
-                          {ws.type === "sales_inmail" && !(hasPremium && ws.aiEnabled) && (
-                            <p className={`text-[10px] truncate ${ws.emailSubject ? "text-base-content/40" : "text-error/50 italic"}`}>{ws.emailSubject || "No subject — required"}</p>
-                          )}
-                          {ws.type === "email" && ws.emailSubject && (
-                            <p className="text-[10px] text-base-content/40 truncate">{ws.emailSubject}</p>
-                          )}
-                          {ws.type === "email" && !ws.emailSubject && (
-                            <p className="text-[10px] text-base-content/25 italic">No subject</p>
-                          )}
-                          {ws.aiEnabled && (
-                            <p className="text-[10px] text-primary/50 flex items-center gap-0.5 mt-0.5"><RiRobot2Line size={9} /> AI</p>
-                          )}
                         </div>
-                        <RiEditLine size={12} className="text-base-content/20 group-hover:text-base-content/40 transition-colors shrink-0 mr-0.5" />
                         <button
-                          className="inline-flex items-center p-1 rounded-md bg-error/10 text-error border border-error/20 hover:bg-error/20 transition-colors shrink-0"
+                          className="inline-flex items-center p-1 rounded-md bg-error/5 text-error/60 border border-error/10 hover:bg-error/20 hover:text-error hover:border-error/30 transition-colors shrink-0"
                           onClick={(e) => { e.stopPropagation(); removeWizardStep(idx); }}
                         >
                           <RiDeleteBinLine size={11} />
@@ -1418,45 +1384,47 @@ function Wizard({
                   );
                 }
 
-                const otherTrack: Track = track === "linkedin" ? "email" : "linkedin";
-                const otherCount = wizardSteps.filter((s) => s.track === otherTrack).length;
+                function TrackColumn({ track, title, icon, desc, addButtons }: { track: Track; title: string; icon: React.ReactNode; desc: string; addButtons: React.ReactNode }) {
+                  const trackSteps = wizardSteps.map((ws, idx) => ({ ws, idx })).filter(({ ws }) => ws.track === track);
+                  return (
+                    <div className="flex flex-col bg-base-200/30 border border-base-300/40 rounded-2xl p-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        {icon}
+                        <h3 className="font-semibold text-sm">{title}</h3>
+                      </div>
+                      <p className="text-[10px] text-base-content/40 mb-4 leading-relaxed min-h-[30px]">{desc}</p>
+                      
+                      <div className="space-y-0 mb-4 min-h-[100px]">
+                        {trackSteps.length === 0 ? (
+                          <div className="text-center py-6 border border-dashed border-base-300/40 rounded-xl text-base-content/30 text-xs">
+                            No {title.toLowerCase()} steps yet.
+                          </div>
+                        ) : (
+                          trackSteps.map(({ ws, idx }, pos) => <StepCard key={idx} ws={ws} idx={idx} isFirst={pos === 0} />)
+                        )}
+                      </div>
+                      
+                      <div className="flex flex-wrap gap-1.5 mt-auto">
+                        {addButtons}
+                      </div>
+                    </div>
+                  );
+                }
 
                 return (
                   <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      {track === "linkedin" ? (
-                        <RiLinkedinBoxLine size={20} className="text-primary" />
-                      ) : track === "email" ? (
-                        <RiMailLine size={20} className="text-warning" />
-                      ) : (
-                        <RiPlugLine size={20} className="text-accent" />
-                      )}
-                      <h2 className="text-xl font-semibold">{track === "linkedin" ? "LinkedIn steps" : track === "email" ? "Email steps" : "Integration steps"}</h2>
-                    </div>
+                    <h2 className="text-xl font-semibold mb-1">Parallel Sequences</h2>
                     <p className="text-base-content/50 text-sm mb-6">
-                      {track === "linkedin"
-                        ? "Profile visit, connection request, and follow-up message steps. Run in sequence."
-                        : track === "email"
-                        ? "Cold email and follow-ups. Run in sequence, independently of the LinkedIn track."
-                        : "Third-party APIs and webhooks. These run independently and can push data to CRMs or enrich leads."}
-                      {otherCount > 0 && (
-                        <span className="text-base-content/35"> · Both tracks execute in parallel.</span>
-                      )}
+                      Build your outreach. Each column executes independently and in parallel.
                     </p>
-
-                    <div className="space-y-0 mb-5">
-                      {trackSteps.length === 0 ? (
-                        <div className="text-center py-10 border border-dashed border-base-300/60 rounded-xl text-base-content/30 text-sm">
-                          {track === "linkedin" ? "No LinkedIn steps yet. Add your first step below." : track === "email" ? "No email steps yet. Add your first step below." : "No integration steps yet. Add your first step below."}
-                        </div>
-                      ) : (
-                        trackSteps.map(({ ws, idx }, pos) => <StepCard key={idx} ws={ws} idx={idx} isFirst={pos === 0} />)
-                      )}
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-xs text-base-content/30 mr-1">Add step:</span>
-                      {track === "linkedin" ? (
+                    
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                      <TrackColumn
+                        track="linkedin"
+                        title="LinkedIn"
+                        icon={<RiLinkedinBoxLine size={16} className="text-primary" />}
+                        desc="Profile visits, connection requests, and DMs."
+                        addButtons={
                           <>
                             {(["visit", "linkedin_enrich", "connect", "message", "sales_inmail"] as const)
                               .filter((type) => type !== "sales_inmail" || hasPremium)
@@ -1464,30 +1432,47 @@ function Wizard({
                               const disabled = type === "connect" && hasConnect;
                               return (
                                 <button key={type} onClick={() => !disabled && addWizardStep(type, "linkedin")} title={disabled ? "Connection step can only be added once" : undefined}
-                                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors text-xs ${disabled ? "border-base-300/20 bg-base-200/40 text-base-content/20 cursor-not-allowed" : "border-primary/20 bg-primary/5 hover:bg-primary/10 text-primary/70 hover:text-primary"}`}>
-                                  <RiAddLine size={11} /> {STEP_LABELS[type]}
+                                  className={`flex items-center gap-1 px-2 py-1 rounded-md border transition-colors text-[10px] ${disabled ? "border-base-300/20 bg-base-200/40 text-base-content/20 cursor-not-allowed" : "border-primary/20 bg-primary/5 hover:bg-primary/10 text-primary/70 hover:text-primary"}`}>
+                                  <RiAddLine size={10} /> {STEP_LABELS[type].replace("LinkedIn ", "")}
                                 </button>
                               );
                             })}
-                            <button onClick={() => addWizardStep("change_status", "linkedin")} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors text-xs border-secondary/20 bg-secondary/5 hover:bg-secondary/10 text-secondary/70 hover:text-secondary"><RiAddLine size={11} /> Change CRM Status</button>
+                            <button onClick={() => addWizardStep("change_status", "linkedin")} className="flex items-center gap-1 px-2 py-1 rounded-md border transition-colors text-[10px] border-secondary/20 bg-secondary/5 hover:bg-secondary/10 text-secondary/70 hover:text-secondary"><RiAddLine size={10} /> CRM Status</button>
                           </>
-                        ) : track === "email" ? (
+                        }
+                      />
+                      
+                      <TrackColumn
+                        track="email"
+                        title="Email"
+                        icon={<RiMailLine size={16} className="text-warning" />}
+                        desc="Cold emails and follow-ups via connected mailboxes."
+                        addButtons={
                           <>
                             <button onClick={() => addWizardStep("email", "email")}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors text-xs border-warning/20 bg-warning/5 hover:bg-warning/10 text-warning/70 hover:text-warning">
-                              <RiAddLine size={11} /> {trackSteps.length === 0 ? "Cold Email" : `Follow-up #${trackSteps.length + 1}`}
+                              className="flex items-center gap-1 px-2 py-1 rounded-md border transition-colors text-[10px] border-warning/20 bg-warning/5 hover:bg-warning/10 text-warning/70 hover:text-warning">
+                              <RiAddLine size={10} /> Cold Email
                             </button>
-                            <button onClick={() => addWizardStep("change_status", "email")} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors text-xs border-secondary/20 bg-secondary/5 hover:bg-secondary/10 text-secondary/70 hover:text-secondary"><RiAddLine size={11} /> Change CRM Status</button>
+                            <button onClick={() => addWizardStep("change_status", "email")} className="flex items-center gap-1 px-2 py-1 rounded-md border transition-colors text-[10px] border-secondary/20 bg-secondary/5 hover:bg-secondary/10 text-secondary/70 hover:text-secondary"><RiAddLine size={10} /> CRM Status</button>
                           </>
-                        ) : (
+                        }
+                      />
+                      
+                      <TrackColumn
+                        track="integration"
+                        title="Integrations"
+                        icon={<RiPlugLine size={16} className="text-accent" />}
+                        desc="Webhooks, enrichments, and CRM pushes."
+                        addButtons={
                           <>
                             <button onClick={() => addWizardStep("integration", "integration")}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors text-xs border-primary/20 bg-primary/5 hover:bg-primary/10 text-primary/70 hover:text-primary">
-                              <RiAddLine size={11} /> {STEP_LABELS["integration"]}
+                              className="flex items-center gap-1 px-2 py-1 rounded-md border transition-colors text-[10px] border-primary/20 bg-primary/5 hover:bg-primary/10 text-primary/70 hover:text-primary">
+                              <RiAddLine size={10} /> {STEP_LABELS["integration"]}
                             </button>
-                            <button onClick={() => addWizardStep("change_status", "integration")} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors text-xs border-secondary/20 bg-secondary/5 hover:bg-secondary/10 text-secondary/70 hover:text-secondary"><RiAddLine size={11} /> Change CRM Status</button>
+                            <button onClick={() => addWizardStep("change_status", "integration")} className="flex items-center gap-1 px-2 py-1 rounded-md border transition-colors text-[10px] border-secondary/20 bg-secondary/5 hover:bg-secondary/10 text-secondary/70 hover:text-secondary"><RiAddLine size={10} /> CRM Status</button>
                           </>
-                        )}
+                        }
+                      />
                     </div>
                   </div>
                 );
@@ -1842,7 +1827,7 @@ function Wizard({
               >
                 {pageIdx === 0 ? "Cancel" : "← Back"}
               </button>
-              {!isStepsOnly && !isEditMode && (page === "linkedin-steps" || page === "email-steps" || page === "integration-steps") && wizardSteps.length > 0 && (
+              {!isStepsOnly && !isEditMode && page === "sequence" && wizardSteps.length > 0 && (
                 <button
                   className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm text-base-content/40 hover:text-base-content/60 hover:bg-base-300/50 transition-colors disabled:opacity-40"
                   onClick={saveAndClose}
@@ -1884,7 +1869,7 @@ function Wizard({
                 className="inline-flex items-center px-6 py-1.5 rounded-lg text-sm font-medium bg-primary text-primary-content hover:bg-primary/90 transition-colors disabled:opacity-40"
                 disabled={
                   (page === "prospects" && (!prospectsReady || conflictsLoading)) ||
-                  (page === "email-steps" && wizardSteps.length === 0) ||
+                  (page === "sequence" && wizardSteps.length === 0) ||
                   (page === "account" && !accountId)
                 }
                 onClick={() => setPage(pages[pageIdx + 1])}
