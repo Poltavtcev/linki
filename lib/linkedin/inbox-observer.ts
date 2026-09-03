@@ -29,7 +29,9 @@ export class LinkedInNetworkObserver implements LinkedInInboxObservationSource {
                   externalThreadId: threadId,
                   externalMessageId: event.entityUrn || Math.random().toString(),
                   direction,
+                  senderMessagingUrn: senderUrn,
                   senderExternalId: senderUrn,
+                  senderProfileUrl: undefined,
                   senderName: "LinkedIn Member",
                   body: event.eventContent["*message"]?.text || "",
                   receivedAt: new Date(event.createdAt || Date.now()).toISOString()
@@ -82,7 +84,7 @@ export class LinkedInNetworkObserver implements LinkedInInboxObservationSource {
                   senderExternalId: senderUrn,
                   senderName: msg.sender?.firstName?.text || "LinkedIn Member",
                   senderMessagingUrn: senderUrn, 
-                  senderProfileUrl: undefined, // Let resolveTarget rely purely on senderMessagingUrn
+                  senderProfileUrl,
                   body: msg.body.text || "",
                   receivedAt: new Date(msg.deliveredAt || Date.now()).toISOString()
                 });
@@ -155,12 +157,21 @@ export class LinkedInNetworkObserver implements LinkedInInboxObservationSource {
               const text = msg.body?.text || msg.body;
               if (text && typeof text === "string") {
                 const senderUrn = msg.sender?.hostIdentityUrn || msg.sender || "";
+                const senderProfileUrl = conv.conversationParticipants?.find((p: any) => {
+                  const url = p.participantType?.member?.profileUrl || p.member || "";
+                  return url.includes(senderUrn.split(":").pop());
+                })?.participantType?.member?.profileUrl || conv.conversationParticipants?.find((p: any) => {
+                  const m = p.member || "";
+                  return m.includes(senderUrn.split(":").pop());
+                })?.member || "";
                 
                 observations.push({
                   externalThreadId: threadId,
                   externalMessageId: msg.entityUrn || Math.random().toString(),
                   direction: "inbound", // Assume inbound, inbox-sync will fix it
+                  senderMessagingUrn: senderUrn,
                   senderExternalId: senderUrn,
+                  senderProfileUrl: senderProfileUrl || undefined,
                   senderName: "LinkedIn Member",
                   body: text,
                   receivedAt: new Date(msg.createdAt || Date.now()).toISOString()
