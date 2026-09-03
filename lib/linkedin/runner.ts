@@ -218,7 +218,7 @@ function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
 function randomDelay(minSec: number, maxSec: number) { return sleep((minSec + Math.random() * (maxSec - minSec)) * 1000); }
 function nowIso() { return new Date().toISOString(); }
 function addHours(h: number) { return new Date(Date.now() + h * 3600_000).toISOString(); }
-function hoursSince(isoStr: string) { return (Date.now() - new Date(isoStr).getTime()) / 3600_000; }
+function hoursSince(isoStr: string) { return (Date.now() - new Date(isoStr.endsWith("Z") ? isoStr : isoStr + "Z").getTime()) / 3600_000; }
 
 // ─── TrackRun verb layer ─────────────────────────────────────────────────────
 // These are the only functions that write to run_profile_tracks rows.

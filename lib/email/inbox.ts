@@ -167,7 +167,7 @@ export function shouldSyncEmailInbox(emailAccountId: string): boolean {
     .get(emailAccountId) as { inbox_synced_at: string | null } | undefined;
   if (!account?.inbox_synced_at) return true;
   const dueAfterMs = IMAP_POLL_INTERVAL_MS + accountJitterMs(emailAccountId);
-  return Date.now() - new Date(account.inbox_synced_at).getTime() >= dueAfterMs;
+  return Date.now() - new Date(account.inbox_synced_at + "Z").getTime() >= dueAfterMs;
 }
 
 /**

@@ -48,7 +48,7 @@ export function shouldSyncAccepted(accountId: string): boolean {
     | { accepted_sync_at: string | null }
     | undefined;
   if (!row?.accepted_sync_at) return true;
-  return Date.now() - new Date(row.accepted_sync_at).getTime() >= ACCEPTED_SYNC_INTERVAL_MS;
+  return Date.now() - new Date(row.accepted_sync_at + "Z").getTime() >= ACCEPTED_SYNC_INTERVAL_MS;
 }
 
 interface ApiConnection {
