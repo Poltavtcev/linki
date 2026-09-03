@@ -32,6 +32,13 @@ export async function executeIntegrationStep(
   }
 
   if (config.action_type === "enrich_email") {
+    const fresh = db.prepare("SELECT email FROM targets WHERE id = ?").get(target.id) as { email: string | null } | undefined;
+    if (fresh?.email) {
+      log(db, runId, target.id, "info", `Contact already has an email (${fresh.email}) — skipping enrichment waterfall`);
+      trAdvance(db, tr, steps);
+      return;
+    }
+
     const chain = (config.provider_chain && config.provider_chain.length > 0) ? config.provider_chain : ["prospeo", "apollo", "snov", "skrapp", "hunter", "lusha", "contactout"];
     log(db, runId, target.id, "info", `Starting Enrichment Waterfall: ${chain.join(" -> ")}`);
     let foundEmail = false;
