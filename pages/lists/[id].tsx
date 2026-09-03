@@ -805,7 +805,7 @@ export default function ListDetailPage({
                           </span>
                         )}
                         {t.apollo_enriched_at && !t.email && (
-                          <span title="Apollo enriched — no email found" className="text-base-content/20">
+                          <span title="Waterfall enriched — no email found" className="text-base-content/20">
                             <RiMailLine size={14} />
                           </span>
                         )}
@@ -953,7 +953,7 @@ export default function ListDetailPage({
                   <p><span className="text-base-content/60">Now —</span> Basic profile data only (name, title, company, location). One page load per 25 contacts with ~90s gaps.</p>
                   <p><span className="text-base-content/60">When a run starts —</span> LinkedIn URL resolved per contact right before first action.</p>
                   <p><span className="text-base-content/60">Before message —</span> Full Sales Nav profile (headline, positions) fetched for AI context.</p>
-                  <p><span className="text-base-content/60">Before email —</span> Apollo enrichment runs to get email address + company data.</p>
+                  <p><span className="text-base-content/60">Before email —</span> Waterfall enrichment runs to get email address + company data.</p>
                 </div>
                 <form onSubmit={runImport} className="flex flex-col gap-3">
                   <div>
@@ -1059,7 +1059,7 @@ export default function ListDetailPage({
         </div>
       )}
 
-      {/* Apollo enrich confirm modal */}
+      {/* Waterfall enrich confirm modal */}
       {showApolloConfirm && (() => {
         const effectiveSet = new Set(effectiveSelectedIds);
         const pool = effectiveSelectedCount > 0
@@ -1074,8 +1074,8 @@ export default function ListDetailPage({
                 <h3 className="font-semibold text-base">Apollo Enrichment</h3>
               </div>
               <p className="text-base-content/60 text-sm mb-4 leading-relaxed">
-                This will look up each contact on Apollo to find their email, seniority, and company data.
-                Each lookup costs <span className="text-base-content font-medium">1 Apollo credit</span>.
+                This will run each contact through the full email enrichment waterfall (Prospeo, Apollo, Snov, etc.), seniority, and company data.
+                Each lookup consumes API credits for the respective providers.
               </p>
               <div className="rounded-lg bg-base-300/50 border border-base-300/50 p-3 mb-4 flex flex-col gap-1.5 text-sm">
                 <div className="flex justify-between">
@@ -1109,7 +1109,7 @@ export default function ListDetailPage({
                   disabled={pool.length === 0}
                 >
                   <RiSparklingLine size={14} />
-                  Use {pool.length} credit{pool.length !== 1 ? "s" : ""}
+                  Enrich {pool.length} contact{pool.length !== 1 ? "s" : ""}
                 </button>
               </div>
             </div>

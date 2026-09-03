@@ -43,6 +43,73 @@ export async function executeIntegrationStep(
     log(db, runId, target.id, "info", `Starting Enrichment Waterfall: ${chain.join(" -> ")}`);
     let foundEmail = false;
 
+    
+    const result = await executeEnrichmentWaterfall(db, target, chain, runId);
+    if (result.email) {
+       foundEmail = true;
+    }
+
+  } else if (config.action_type === "push_to_hubspot") {
+    log(db, runId, target.id, "info", `Starting push to HubSpot...`);
+    const row = db.prepare("SELECT api_key FROM integrations WHERE key = 'hubspot' AND is_active = 1").get() as { api_key: string } | undefined;
+    if (row && row.api_key) {
+      const apiKey = decryptSecret(row.api_key);
+      try {
+        const payload = {
+          properties: {
+            firstname: target.first_name || "",
+            lastname: target.last_name || "",
+            company: target.company || "",
+            jobtitle: target.title || "",
+            hs_linkedin_url: target.linkedin_url || "",
+            email: target.email || ""
+          }
+        };
+        const resObj = await fetch('https://api.hubapi.com/crm/v3/objects/contacts', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+        if (!resObj.ok) {
+          let data;
+          const text = await resObj.text();
+          try { data = JSON.parse(text); } catch (e) { data = text; }
+          const err = new Error(`${resObj.status} ${resObj.statusText}: ${typeof data === 'string' ? data.slice(0, 50).replace(/\n/g, '') : JSON.stringify(data).slice(0, 50)}`);
+          (err as any).response = { status: resObj.status, data };
+          throw err;
+        }
+        log(db, runId, target.id, "info", `Successfully pushed ${target.first_name || ""} ${target.last_name || ""} to HubSpot CRM`);
+      } catch (err: any) {
+        if (err.response?.data?.message?.includes("already exists")) {
+          log(db, runId, target.id, "info", `Contact already exists in HubSpot`);
+        } else {
+          log(db, runId, target.id, "error", `Failed to push to HubSpot: ${err.message}`);
+        }
+      }
+    } else {
+      log(db, runId, target.id, "warn", `HubSpot integration missing or inactive`);
+    }
+  }
+
+  trAdvance(db, tr, steps);
+}
+
+
+export async function executeEnrichmentWaterfall(db: ReturnType<typeof getDb>, target: any, chain: string[], runId: string = "manual"): Promise<{ email: string | null; providerUsed: string | null }> {
+    let foundEmail = false;
+    let providerUsed = null;
+    let email = null;
+    
+    // Convert target to format expected by the logic (making sure it works whether called from UI or Runner)
+    if (!target.first_name && target.full_name) {
+       const parts = target.full_name.split(" ");
+       target.first_name = parts[0];
+       target.last_name = parts.slice(1).join(" ");
+    }
+    
     for (const provider of chain) {
       log(db, runId, target.id, "info", `Checking provider: ${provider}...`);
       const row = db.prepare("SELECT api_key, quota_resets_at FROM integrations WHERE key = ? AND is_active = 1").get(provider) as { api_key: string, quota_resets_at: string | null } | undefined;
@@ -218,7 +285,7 @@ export async function executeIntegrationStep(
           db.prepare("UPDATE targets SET email = ? WHERE id = ?").run(email, target.id);
           log(db, runId, target.id, "info", `Email enriched via ${provider}: ${email}`);
           foundEmail = true;
-          break; // break the waterfall loop
+          providerUsed = provider; break;
         }
         
         log(db, runId, target.id, "info", `Provider ${provider} did not find an email`);
@@ -232,50 +299,6 @@ export async function executeIntegrationStep(
       }
     }
     if (!foundEmail) log(db, runId, target.id, "warn", `Enrichment Waterfall finished. No email found across all ${chain.length} providers.`);
-  } else if (config.action_type === "push_to_hubspot") {
-    log(db, runId, target.id, "info", `Starting push to HubSpot...`);
-    const row = db.prepare("SELECT api_key FROM integrations WHERE key = 'hubspot' AND is_active = 1").get() as { api_key: string } | undefined;
-    if (row && row.api_key) {
-      const apiKey = decryptSecret(row.api_key);
-      try {
-        const payload = {
-          properties: {
-            firstname: target.first_name || "",
-            lastname: target.last_name || "",
-            company: target.company || "",
-            jobtitle: target.title || "",
-            hs_linkedin_url: target.linkedin_url || "",
-            email: target.email || ""
-          }
-        };
-        const resObj = await fetch('https://api.hubapi.com/crm/v3/objects/contacts', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(payload)
-        });
-        if (!resObj.ok) {
-          let data;
-          const text = await resObj.text();
-          try { data = JSON.parse(text); } catch (e) { data = text; }
-          const err = new Error(`${resObj.status} ${resObj.statusText}: ${typeof data === 'string' ? data.slice(0, 50).replace(/\n/g, '') : JSON.stringify(data).slice(0, 50)}`);
-          (err as any).response = { status: resObj.status, data };
-          throw err;
-        }
-        log(db, runId, target.id, "info", `Successfully pushed ${target.first_name || ""} ${target.last_name || ""} to HubSpot CRM`);
-      } catch (err: any) {
-        if (err.response?.data?.message?.includes("already exists")) {
-          log(db, runId, target.id, "info", `Contact already exists in HubSpot`);
-        } else {
-          log(db, runId, target.id, "error", `Failed to push to HubSpot: ${err.message}`);
-        }
-      }
-    } else {
-      log(db, runId, target.id, "warn", `HubSpot integration missing or inactive`);
-    }
-  }
-
-  trAdvance(db, tr, steps);
+    
+    return { email: foundEmail ? (target.email || null) : null, providerUsed };
 }
