@@ -41,10 +41,13 @@ export class LinkedInNetworkObserver implements LinkedInInboxObservationSource {
       }
 
       // Handle new GraphQL format
-      if (url.includes("voyagerMessagingGraphQL/graphql") && url.includes("messengerConversations") && response.status() === 200) {
+      if (url.includes("graphql") && response.status() === 200) {
         try {
           const json = await response.json();
           const graphqlElements = json?.data?.messengerConversationsBySyncToken?.elements || json?.data?.messengerConversationsBySyncState?.elements || [];
+          if (graphqlElements.length > 0) {
+            console.log(`[observer] Found ${graphqlElements.length} conversations in GraphQL response`);
+          }
           
           for (const conv of graphqlElements) {
             const threadUrn = conv.entityUrn || "";
@@ -97,7 +100,7 @@ export class LinkedInNetworkObserver implements LinkedInInboxObservationSource {
     const dumps: any[] = [];
     const dumpHandler = async (response: any) => {
       const url = response.url();
-      if (url.includes("voyager") && url.includes("messaging")) {
+      if (url.includes("voyager") && (url.includes("messaging") || url.includes("graphql") || url.includes("conversation"))) {
         console.log(`[DIAGNOSTIC] Captured: ${url.split('?')[0]}`);
         try { dumps.push({ url, json: await response.json() }); } catch(e) {}
       }
