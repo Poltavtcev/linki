@@ -1,5 +1,5 @@
 import Head from "next/head";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { GetServerSideProps } from "next";
 import { useRouter } from "next/router";
 import Link from "next/link";
@@ -418,6 +418,22 @@ interface ListTarget {
   title: string | null;
   company: string | null;
   linkedin_url: string;
+  email?: string | null;
+  degree?: number | null;
+  connection_requested_at?: string | null;
+  connected_at?: string | null;
+  message_sent_at?: string | null;
+  last_replied_at?: string | null;
+  seniority?: string | null;
+  country?: string | null;
+  lead_status?: string | null;
+  email_status?: string | null;
+  company_size?: number | null;
+  tenure_months?: number | null;
+  open_link?: number | null;
+  email_domain_catchall?: number | null;
+  hubspot_contact_id?: string | null;
+  apollo_contact_id?: string | null;
 }
 
 // ─── ModelPicker (wizard-local, controlled open state for single-dropdown behavior) ──
@@ -634,6 +650,7 @@ function Wizard({
   const [selectedTargetIds, setSelectedTargetIds] = useState<Set<string>>(new Set());
   const [prospectMode, setProspectMode] = useState<"all" | "manual">("all");
   const [listSearch, setListSearch] = useState("");
+  const [wizardFilters, setWizardFilters] = useState<ActiveFilter[]>([]);
 
   // Workflow name editing
   const [workflowName, setWorkflowName] = useState(initialWorkflowName);
@@ -734,6 +751,52 @@ function Wizard({
   // In add-contacts mode every contact in the list is "active" already (this run) — dedup happens server-side.
   const allBlocked = !isAddContacts && conflicts !== null && conflicts.blocked > 0 && conflicts.blocked >= conflicts.total;
   const hasEmailStep = wizardSteps.some((s) => s.type === "email");
+  
+  const filteredListTargets = useMemo(() => {
+    let result = listTargets;
+    if (wizardFilters.length > 0) {
+      result = result.filter((t: ListTarget) => {
+        for (const f of wizardFilters) {
+          const val = (t as any)[f.field];
+          const query = f.value ? f.value.toLowerCase() : "";
+          
+          switch (f.op) {
+            case "is_set":
+              if (val === null || val === undefined || val === "") return false;
+              break;
+            case "is_not_set":
+              if (val !== null && val !== undefined && val !== "") return false;
+              break;
+            case "is":
+              if (String(val || "").toLowerCase() !== query) return false;
+              break;
+            case "is_not":
+              if (String(val || "").toLowerCase() === query) return false;
+              break;
+            case "contains":
+              if (!String(val || "").toLowerCase().includes(query)) return false;
+              break;
+            case "gt":
+              if (Number(val || 0) <= Number(f.value || 0)) return false;
+              break;
+            case "lt":
+              if (Number(val || 0) >= Number(f.value || 0)) return false;
+              break;
+          }
+        }
+        return true;
+      });
+    }
+    return result;
+  }, [listTargets, wizardFilters]);
+
+  
+  useEffect(() => {
+    if (prospectMode === "all" && listTargets.length > 0) {
+      setSelectedTargetIds(new Set(filteredListTargets.map((t: ListTarget) => t.id)));
+    }
+  }, [filteredListTargets, prospectMode, listTargets.length]);
+
   const hasLinkedInStep = wizardSteps.some((s) => s.type === "visit" || s.type === "connect" || s.type === "message" || s.type === "sales_inmail");
 
   async function selectList(id: string) {
@@ -742,6 +805,7 @@ function Wizard({
     setListTargets([]);
     setSelectedTargetIds(new Set());
     setProspectMode("all");
+    setWizardFilters([]);
     if (!id) return;
     setConflictsLoading(true);
     const [conflictsRes, targetsRes] = await Promise.all([
@@ -785,7 +849,7 @@ function Wizard({
   }
 
   function toggleAllTargets() {
-    if (selectedTargetIds.size === listTargets.length) {
+    if (selectedTargetIds.size === filteredListTargets.length) {
       setSelectedTargetIds(new Set());
     } else {
       setSelectedTargetIds(new Set(listTargets.map((t) => t.id)));
@@ -1230,11 +1294,11 @@ function Wizard({
                             {/* Mode toggle — always at top of right column */}
                             <div className="flex gap-2 mb-3">
                               <button
-                                onClick={() => { setProspectMode("all"); setSelectedTargetIds(new Set(listTargets.map((t) => t.id))); }}
+                                onClick={() => { setProspectMode("all"); setSelectedTargetIds(new Set(filteredListTargets.map((t: ListTarget) => t.id))); }}
                                 className={`flex-1 px-4 py-2.5 rounded-xl border text-sm font-medium transition-colors ${prospectMode === "all" ? "bg-primary/10 border-primary/40 text-primary" : "bg-base-200 border-base-300/50 hover:border-base-300 text-base-content/60"}`}
                               >
-                                All contacts in list
-                                <span className="ml-1 text-xs opacity-60">({listTargets.length})</span>
+                                {wizardFilters.length > 0 ? "Matching segment" : "All contacts"}
+                                <span className="ml-1 text-xs opacity-60">({filteredListTargets.length})</span>
                               </button>
                               <button
                                 onClick={() => setProspectMode("manual")}
@@ -1266,6 +1330,21 @@ function Wizard({
                             )}
 
                             {/* Content */}
+                            <div className="mb-3">
+                              <FilterBar
+                                filters={wizardFilters}
+                                onChange={(f) => {
+                                  setWizardFilters(f);
+                                  // Auto-select if in 'all' mode
+                                  if (prospectMode === "all") {
+                                    // The effect of useMemo will run, but we can't synchronously get filteredListTargets here easily.
+                                    // Let's rely on a useEffect to sync selectedTargetIds when in "all" mode.
+                                  }
+                                }}
+                                fieldSubset={["lead_status", "degree", "seniority", "country", "email", "enriched", "hubspot"]}
+                              />
+                            </div>
+                            
                             {prospectMode === "all" ? (
                               <div className="flex-1 flex items-center justify-center rounded-xl border border-base-300/30 bg-base-200/20">
                                 <div className="text-center">
@@ -1283,17 +1362,17 @@ function Wizard({
                                   <input
                                     type="checkbox"
                                     className="w-3.5 h-3.5 rounded border border-base-300 bg-base-300/50 accent-primary cursor-pointer"
-                                    checked={selectedTargetIds.size === listTargets.length && listTargets.length > 0}
+                                    checked={selectedTargetIds.size === filteredListTargets.length && filteredListTargets.length > 0}
                                     onChange={toggleAllTargets}
                                   />
                                   <span className="text-xs text-base-content/50">
-                                    {selectedTargetIds.size === listTargets.length
+                                    {selectedTargetIds.size === filteredListTargets.length
                                       ? `All ${listTargets.length} selected`
-                                      : `${selectedTargetIds.size} of ${listTargets.length} selected`}
+                                      : `${selectedTargetIds.size} of ${filteredListTargets.length} selected`}
                                   </span>
                                 </div>
                                 <div className="flex-1 overflow-y-auto">
-                                  {listTargets.map((t) => (
+                                  {filteredListTargets.map((t: ListTarget) => (
                                     <label
                                       key={t.id}
                                       className="flex items-center gap-3 px-4 py-2.5 hover:bg-base-200/60 cursor-pointer border-b border-base-300/30 last:border-0"
@@ -1633,9 +1712,9 @@ function Wizard({
                           <div className="text-right">
                             <span className="font-medium">{selectedList?.name}</span>
                             <p className="text-xs text-base-content/35 mt-0.5">
-                              {selectedTargetIds.size === listTargets.length
+                              {selectedTargetIds.size === filteredListTargets.length
                                 ? `${contactCount} contacts`
-                                : `${contactCount} of ${listTargets.length} selected`}
+                                : `${contactCount} of ${filteredListTargets.length} selected`}
                             </p>
                           </div>
                         </div>
