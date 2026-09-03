@@ -39,7 +39,16 @@ export async function executeIntegrationStep(
       return;
     }
 
-    const chain = (config.provider_chain && config.provider_chain.length > 0) ? config.provider_chain : ["prospeo", "apollo", "snov", "skrapp", "hunter", "lusha", "contactout"];
+    const fullChain = (config.provider_chain && config.provider_chain.length > 0) ? config.provider_chain : ["prospeo", "apollo", "snov", "skrapp", "hunter", "lusha", "contactout"];
+    const activeProviders = db.prepare("SELECT key FROM integrations WHERE is_active = 1 AND api_key IS NOT NULL AND api_key != ''").all() as { key: string }[];
+    const activeKeys = new Set(activeProviders.map(p => p.key));
+    const chain = fullChain.filter(p => activeKeys.has(p));
+    
+    if (chain.length === 0) {
+      log(db, runId, target.id, "warn", `Skipping enrichment - no active providers configured.`);
+      trAdvance(db, tr, steps);
+      return;
+    }
     log(db, runId, target.id, "info", `Starting Enrichment Waterfall: ${chain.join(" -> ")}`);
     let foundEmail = false;
 
@@ -111,12 +120,9 @@ export async function executeEnrichmentWaterfall(db: ReturnType<typeof getDb>, t
     }
     
     for (const provider of chain) {
-      log(db, runId, target.id, "info", `Checking provider: ${provider}...`);
       const row = db.prepare("SELECT api_key, quota_resets_at FROM integrations WHERE key = ? AND is_active = 1").get(provider) as { api_key: string, quota_resets_at: string | null } | undefined;
-      if (!row || !row.api_key) {
-        log(db, runId, target.id, "warn", `Skipping ${provider} - API key is missing or inactive`);
-        continue;
-      }
+      if (!row || !row.api_key) continue; // silently skip if somehow missing
+      log(db, runId, target.id, "info", `Checking provider: ${provider}...`);
       
       if (row.quota_resets_at && new Date(row.quota_resets_at).getTime() > Date.now()) {
         log(db, runId, target.id, "info", `Skipping ${provider} due to exhausted quota`);
@@ -156,13 +162,16 @@ export async function executeEnrichmentWaterfall(db: ReturnType<typeof getDb>, t
             email = res.data.person.email.email;
           }
         } else if (provider === "hunter") {
-          if (!target.company) throw new Error("Missing company name required by Hunter.io");
-          const query = new URLSearchParams({
-            first_name: target.first_name || "",
-            last_name: target.last_name || "",
-            company: target.company || "",
-            api_key: apiKey
-          });
+          const query = new URLSearchParams({ api_key: apiKey });
+          const liMatch = target.linkedin_url ? target.linkedin_url.match(/in\/([^/?#]+)/) : null;
+          if (liMatch) {
+            query.set("linkedin_handle", liMatch[1]);
+          } else {
+            if (!target.company) throw new Error("Missing company name required by Hunter.io");
+            query.set("first_name", target.first_name || "");
+            query.set("last_name", target.last_name || "");
+            query.set("company", target.company || "");
+          }
           const resObj = await fetch(`https://api.hunter.io/v2/email-finder?${query}`);
           let data;
           const text = await resObj.text();
@@ -173,7 +182,6 @@ export async function executeEnrichmentWaterfall(db: ReturnType<typeof getDb>, t
             email = res.data.data.email;
           }
         } else if (provider === "skrapp") {
-          if (!target.company) throw new Error("Missing company name required by Skrapp");
           const query = new URLSearchParams({
               firstName: target.first_name || "",
               lastName: target.last_name || "",
