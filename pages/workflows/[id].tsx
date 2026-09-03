@@ -1072,6 +1072,18 @@ function Wizard({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt: campaignPrompt }),
     });
+    
+    await fetch(`/api/workflows/${workflowId}/reply-context`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        is_active: arActive,
+        sender_profile: arSender,
+        company_product: arCompany,
+        offers_playbook: arOffers,
+        voice_rules: arVoice
+      }),
+    });
 
     const existing = await fetch(`/api/workflows/${workflowId}/steps`);
     const existingSteps: Step[] = existing.ok ? await existing.json() : [];
