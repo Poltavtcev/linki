@@ -64,12 +64,20 @@ export class LinkedInNetworkObserver implements LinkedInInboxObservationSource {
                 // Viewer is likely the one who is NOT in the prospect's Urn.
                 // Or we can just check if sender is ACoAAAOv... (prospect)
                 // Actually, let's just use the profileUrl from participantType to find the sender's vanity
-                const senderProfileUrl = conv.conversationParticipants?.find((p: any) => p.participantType?.member?.profileUrl?.includes(senderUrn.split(":").pop()))?.participantType?.member?.profileUrl || "";
+                const participant = conv.conversationParticipants?.find((p: any) => p.participantType?.member?.profileUrl?.includes(senderUrn.split(":").pop()) || p.hostIdentityUrn === senderUrn);
+                const member = participant?.participantType?.member;
+                const senderProfileUrl = member?.profileUrl || "";
+                let senderFullName = "LinkedIn Member";
+                if (member?.firstName?.text) {
+                  senderFullName = member.firstName.text + (member.lastName?.text ? " " + member.lastName.text : "");
+                }
                 
                 // If it's inbound, it means the sender is NOT us.
                 // We'll assume inbound if senderUrn does NOT match the hardcoded viewer ACoAACJo9dsBHVQROact7RLnQ91Hhnix6G4Wz64
-                // A robust solution would fetch the viewerURN dynamically, but for now:
-                const isFromUs = senderUrn.includes("ACoAACJo9dsBHVQROact7RLnQ91Hhnix6G4Wz64");
+                // Dynamically find the viewer URN from the conversation participants (distance: "SELF")
+                const viewerParticipant = conv.conversationParticipants?.find((p: any) => p.participantType?.member?.distance === "SELF");
+                const viewerUrn = viewerParticipant?.hostIdentityUrn || json?.metadata?.viewerUrn || "ACoAACJo9dsBHVQROact7RLnQ91Hhnix6G4Wz64";
+                const isFromUs = senderUrn.includes(viewerUrn.replace("urn:li:fsd_profile:", ""));
                 const direction: LinkedInInboxDirection = isFromUs ? "outbound" : "inbound";
                 
                 // The DB expects `senderMessagingUrn` to match exactly. 
@@ -82,7 +90,7 @@ export class LinkedInNetworkObserver implements LinkedInInboxObservationSource {
                   externalMessageId: msg.entityUrn || Math.random().toString(),
                   direction,
                   senderExternalId: senderUrn,
-                  senderName: msg.sender?.firstName?.text || "LinkedIn Member",
+                  senderName: senderFullName,
                   senderMessagingUrn: senderUrn, 
                   senderProfileUrl,
                   body: msg.body.text || "",
