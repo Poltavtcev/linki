@@ -650,19 +650,45 @@ function Wizard({
   }, []);
   const [configPath, setConfigPath] = useState<(number | string)[] | null>(null);
   const [drawerPath, setDrawerPath] = useState<(number | string)[] | null>(null); // which step is being configured
-                function StepCard({ ws, path, isFirst }: { ws: WizardStep; path: (number | string)[]; isFirst: boolean }) {
+                function StepCard({ ws, prevWs, path, isFirst }: { ws: WizardStep; prevWs?: WizardStep; path: (number | string)[]; isFirst: boolean }) {
                   return (
                     <div className="relative">
                       {(!isFirst || ws.delayDaysBefore > 0) && (
-                        <div className="flex items-center gap-2 py-1.5 pl-6">
-                          <div className="flex flex-col items-center gap-0.5">
-                            {!isFirst && <div className="w-px h-3 bg-base-300/80" />}
-                            <RiTimeLine size={13} className="text-base-content/40" />
-                            <div className="w-px h-3 bg-base-300/80" />
-                          </div>
-                          <span className="text-[11px] text-base-content/40 font-medium tracking-wide">
-                            {path.length === 1 ? 'Default / If no reply ' : ''}({ws.delayDaysBefore > 0 ? `Wait ${ws.delayDaysBefore} day${ws.delayDaysBefore > 1 ? 's' : ''}` : "Immediately"})
-                          </span>
+                        <div className="flex flex-col items-center justify-center -my-1 z-10 relative">
+                          <div className="w-px h-5 bg-base-300/80" />
+                          
+                          {prevWs?.type === 'ai_qualify' && path.length === 1 ? (
+                            <div className="flex gap-1.5 z-10">
+                              {(() => {
+                                let mainOutcomes = ["FIT"];
+                                try {
+                                  const cfg = JSON.parse(prevWs.config || '{}');
+                                  if (Array.isArray(cfg.continue_main_on)) mainOutcomes = cfg.continue_main_on;
+                                  else if (typeof cfg.continue_main_on === 'string') mainOutcomes = [cfg.continue_main_on];
+                                } catch {}
+                                return mainOutcomes.map(out => (
+                                  <span key={out} className={`px-2 py-0.5 rounded-full border text-[10px] font-bold shadow-sm ${
+                                      out === 'FIT' ? 'bg-success/10 border-success/30 text-success' : 
+                                      out === 'MAYBE' ? 'bg-warning/10 border-warning/30 text-warning' : 
+                                      'bg-error/10 border-error/30 text-error'
+                                  }`}>
+                                    ✓ {out}
+                                  </span>
+                                ));
+                              })()}
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-base-200/80 border border-base-300/80 backdrop-blur-sm z-10 shadow-sm">
+                              <RiTimeLine size={13} className="text-base-content/40" />
+                              <span className="text-[10.5px] text-base-content/60 font-medium tracking-wide">
+                                {path.length === 1 && prevWs?.type !== 'ai_qualify' ? 'Default / If no reply ' : ''}
+                                {ws.delayDaysBefore > 0 ? `(Wait ${ws.delayDaysBefore} day${ws.delayDaysBefore > 1 ? 's' : ''})` : "(Immediately)"}
+                              </span>
+                            </div>
+                          )}
+
+                          <div className="w-px h-4 bg-base-300/80" />
+                          <RiArrowDownSLine size={18} className="text-base-300/80 -mt-1.5 z-10" />
                         </div>
                       )}
                       <div
@@ -719,34 +745,7 @@ function Wizard({
                         )}
                       </div>
                       
-                      {/* Trunk Visual for Gating Nodes */}
-                      {ws.type === 'ai_qualify' && path.length === 1 && (() => {
-                          let mainOutcomes = ["FIT"];
-                          try {
-                            const cfg = JSON.parse(ws.config || '{}');
-                            if (Array.isArray(cfg.continue_main_on)) mainOutcomes = cfg.continue_main_on;
-                            else if (typeof cfg.continue_main_on === 'string') mainOutcomes = [cfg.continue_main_on];
-                          } catch {}
-                          
-                          return (
-                            <div className="flex flex-col items-center mt-0 opacity-80">
-                               <div className="w-px h-4 bg-base-300/80"></div>
-                               <div className="flex gap-2">
-                                  {mainOutcomes.map(out => (
-                                    <span key={out} className={`px-2 py-0.5 rounded-full border text-[10px] font-bold ${
-                                      out === 'FIT' ? 'bg-success/10 border-success/30 text-success' : 
-                                      out === 'MAYBE' ? 'bg-warning/10 border-warning/30 text-warning' : 
-                                      'bg-error/10 border-error/30 text-error'
-                                    }`}>
-                                      {out}
-                                    </span>
-                                  ))}
-                               </div>
-                               <div className="w-px h-4 bg-base-300/80"></div>
-                               <RiArrowDownLine size={14} className="text-base-300 mb-2" />
-                            </div>
-                          );
-                      })()}
+                      
 
                     </div>
                   );
@@ -1645,7 +1644,7 @@ function Wizard({
                           No steps yet. Add one below to start your sequence.
                         </div>
                       ) : (
-                        wizardSteps.map((ws, idx) => <StepCard key={idx} ws={ws} path={[idx]} isFirst={idx === 0} />)
+                        wizardSteps.map((ws, idx) => <StepCard key={idx} ws={ws} prevWs={idx > 0 ? wizardSteps[idx - 1] : undefined} path={[idx]} isFirst={idx === 0} />)
                       )}
                     </div>
                     
@@ -2169,7 +2168,7 @@ function Wizard({
                            "Flow rejoins main sequence."}
                         </div>
                      ) : (
-                        branchSteps.map((bWs, bIdx) => <StepCard key={bIdx} ws={bWs} path={[...drawerPath, bIdx]} isFirst={bIdx === 0} />)
+                        branchSteps.map((bWs, bIdx) => <StepCard key={bIdx} ws={bWs} prevWs={bIdx > 0 ? branchSteps[bIdx - 1] : undefined} path={[...drawerPath, bIdx]} isFirst={bIdx === 0} />)
                      )}
                      
                      <div className="mt-8 flex justify-center pb-64">
