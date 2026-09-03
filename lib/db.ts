@@ -675,6 +675,7 @@ function runMigrations(db: Database.Database) {
     // since InMail (non-connections) and regular messages (connections) were being
     // gated off the same counter, starving one whenever the other was busy.
     "ALTER TABLE accounts ADD COLUMN daily_inmail_limit INTEGER DEFAULT 15",
+    "ALTER TABLE accounts ADD COLUMN weekly_connection_limit INTEGER DEFAULT 200",
     // Sales Nav search: persistent cache of resolved filter values (typeahead
     // ids). Dedup on (filter_type, id) — LinkedIn ids are stable (e.g. Berlin's
     // geoUrn never changes), so once resolved a value is reused forever with no
