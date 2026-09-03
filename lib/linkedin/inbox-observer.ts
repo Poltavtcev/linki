@@ -92,6 +92,18 @@ export class LinkedInNetworkObserver implements LinkedInInboxObservationSource {
       }
     };
     page.on("response", responseHandler);
+    
+    // TEMPORARY DIAGNOSTIC DUMP
+    const dumps: any[] = [];
+    const dumpHandler = async (response: any) => {
+      const url = response.url();
+      if (url.includes("voyager") && url.includes("messaging")) {
+        console.log(`[DIAGNOSTIC] Captured: ${url.split('?')[0]}`);
+        try { dumps.push({ url, json: await response.json() }); } catch(e) {}
+      }
+    };
+    page.on("response", dumpHandler);
+
 
     try {
       console.log(`[observer] Navigating to messaging...`);
@@ -101,6 +113,8 @@ export class LinkedInNetworkObserver implements LinkedInInboxObservationSource {
     await page.waitForTimeout(5000);
 
       // console.log(`[observer] Captured ${observations.length} observations from network.`);
+      require("fs").writeFileSync("/share/linki/inbox_dump.json", JSON.stringify(dumps, null, 2));
+      console.log(`[DIAGNOSTIC] Dumped ${dumps.length} responses to /share/linki/inbox_dump.json`);
       return observations;
     } finally {
       page.off("response", responseHandler);
