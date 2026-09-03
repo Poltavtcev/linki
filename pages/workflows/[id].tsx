@@ -1078,18 +1078,6 @@ function Wizard({
       body: JSON.stringify({ prompt: campaignPrompt }),
     });
     
-    await fetch(`/api/workflows/${workflowId}/reply-context`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        is_active: arActive,
-        sender_profile: arSender,
-        company_product: arCompany,
-        offers_playbook: arOffers,
-        voice_rules: arVoice
-      }),
-    });
-
     const existing = await fetch(`/api/workflows/${workflowId}/steps`);
     const existingSteps: Step[] = existing.ok ? await existing.json() : [];
     await Promise.all(existingSteps.map((s) => fetch(`/api/workflows/${workflowId}/steps/${s.id}`, { method: "DELETE" })));
@@ -4139,6 +4127,7 @@ export default function WorkflowDetailPage({
           allowCrossCampaignOverlap={initial.allow_cross_campaign_overlap === 1}
           initialSteps={steps}
           lists={lists}
+          initialReplyContext={replyContext}
           accounts={accounts}
           emailAccounts={emailAccounts}
           templates={templates}
