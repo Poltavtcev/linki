@@ -1,5 +1,5 @@
 import { getDb } from "@/lib/db";
-import { log, trAdvance } from "@/lib/linkedin/runner";
+import { log } from "@/lib/linkedin/runner";
 import { decryptSecret } from "@/lib/crypto";
 import { matchPerson } from "@/lib/apollo";
 
@@ -13,7 +13,7 @@ export async function executeIntegrationStep(
 ): Promise<void> {
   if (!step.config) {
     log(db, runId, target.id, "warn", `Integration step missing config`);
-    trAdvance(db, tr, steps);
+    return;
     return;
   }
 
@@ -27,7 +27,7 @@ export async function executeIntegrationStep(
     }
   } catch (e) {
     log(db, runId, target.id, "error", `Failed to parse integration config: ${(e as Error).message}`);
-    trAdvance(db, tr, steps);
+    return;
     return;
   }
 
@@ -35,7 +35,7 @@ export async function executeIntegrationStep(
     const fresh = db.prepare("SELECT email FROM targets WHERE id = ?").get(target.id) as { email: string | null } | undefined;
     if (fresh?.email) {
       log(db, runId, target.id, "info", `Contact already has an email (${fresh.email}) — skipping enrichment waterfall`);
-      trAdvance(db, tr, steps);
+      return;
       return;
     }
 
@@ -46,7 +46,7 @@ export async function executeIntegrationStep(
     
     if (chain.length === 0) {
       log(db, runId, target.id, "warn", `Skipping enrichment - no active providers configured.`);
-      trAdvance(db, tr, steps);
+      return;
       return;
     }
     log(db, runId, target.id, "info", `Starting Enrichment Waterfall: ${chain.join(" -> ")}`);
@@ -103,7 +103,7 @@ export async function executeIntegrationStep(
     }
   }
 
-  trAdvance(db, tr, steps);
+  return;
 }
 
 
