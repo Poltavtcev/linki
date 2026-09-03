@@ -39,7 +39,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
        OR l.message LIKE 'Profile visited%'
     ORDER BY l.created_at DESC
     LIMIT 50
-  `).all() as { created_at: string; message: string; email_account_id: string | null; linkedin_account_id: string | null }[]; message: string; email_account_id: string }[];
+  `).all() as { created_at: string; message: string; email_account_id: string | null; linkedin_account_id: string | null }[];
 
   // Guard trips today
   const guardTrips = db.prepare(`
@@ -51,7 +51,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     AND date(l.created_at) = date('now')
     ORDER BY l.created_at DESC
     LIMIT 50
-  `).all() as { created_at: string; message: string; email_account_id: string | null; linkedin_account_id: string | null }[]; message: string; email_account_id: string | null }[];
+  `).all() as { created_at: string; message: string; email_account_id: string | null; linkedin_account_id: string | null }[];
 
   function effectiveLimit(a: typeof accounts[0], date: Date) {
     if (!a.ramp_up_enabled || !a.ramp_start_date) return a.daily_email_limit;
