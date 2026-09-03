@@ -228,7 +228,8 @@ export default function ListDetailPage({
     fetch("/api/integrations")
       .then((r) => r.json())
       .then((rows: { key: string; configured: boolean }[]) => {
-        setEnrichmentConfigured(rows.some((r) => r.key === "apollo" && r.configured));
+        const providers = ["prospeo", "apollo", "snov", "skrapp", "hunter", "lusha", "contactout"];
+        setEnrichmentConfigured(rows.some((r) => providers.includes(r.key) && r.configured));
       })
       .catch(() => {});
   }, []);
@@ -563,7 +564,7 @@ export default function ListDetailPage({
               title={effectiveSelectedCount > 0 ? `Enrich ${effectiveSelectedCount} selected contacts` : "Enrich all unenriched contacts"}
             >
               {enriching ? <span className="loading loading-spinner loading-xs" /> : <RiSparklingLine size={15} />}
-              {enriching ? "Enriching..." : effectiveSelectedCount > 0 ? `Enrich ${effectiveSelectedCount}` : "Enrich"}
+              {enriching ? "Enriching..." : effectiveSelectedCount > 0 ? `Waterfall enrich (${effectiveSelectedCount})` : "Waterfall enrich"}
             </button>
           )}
           <button
@@ -1126,7 +1127,7 @@ export default function ListDetailPage({
                   disabled={pool.length === 0}
                 >
                   <RiSparklingLine size={14} />
-                  Enrich {pool.length} contact{pool.length !== 1 ? "s" : ""}
+                  Waterfall enrich {pool.length} contact{pool.length !== 1 ? "s" : ""}
                 </button>
               </div>
             </div>
