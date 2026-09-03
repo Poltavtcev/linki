@@ -1307,15 +1307,16 @@ function Wizard({
 
   function canGoTo(p: WizardPage) {
     if (p === "prompt" && !hasPremium) return false; // AI-only page, hidden in free build
-    if (isStepsOnly) return p === "prompt" || p === "sequence";
+    if (isStepsOnly) return p === "prompt" || p === "sequence" || p === "ai_replies";
     if (isEditMode) {
-      if (p === "prompt" || p === "sequence") return true;
+      if (p === "prompt" || p === "sequence" || p === "ai_replies") return true;
       if (p === "account") return stepsReady;
       return false;
     }
     if (p === "prospects") return true;
     if (p === "prompt") return prospectsReady;
     if (p === "sequence") return prospectsReady;
+    if (p === "ai_replies") return prospectsReady && stepsReady;
     if (p === "account") return prospectsReady && stepsReady;
     if (p === "summary") return prospectsReady && stepsReady && !!accountId;
     return false;
@@ -1711,8 +1712,8 @@ function Wizard({
                   </div>
                   
                   <div onClick={() => setArActive(!arActive)} className="flex items-center gap-4 p-5 rounded-2xl bg-base-200 border border-base-300 cursor-pointer hover:border-primary/40 transition-colors select-none">
-                    <div className={`w-14 h-8 flex items-center rounded-full p-1 transition-colors duration-300 ease-in-out cursor-pointer shrink-0 ${arActive ? 'bg-primary' : 'bg-base-300'}`}>
-                      <div className={`bg-white w-6 h-6 rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${arActive ? 'translate-x-6' : 'translate-x-0'}`} />
+                    <div className={`w-11 h-6 flex items-center rounded-full p-0.5 transition-colors duration-300 ease-in-out cursor-pointer shrink-0 ${arActive ? 'bg-primary' : 'bg-base-300'}`}>
+                      <div className={`bg-white w-5 h-5 rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${arActive ? 'translate-x-5' : 'translate-x-0'}`} />
                     </div>
                     <div>
                       <p className="font-bold text-base text-base-content/90 mb-0.5">Enable AI Auto-Replies</p>
