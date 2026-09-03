@@ -6,7 +6,7 @@ import { getDb } from "@/lib/db";
 import { premium } from "@/lib/premium";
 import { decryptSecret } from "@/lib/crypto";
 
-export const IMAP_POLL_INTERVAL_MS = 2 * 60 * 60 * 1000; // 2 hours
+export const IMAP_POLL_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 // Jul 2026 incident: all email accounts became "due" in the same tick and synced
 // back-to-back (one 20-account burst ran 3 minutes straight, one account alone took
 // 85s), which lined up with NocoDB/n8n healthcheck failures on the shared host. A

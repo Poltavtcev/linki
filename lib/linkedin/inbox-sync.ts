@@ -27,7 +27,10 @@ function getSessionRuntime(): SessionRuntime {
 
 const ADAPTER_VERSION = "2a-contract";
 const MAX_EVENT_ID_LENGTH = 512;
-const LINKEDIN_PROFILE_HOSTS = new Set(["linkedin.com", "www.linkedin.com"]);
+// Matches linkedin.com, www.linkedin.com, and regional domains like pl.linkedin.com or uk.linkedin.com
+const isLinkedInProfileHost = (hostname: string) => {
+  return hostname === "linkedin.com" || hostname.endsWith(".linkedin.com");
+};
 const FSD_PROFILE_URN = /^urn:li:fsd_profile:[^\s]+$/;
 const AUTH_WALL_PATTERN = /\/login|\/authwall|\/checkpoint|\/uas\//i;
 
@@ -170,7 +173,7 @@ function normalizeProfileVanity(value: string | null | undefined): string | null
   }
   if (
     url.protocol !== "https:"
-    || !LINKEDIN_PROFILE_HOSTS.has(url.hostname.toLowerCase())
+    || !isLinkedInProfileHost(url.hostname.toLowerCase())
     || url.port
     || url.username
     || url.password
@@ -402,7 +405,7 @@ export function captureLinkedInInboxObservations(
     const resolution = resolveTarget(db, accountId, normalized, scopedTargets, allTargets);
     if ("reason" in resolution) {
       if (resolution.reason !== "unmatched_target" && resolution.reason !== "identity_conflict") {
-        // console.log(`[inbox-sync] Skipped (resolve): ${resolution.reason}`);
+        console.warn(`[inbox-sync] Skipped message from vanity=${normalized.senderVanity} / urn=${normalized.senderMessagingUrn}: ${resolution.reason}`);
       }
       result.skipped.push({ ...key, reason: resolution.reason });
       continue;
