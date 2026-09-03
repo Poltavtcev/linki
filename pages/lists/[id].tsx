@@ -218,9 +218,9 @@ export default function ListDetailPage({
   }, []);
   const [syncing, setSyncing] = useState(false);
 
-  const [apolloConfigured, setApolloConfigured] = useState(false);
+  const [enrichmentConfigured, setEnrichmentConfigured] = useState(false);
   const [enriching, setEnriching] = useState(false);
-  const [showApolloConfirm, setShowApolloConfirm] = useState(false);
+  const [showWaterfallConfirm, setShowWaterfallConfirm] = useState(false);
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [destListId, setDestListId] = useState("");
 
@@ -228,7 +228,7 @@ export default function ListDetailPage({
     fetch("/api/integrations")
       .then((r) => r.json())
       .then((rows: { key: string; configured: boolean }[]) => {
-        setApolloConfigured(rows.some((r) => r.key === "apollo" && r.configured));
+        setEnrichmentConfigured(rows.some((r) => r.key === "apollo" && r.configured));
       })
       .catch(() => {});
   }, []);
@@ -486,7 +486,7 @@ export default function ListDetailPage({
   }
 
   async function enrichWithApollo() {
-    setShowApolloConfirm(false);
+    setShowWaterfallConfirm(false);
     setEnriching(true);
     const body = effectiveSelectedCount > 0 ? { target_ids: effectiveSelectedIds } : {};
     const res = await fetch(`/api/lists/${initialList.id}/apollo-enrich`, {
@@ -555,10 +555,10 @@ export default function ListDetailPage({
               <RiRefreshLine size={15} /> Sync Status
             </button>
           )}
-          {apolloConfigured && (
+          {enrichmentConfigured && (
             <button
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-base-content/60 hover:text-base-content hover:bg-base-300/50 transition-colors disabled:opacity-40"
-              onClick={() => setShowApolloConfirm(true)}
+              onClick={() => setShowWaterfallConfirm(true)}
               disabled={enriching}
               title={effectiveSelectedCount > 0 ? `Enrich ${effectiveSelectedCount} selected contacts` : "Enrich all unenriched contacts"}
             >
@@ -1077,7 +1077,7 @@ export default function ListDetailPage({
       )}
 
       {/* Waterfall enrich confirm modal */}
-      {showApolloConfirm && (() => {
+      {showWaterfallConfirm && (() => {
         const effectiveSet = new Set(effectiveSelectedIds);
         const pool = effectiveSelectedCount > 0
           ? targets.filter((t) => effectiveSet.has(t.id) && !t.email)
@@ -1116,7 +1116,7 @@ export default function ListDetailPage({
               <div className="flex items-center justify-end gap-2">
                 <button
                   className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm text-base-content/60 hover:text-base-content hover:bg-base-300/50 transition-colors"
-                  onClick={() => setShowApolloConfirm(false)}
+                  onClick={() => setShowWaterfallConfirm(false)}
                 >
                   Cancel
                 </button>
@@ -1130,7 +1130,7 @@ export default function ListDetailPage({
                 </button>
               </div>
             </div>
-            <div className="modal-backdrop" onClick={() => setShowApolloConfirm(false)} />
+            <div className="modal-backdrop" onClick={() => setShowWaterfallConfirm(false)} />
           </div>
         );
       })()}
