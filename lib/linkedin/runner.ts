@@ -513,7 +513,7 @@ async function executeStep(
       }
       return { status: "SUCCESS" };
 
-    } else if (step.step_type === "linkedin_comment") {
+    } else if (step.step_type === "ai_comment" || step.step_type === "linkedin_comment") {
       log(db, runId, target.id, "info", `Commenting on recent post for ${name}`);
       const openaiInt = db.prepare("SELECT api_key FROM integrations WHERE key = 'openai'").get() as { api_key: string } | undefined;
       let apiKey = process.env.OPENAI_API_KEY;
@@ -522,32 +522,72 @@ async function executeStep(
         apiKey = decryptSecret(openaiInt.api_key);
       }
       if (!apiKey) return { status: "FAILED", error: "Missing API key for AI comment" };
+      
+      let config: any = {};
+      try { config = JSON.parse(step.config || "{}"); } catch(e) {}
+      const maxAgeDays = config.max_age_days || 30;
+      const likeNPosts = config.like_n_posts || 0;
+
       const linkedinUrl = await getLinkedinUrl(db, target, accountId);
       const page = await getSessionPage(accountId);
       try {
         await page.goto(linkedinUrl.replace(/\/$/, "") + "/recent-activity/all/", { waitUntil: "domcontentloaded" });
         await page.waitForTimeout(3000);
-        const post = page.locator('.feed-shared-update-v2').first();
-        if (await post.count() > 0) {
-          const postContent = await post.innerText();
-          const openai = new (await import("openai")).default({ apiKey });
-          const prompt = step.ai_comment_prompt || "Write a brief, insightful comment B2B style.";
-          const chat = await openai.chat.completions.create({
-             model: step.ai_model || "gpt-4o-mini",
-             messages: [
-               { role: "system", content: "You are writing a LinkedIn comment. Keep it brief, professional, and directly related to the post." },
-               { role: "user", content: `Instruction: ${prompt}\n\nPost:\n${postContent}` }
-             ]
-          });
-          const commentText = chat.choices[0].message.content || "Great insights!";
-          const commentBtn = post.locator('button[aria-label*="Comment"]').first();
-          if (await commentBtn.count() > 0) {
-            await commentBtn.click();
-            await page.waitForTimeout(1000);
-            await post.locator('.ql-editor').fill(commentText);
-            await post.locator('button.comments-comment-box__submit-button').click();
-            log(db, runId, target.id, "info", `Commented on post for ${name}`);
+        const posts = page.locator('.feed-shared-update-v2');
+        const count = await posts.count();
+        if (count > 0) {
+          // Process liking N posts
+          if (likeNPosts > 0) {
+            const limit = Math.min(count, likeNPosts);
+            for (let i = 0; i < limit; i++) {
+              const likeBtn = posts.nth(i).locator('button[aria-label*="Like"]').first();
+              if (await likeBtn.count() > 0) {
+                 const isPressed = await likeBtn.getAttribute('aria-pressed');
+                 if (isPressed !== 'true') {
+                   await likeBtn.click();
+                   await page.waitForTimeout(1000);
+                 }
+              }
+            }
+            log(db, runId, target.id, "info", `Liked ${limit} recent posts for ${name}`);
           }
+
+          // Process commenting on the first valid post
+          const post = posts.first();
+          // Extract time (e.g. "2w", "1mo", "3d") - simplistic check
+          const timeText = await post.locator('.update-components-actor__sub-description').first().innerText().catch(() => "");
+          let ageDays = 0;
+          if (timeText.includes('d')) ageDays = parseInt(timeText) || 0;
+          else if (timeText.includes('w')) ageDays = (parseInt(timeText) || 0) * 7;
+          else if (timeText.includes('mo')) ageDays = (parseInt(timeText) || 0) * 30;
+          else if (timeText.includes('yr')) ageDays = (parseInt(timeText) || 0) * 365;
+          else if (timeText.includes('h') || timeText.includes('m')) ageDays = 0;
+
+          if (ageDays <= maxAgeDays) {
+            const postContent = await post.innerText();
+            const openai = new (await import("openai")).default({ apiKey });
+            const prompt = step.ai_prompt || step.ai_comment_prompt || "Write a brief, insightful comment B2B style.";
+            const chat = await openai.chat.completions.create({
+               model: step.ai_model || "gpt-4o-mini",
+               messages: [
+                 { role: "system", content: "You are writing a LinkedIn comment. Keep it brief, professional, and directly related to the post." },
+                 { role: "user", content: `Instruction: ${prompt}\n\nPost:\n${postContent}` }
+               ]
+            });
+            const commentText = chat.choices[0].message.content || "Great insights!";
+            const commentBtn = post.locator('button[aria-label*="Comment"]').first();
+            if (await commentBtn.count() > 0) {
+              await commentBtn.click();
+              await page.waitForTimeout(1000);
+              await post.locator('.ql-editor').fill(commentText);
+              await post.locator('button.comments-comment-box__submit-button').click();
+              log(db, runId, target.id, "info", `Commented on post for ${name}`);
+            }
+          } else {
+            log(db, runId, target.id, "warn", `Skipped comment: latest post is ${ageDays} days old (max ${maxAgeDays})`);
+          }
+        } else {
+           log(db, runId, target.id, "warn", `No posts found for ${name} to comment on`);
         }
       } catch (e) {
         log(db, runId, target.id, "error", `Failed to comment on post: ${(e as Error).message}`);
