@@ -661,7 +661,7 @@ function Wizard({
                             <div className="w-px h-3 bg-base-300/80" />
                           </div>
                           <span className="text-[11px] text-base-content/40 font-medium tracking-wide">
-                            {ws.delayDaysBefore > 0 ? `Wait ${ws.delayDaysBefore} day${ws.delayDaysBefore > 1 ? 's' : ''}` : "Immediately"}
+                            {path.length === 1 ? 'Default / If no reply ' : ''}({ws.delayDaysBefore > 0 ? `Wait ${ws.delayDaysBefore} day${ws.delayDaysBefore > 1 ? 's' : ''}` : "Immediately"})
                           </span>
                         </div>
                       )}
@@ -690,7 +690,17 @@ function Wizard({
 
                         {Object.keys(ws.branches || {}).length > 0 && (
                           <div className="flex flex-wrap gap-2 px-4 py-3 bg-base-300/50 border-t border-base-300/50">
-                            {Object.entries(ws.branches!).map(([bName, bSteps]) => (
+                            {Object.entries(ws.branches!)
+                                                          .filter(([bName]) => {
+                                                             if (ws.type === 'ai_qualify') {
+                                                                try { 
+                                                                  const cfg = JSON.parse(ws.config || '{}'); 
+                                                                  if ((cfg.continue_main_on || 'FIT') === bName) return false; 
+                                                                } catch {}
+                                                             }
+                                                             return true;
+                                                          })
+                                                          .map(([bName, bSteps]) => (
                               <button 
                                 key={bName}
                                 type="button"
@@ -2135,17 +2145,20 @@ function Wizard({
                             <RiAddLine size={14} /> Add Step
                           </label>
                           <ul tabIndex={0} className="dropdown-content z-[50] menu p-2 shadow-xl bg-base-100 rounded-xl w-60 mb-4 border border-base-300/50">
-                            <li className="menu-title"><span className="text-[10px] font-bold text-base-content/40 uppercase tracking-wider">LinkedIn</span></li>
-                            <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("visit", drawerPath); }} className="gap-3 text-xs"><RiEyeLine size={12} className="text-info"/> Visit Profile</a></li>
-                            <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("linkedin_enrich", drawerPath); }} className="gap-3 text-xs"><RiSearchEyeLine size={12} className="text-info"/> Enrich Profile</a></li>
-                            <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("connect", drawerPath); }} className="gap-3 text-xs"><RiLinkedinBoxLine size={12} className="text-primary"/> Connect</a></li>
-                            <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("message", drawerPath); }} className="gap-3 text-xs"><RiMessage2Line size={12} className="text-success"/> Message</a></li>
-                            {hasPremium && <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("sales_inmail", drawerPath); }} className="gap-3 text-xs"><RiSendPlaneLine size={12} className="text-primary"/> Sales Nav InMail</a></li>}
-                            <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("linkedin_like", drawerPath); }} className="gap-3 text-xs"><RiThumbUpLine size={12} className="text-primary"/> Like Recent Posts</a></li>
-                            
-                            <li className="menu-title mt-1"><span className="text-[10px] font-bold text-base-content/40 uppercase tracking-wider">Email</span></li>
-                            <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("email", drawerPath); }} className="gap-3 text-xs"><RiMailLine size={12} className="text-warning"/> Cold Email</a></li>
-                            
+                                                        {parentName !== "IF REPLIED" && (
+                              <>
+                                <li className="menu-title"><span className="text-[10px] font-bold text-base-content/40 uppercase tracking-wider">LinkedIn</span></li>
+                                <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("visit", drawerPath); }} className="gap-3 text-xs"><RiEyeLine size={12} className="text-info"/> Visit Profile</a></li>
+                                <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("linkedin_enrich", drawerPath); }} className="gap-3 text-xs"><RiSearchEyeLine size={12} className="text-info"/> Enrich Profile</a></li>
+                                <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("connect", drawerPath); }} className="gap-3 text-xs"><RiLinkedinBoxLine size={12} className="text-primary"/> Connect</a></li>
+                                <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("message", drawerPath); }} className="gap-3 text-xs"><RiMessage2Line size={12} className="text-success"/> Message</a></li>
+                                {hasPremium && <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("sales_inmail", drawerPath); }} className="gap-3 text-xs"><RiSendPlaneLine size={12} className="text-primary"/> Sales Nav InMail</a></li>}
+                                <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("linkedin_like", drawerPath); }} className="gap-3 text-xs"><RiThumbUpLine size={12} className="text-primary"/> Like Recent Posts</a></li>
+                                
+                                <li className="menu-title mt-1"><span className="text-[10px] font-bold text-base-content/40 uppercase tracking-wider">Email</span></li>
+                                <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("email", drawerPath); }} className="gap-3 text-xs"><RiMailLine size={12} className="text-warning"/> Cold Email</a></li>
+                              </>
+                            )}
                             <li className="menu-title mt-1"><span className="text-[10px] font-bold text-base-content/40 uppercase tracking-wider">Integrations</span></li>
                             <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("integration", drawerPath); }} className="gap-3 text-xs"><RiPlugLine size={12} className="text-accent"/> Integration</a></li>
                             <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("change_status", drawerPath); }} className="gap-3 text-xs"><RiGroupLine size={12} className="text-secondary"/> CRM Status</a></li>
@@ -2274,6 +2287,26 @@ function Wizard({
                   </div>
                 )}
                 
+                                {ws.type === "ai_qualify" && (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-xs text-base-content/40 mb-1.5 block">Continue main sequence if outcome is:</label>
+                      <select value={(() => { try { return (JSON.parse(ws.config || '{}') as any).continue_main_on || 'FIT'; } catch { return 'FIT'; } })()} onChange={(e) => {
+                          let c: any = {}; try { c = JSON.parse(ws.config || '{}'); } catch {}
+                          c.continue_main_on = e.target.value;
+                          updateStep(path, { config: JSON.stringify(c) });
+                      }} className="w-full bg-base-300/50 border border-base-300/50 rounded-xl px-3 py-2 text-sm text-base-content focus:outline-none focus:border-secondary/40">
+                        <option value="FIT">FIT</option>
+                        <option value="NOT_FIT">NOT_FIT</option>
+                        <option value="MAYBE">MAYBE</option>
+                      </select>
+                      <p className="text-[10px] text-base-content/30 mt-2 leading-relaxed">
+                        The selected outcome will continue down the main sequence trunk. The other outcomes will become isolated side-panel branches.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {ws.type === "ai_comment" && (
                   <div className="space-y-4">
                     <div>
