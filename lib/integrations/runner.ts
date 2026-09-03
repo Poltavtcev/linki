@@ -154,22 +154,32 @@ export async function executeIntegrationStep(
             if (getData.data?.emails?.length > 0) email = getData.data.emails[0].email;
           }
         } else if (provider === "lusha") {
-          const resObj = await fetch('https://api.lusha.com/v2/person', {
+          const contactPayload: any = {};
+          if (target.linkedin_url) {
+             contactPayload.linkedinUrl = target.linkedin_url;
+          } else {
+             contactPayload.firstName = target.first_name || "";
+             contactPayload.lastName = target.last_name || "";
+             contactPayload.companyName = target.company || "";
+          }
+
+          const resObj = await fetch('https://api.lusha.com/v3/contacts/search-and-enrich', {
             method: 'POST',
             headers: { 'api_key': apiKey, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              firstName: target.first_name || "",
-              lastName: target.last_name || "",
-              company: target.company || ""
-            })
+            body: JSON.stringify({ contacts: [contactPayload] })
           });
+          
           let data;
           const text = await resObj.text();
           try { data = JSON.parse(text); } catch (e) { data = text; }
           const res = { data, status: resObj.status };
+          
           if (!resObj.ok) throw new Error(`${resObj.status} ${resObj.statusText}: ${typeof data === 'string' ? data.slice(0, 50) : JSON.stringify(data).slice(0, 50)}`);
-          if (res.data?.data?.emailAddresses?.[0]?.email) {
-            email = res.data.data.emailAddresses[0].email;
+          
+          // Handle various V3 response wrappers
+          const enrichedContact = res.data?.contacts?.[0] || res.data?.data?.contacts?.[0] || res.data?.data || res.data;
+          if (enrichedContact?.emailAddresses?.[0]?.email) {
+            email = enrichedContact.emailAddresses[0].email;
           }
         } else if (provider === "contactout") {
           const queryParams: Record<string, string> = {};
