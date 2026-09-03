@@ -655,7 +655,7 @@ function Wizard({
                     <div className="relative">
                       {(!isFirst || ws.delayDaysBefore > 0) && (
                         <div className="flex flex-col items-center justify-center -my-1 z-10 relative">
-                          <div className="w-px h-5 bg-base-300/80" />
+                          <div className="w-[2px] h-5 bg-base-content/10" />
                           
                           {prevWs?.type === 'ai_qualify' && path.length === 1 ? (
                             <div className="flex gap-1.5 z-10">
@@ -678,17 +678,26 @@ function Wizard({
                               })()}
                             </div>
                           ) : (
-                            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-base-200/80 border border-base-300/80 backdrop-blur-sm z-10 shadow-sm">
-                              <RiTimeLine size={13} className="text-base-content/40" />
-                              <span className="text-[10.5px] text-base-content/60 font-medium tracking-wide">
-                                {path.length === 1 && prevWs?.type !== 'ai_qualify' ? 'Default / If no reply ' : ''}
-                                {ws.delayDaysBefore > 0 ? `(Wait ${ws.delayDaysBefore} day${ws.delayDaysBefore > 1 ? 's' : ''})` : "(Immediately)"}
-                              </span>
+                            <div className="flex flex-col items-center gap-1.5 z-10">
+                              {path.length === 1 && prevWs && ["message", "email", "sales_inmail"].includes(prevWs.type) && (
+                                <span className="px-2.5 py-0.5 rounded-full bg-base-100 border border-base-content/10 text-base-content/70 text-[10px] font-bold shadow-sm">
+                                  If no reply
+                                </span>
+                              )}
+                              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-base-200/90 border border-base-content/10 backdrop-blur-sm shadow-sm">
+                                <RiTimeLine size={13} className="text-base-content/40" />
+                                <span className="text-[10.5px] text-base-content/60 font-medium tracking-wide">
+                                  {path.length === 1 && prevWs && !["message", "email", "sales_inmail", "ai_qualify"].includes(prevWs.type) ? 'Default ' : ''}
+                                  {ws.delayDaysBefore > 0 ? `(Wait ${ws.delayDaysBefore} day${ws.delayDaysBefore > 1 ? 's' : ''})` : "(Immediately)"}
+                                </span>
+                              </div>
                             </div>
                           )}
 
-                          <div className="w-px h-4 bg-base-300/80" />
-                          <RiArrowDownSLine size={18} className="text-base-300/80 -mt-1.5 z-10" />
+                          <div className="w-[2px] h-4 bg-base-content/10" />
+                          <svg className="w-4 h-4 text-base-content/20 -mt-1 z-10" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 21l-12-18h24z" />
+                          </svg>
                         </div>
                       )}
                       <div
