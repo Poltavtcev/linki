@@ -68,7 +68,7 @@ export default function SystemHealth() {
                   <h3 className="font-medium text-base">{acc.name}</h3>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                   {/* INVITATIONS */}
                   <div className="bg-base-100 rounded-xl p-4 border border-base-300/50 relative overflow-hidden group">
                     <div className="text-[10px] font-bold text-base-content/40 uppercase tracking-widest mb-4">Invitations</div>
@@ -148,22 +148,7 @@ export default function SystemHealth() {
                     </div>
                   </div>
 
-                  {/* FOLLOWS */}
-                  <div className="bg-base-100 rounded-xl p-4 border border-base-300/50 opacity-60">
-                    <div className="text-[10px] font-bold text-base-content/40 uppercase tracking-widest mb-4">Follows</div>
-                    <div className="flex items-end justify-between mb-2">
-                      <div className="text-3xl font-light text-base-content">100</div>
-                      <div className="text-xs text-base-content/40 mb-1">left today</div>
-                    </div>
-                    <div className="flex items-center justify-between text-xs text-base-content/50 mb-1">
-                      <span>0</span>
-                      <span>100</span>
-                    </div>
-                    <div className="w-full bg-base-300/50 rounded-full h-1.5">
-                      <div className="bg-base-300 h-1.5 rounded-full" style={{ width: '0%' }}></div>
-                    </div>
-                    <div className="mt-4 pt-3 border-t border-base-300/40 text-[10px] text-center text-base-content/40">Coming Soon</div>
-                  </div>
+
                 </div>
               </div>
             ))}
