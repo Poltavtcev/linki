@@ -32,7 +32,7 @@ import {
   RiArrowDownSLine,
   RiRefreshLine,
   RiErrorWarningLine,
-  RiGroupLine, RiRouteLine,
+  RiGroupLine, RiRouteLine, RiGitBranchLine, RiCloseLine,
 } from "react-icons/ri";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -648,7 +648,8 @@ function Wizard({
       .then((rows) => setIntegrations(rows))
       .catch(() => {});
   }, []);
-  const [configPath, setConfigPath] = useState<(number | string)[] | null>(null); // which step is being configured
+  const [configPath, setConfigPath] = useState<(number | string)[] | null>(null);
+  const [drawerPath, setDrawerPath] = useState<(number | string)[] | null>(null); // which step is being configured
   const [launching, setLaunching] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -1567,56 +1568,19 @@ function Wizard({
                           </button>
                         </div>
 
-                        {ws.branches && (
-                          <div className="border-t border-base-300/30 bg-base-200/50 p-4 flex flex-col gap-4">
-                            {Object.entries(ws.branches).map(([bName, bSteps]) => (
-                              <div key={bName} className="flex-1 bg-base-100 rounded-lg border border-base-300/50 p-4">
-                                <div className="flex items-center justify-between mb-1">
-                                  <p className="text-[11px] font-extrabold text-base-content/60 uppercase tracking-wider">{bName}</p>
-                                  
-                                  <div className="dropdown dropdown-bottom dropdown-end">
-                                    <label tabIndex={0} className="btn btn-xs btn-outline bg-base-100 hover:bg-base-200 gap-1 rounded-md">
-                                      <RiAddLine size={12} /> Add Step
-                                    </label>
-                                    <ul tabIndex={0} className="dropdown-content z-[20] menu p-2 shadow-xl bg-base-100 rounded-xl w-60 mb-4 border border-base-300/50">
-                                      <li className="menu-title"><span className="text-[10px] font-bold text-base-content/40 uppercase tracking-wider">LinkedIn</span></li>
-                                      <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("visit", [...path, "branches", bName]); }} className="gap-3 text-xs"><RiEyeLine size={12} className="text-info"/> Visit Profile</a></li>
-                                      <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("linkedin_enrich", [...path, "branches", bName]); }} className="gap-3 text-xs"><RiSearchEyeLine size={12} className="text-info"/> Enrich Profile</a></li>
-                                      <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("connect", [...path, "branches", bName]); }} className="gap-3 text-xs"><RiLinkedinBoxLine size={12} className="text-primary"/> Connect</a></li>
-                                      <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("message", [...path, "branches", bName]); }} className="gap-3 text-xs"><RiMessage2Line size={12} className="text-success"/> Message</a></li>
-                                      {hasPremium && <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("sales_inmail", [...path, "branches", bName]); }} className="gap-3 text-xs"><RiSendPlaneLine size={12} className="text-primary"/> Sales Nav InMail</a></li>}
-                                      <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("linkedin_like", [...path, "branches", bName]); }} className="gap-3 text-xs"><RiThumbUpLine size={12} className="text-primary"/> Like Recent Posts</a></li>
-                                      
-                                      <li className="menu-title mt-1"><span className="text-[10px] font-bold text-base-content/40 uppercase tracking-wider">Email</span></li>
-                                      <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("email", [...path, "branches", bName]); }} className="gap-3 text-xs"><RiMailLine size={12} className="text-warning"/> Cold Email</a></li>
-                                      
-                                      <li className="menu-title mt-1"><span className="text-[10px] font-bold text-base-content/40 uppercase tracking-wider">Integrations</span></li>
-                                      <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("integration", [...path, "branches", bName]); }} className="gap-3 text-xs"><RiPlugLine size={12} className="text-accent"/> Integration</a></li>
-                                      <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("change_status", [...path, "branches", bName]); }} className="gap-3 text-xs"><RiGroupLine size={12} className="text-secondary"/> CRM Status</a></li>
-                                      
-                                      <li className="menu-title mt-1"><span className="text-[10px] font-bold text-base-content/40 uppercase tracking-wider">AI Agents</span></li>
-                                      <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("ai_qualify", [...path, "branches", bName]); }} className="gap-3 text-xs"><RiRobot2Line size={12} className="text-secondary"/> AI Qualify</a></li>
-                                      <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("ai_comment", [...path, "branches", bName]); }} className="gap-3 text-xs"><RiMessage2Line size={12} className="text-secondary"/> AI Comment</a></li>
-                                    </ul>
-                                  </div>
-                                  
-                                </div>
-                                <div className="flex flex-col gap-2">
-                                  {bSteps.length > 0 ? (
-                                    bSteps.map((bStep, bIdx) => (
-                                      <StepCard key={bIdx} ws={bStep} path={[...path, "branches", bName, bIdx]} isFirst={bIdx === 0} />
-                                    ))
-                                  ) : (
-                                    <div className="text-[10px] text-base-content/40 italic px-2 py-1 bg-base-200/50 rounded">
-  {bName === "IF REPLIED" ? "Sequence marks as Responded and stops here." : 
-   bName === "IF ACCEPTED" ? "Sequence continues to next step in main trunk." : 
-   bName === "IF NOT ACCEPTED (Timeout)" ? "Sequence skips to here if invite expires." : 
-   bName === "FIT" || bName === "NOT_FIT" || bName === "MAYBE" ? "Sequence ends." : 
-   "Flow rejoins main sequence."}
-</div>
-                                  )}
-                                </div>
-                              </div>
+                        {Object.keys(ws.branches || {}).length > 0 && (
+                          <div className="flex flex-wrap gap-2 px-4 py-3 bg-base-300/50 border-t border-base-300/50">
+                            {Object.entries(ws.branches!).map(([bName, bSteps]) => (
+                              <button 
+                                key={bName}
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); setDrawerPath([...path, "branches", bName]); }}
+                                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold bg-base-100 border border-base-300 hover:border-primary/50 transition-colors shadow-sm"
+                              >
+                                <RiGitBranchLine size={13} className="text-primary" />
+                                {bName}
+                                <span className="text-[10px] text-base-content/50 bg-base-200 px-1.5 rounded-full">{bSteps.length}</span>
+                              </button>
                             ))}
                           </div>
                         )}
