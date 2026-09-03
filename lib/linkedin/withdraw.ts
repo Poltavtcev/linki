@@ -85,7 +85,10 @@ export async function withdrawOldInvitations(
       return null;
     }, olderThanDays);
 
-    const target = await targetHandle.jsonValue() as any;
+    const target = await targetHandle.evaluate((t) => {
+      if (!t) return null;
+      return { url: t.url, ageDays: t.ageDays, name: t.name };
+    });
     
     if (target) {
       log(db, runId, null, "info", `Withdrawing invitation to ${target.url} (Age: ${target.ageDays} days)`);
