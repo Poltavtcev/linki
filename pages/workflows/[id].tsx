@@ -1130,7 +1130,7 @@ function Wizard({
         {/* Content */}
         <div className="flex-1 flex flex-col overflow-hidden">
           <div className="flex-1 overflow-y-auto pt-10 px-10 pb-6">
-            <div className={`w-full mx-auto ${page === "prospects" ? "max-w-5xl" : "max-w-2xl"}`}>
+            <div className={`w-full mx-auto ${(page === "prospects" || page === "summary") ? "max-w-5xl" : page === "sequence" ? "max-w-7xl" : "max-w-2xl"}`}>
 
               {/* ── Page: Prospects ── */}
               {page === "prospects" && (() => {
