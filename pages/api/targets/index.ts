@@ -193,6 +193,39 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     (extraClauses.length > 0 ? " AND " + extraClauses.join(" AND ") : "") + filterSql;
   const allExtraParams = [...extraParams, ...filterParams];
 
+  if (req.query.export === "csv") {
+    const Papa = require("papaparse");
+    
+    // Select ALL editable fields and important identifiers for export
+    const EXPORT_SELECT = `SELECT 
+      linkedin_url, sales_nav_url, email, first_name, last_name, 
+      title, company, location, city, country, time_zone, 
+      phone, headline, summary, notes, lead_status, seniority 
+      FROM targets t`;
+      
+    let query = EXPORT_SELECT + " WHERE 1=1" + extraWhere;
+    let paramsToUse = [...allExtraParams];
+    
+    if (list_id) {
+      query = `SELECT 
+        t.linkedin_url, t.sales_nav_url, t.email, t.first_name, t.last_name, 
+        t.title, t.company, t.location, t.city, t.country, t.time_zone, 
+        t.phone, t.headline, t.summary, t.notes, t.lead_status, t.seniority 
+        FROM targets t
+        INNER JOIN list_targets lt ON lt.target_id = t.id
+        WHERE lt.list_id = ?` + extraWhere;
+      paramsToUse = [list_id, ...allExtraParams];
+    }
+    
+    const rows = db.prepare(query).all(...paramsToUse);
+    const csv = Papa.unparse(rows);
+    
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", `attachment; filename="linki-export.csv"`);
+    return res.status(200).send(csv);
+  }
+
+
   const SELECT = `SELECT t.id, t.linkedin_url, t.lead_status, t.first_name, t.last_name, t.full_name, t.title, t.company, t.location,
           t.email, t.email_status, t.degree,
           t.connection_requested_at, t.connected_at, t.message_sent_at, t.last_replied_at,

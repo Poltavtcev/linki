@@ -8,7 +8,7 @@ import {
   RiExternalLinkLine, RiArrowLeftSLine, RiArrowRightSLine,
   RiUserFollowLine, RiUserAddLine, RiUserLine,
   RiMessage2Line, RiReplyLine, RiMailCheckLine, RiAtLine, RiMailLine,
-  RiSearchLine, RiAddLine, RiListCheck2, RiDeleteBinLine,
+  RiSearchLine, RiAddLine, RiListCheck2, RiDeleteBinLine, RiDownload2Line,
 } from "react-icons/ri";
 import FilterBar, { ActiveFilter, filtersToParams, paramsToFilters } from "@/components/ui/FilterBar";
 
@@ -183,6 +183,16 @@ export default function ContactsPage({ lists, total: initialTotal }: { lists: Li
 
   const allPageSelected = contacts.length > 0 && contacts.every((c) => selected.has(c.id));
 
+  
+  function exportCsv() {
+    const params = new URLSearchParams({ search: debouncedSearch, list_id: listId });
+    if (!listId) params.delete("list_id");
+    if (!debouncedSearch) params.delete("search");
+    filtersToParams(filters).forEach((v, k) => params.set(k, v));
+    params.set("export", "csv");
+    window.location.href = `/api/targets?${params}`;
+  }
+
   function toggleAll() {
     if (allPageSelected) {
       setSelected(new Set());
@@ -273,12 +283,21 @@ export default function ContactsPage({ lists, total: initialTotal }: { lists: Li
               {hasActiveFilters ? " matching filters" : " total"}
             </p>
           </div>
+          <div className="flex items-center gap-2">
+          <button
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-base-300/70 hover:bg-base-300 transition-colors"
+            onClick={exportCsv}
+            title="Export filtered contacts to CSV"
+          >
+            <RiDownload2Line size={15} /> Export CSV
+          </button>
           <button
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-primary text-primary-content hover:bg-primary/90 transition-colors"
             onClick={() => setShowNewContact(true)}
           >
             <RiAddLine size={15} /> New Contact
           </button>
+        </div>
         </div>
 
         {/* Filter row */}

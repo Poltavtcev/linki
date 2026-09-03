@@ -264,6 +264,15 @@ export default function ListDetailPage({
   const pageTargets = filteredTargets.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   const allPageSelected = pageTargets.length > 0 && pageTargets.every((t) => selected.has(t.id));
 
+  
+  function exportCsv() {
+    const params = new URLSearchParams({ search: search, list_id: initialList.id });
+    if (!search) params.delete("search");
+    filtersToParams(filters).forEach((v, k) => params.set(k, v));
+    params.set("export", "csv");
+    window.location.href = `/api/targets?${params}`;
+  }
+
   function toggleAll() {
     if (allFilteredSelected) {
       setAllFilteredSelected(false);
@@ -557,6 +566,14 @@ export default function ListDetailPage({
               {enriching ? "Enriching..." : effectiveSelectedCount > 0 ? `Enrich ${effectiveSelectedCount}` : "Enrich"}
             </button>
           )}
+          <button
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-base-300/70 hover:bg-base-300 transition-colors disabled:opacity-50"
+            onClick={exportCsv}
+            disabled={importing}
+            title="Export filtered list to CSV"
+          >
+            <RiDownloadLine size={15} style={{ transform: "rotate(180deg)" }} /> Export CSV
+          </button>
           <button
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-primary text-primary-content hover:bg-primary/90 transition-colors disabled:opacity-50"
             onClick={() => { setImportSource("pick"); setShowImport(true); }}
