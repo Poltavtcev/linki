@@ -162,27 +162,38 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
                 ELSE 'completed'
               END as state,
               COALESCE(rt_li.current_step, 0) as current_step,
-              COALESCE(rt_li.next_step_at, rt_em.next_step_at) as next_step_at,
-              COALESCE(rt_li.error_message, rt_em.error_message) as error_message,
+              COALESCE(rt_in.next_step_at, rt_li.next_step_at, rt_em.next_step_at) as next_step_at,
+              COALESCE(rt_in.error_message, rt_li.error_message, rt_em.error_message) as error_message,
               t.full_name, t.title, t.company, t.linkedin_url,
               t.degree, t.connection_requested_at, t.connected_at, t.message_sent_at,
               ws_li.step_type as li_step_type,
               ws_em.step_type as em_step_type,
+              ws_in.step_type as in_step_type,
               CASE
+                WHEN rt_in.state = 'in_progress' THEN ws_in.step_type
+                WHEN rt_em.state = 'in_progress' THEN ws_em.step_type
+                WHEN rt_li.state = 'in_progress' THEN ws_li.step_type
                 WHEN rt_li.state NOT IN ('completed','skipped') THEN ws_li.step_type
-                ELSE ws_em.step_type
+                WHEN rt_em.state NOT IN ('completed','skipped') THEN ws_em.step_type
+                ELSE ws_in.step_type
               END as step_type,
               CASE
+                WHEN rt_in.state = 'in_progress' THEN ws_in.track
+                WHEN rt_em.state = 'in_progress' THEN ws_em.track
+                WHEN rt_li.state = 'in_progress' THEN ws_li.track
                 WHEN rt_li.state NOT IN ('completed','skipped') THEN ws_li.track
-                ELSE ws_em.track
+                WHEN rt_em.state NOT IN ('completed','skipped') THEN ws_em.track
+                ELSE ws_in.track
               END as step_track
        FROM run_profiles rp
        JOIN runs r ON r.id = rp.run_id
        JOIN targets t ON t.id = rp.target_id
        LEFT JOIN run_profile_tracks rt_li ON rt_li.run_profile_id = rp.id AND rt_li.track = 'linkedin'
        LEFT JOIN run_profile_tracks rt_em ON rt_em.run_profile_id = rp.id AND rt_em.track = 'email'
+       LEFT JOIN run_profile_tracks rt_in ON rt_in.run_profile_id = rp.id AND rt_in.track = 'integration'
        LEFT JOIN workflow_steps ws_li ON ws_li.workflow_id = r.workflow_id AND ws_li.track = 'linkedin' AND ws_li.step_order = COALESCE(rt_li.current_step, 0) + 1
        LEFT JOIN workflow_steps ws_em ON ws_em.workflow_id = r.workflow_id AND ws_em.track = 'email' AND ws_em.step_order = COALESCE(rt_em.current_step, 0) + 1
+       LEFT JOIN workflow_steps ws_in ON ws_in.workflow_id = r.workflow_id AND ws_in.track = 'integration' AND ws_in.step_order = COALESCE(rt_in.current_step, 0) + 1
        WHERE ${where}
        ORDER BY
          CASE

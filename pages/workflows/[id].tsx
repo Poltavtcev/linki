@@ -111,6 +111,7 @@ interface Prospect {
   step_track: string | null;
   li_step_type: string | null;
   em_step_type: string | null;
+  in_step_type: string | null;
   next_step_at: string | null;
   error_message: string | null;
   degree: number | null;
@@ -3585,7 +3586,7 @@ export default function WorkflowDetailPage({
                         <td className="text-xs text-base-content/60">
                           {(() => {
                             const activeTrack = typeof selectedStep === "object" && selectedStep !== null ? selectedStep.track : null;
-                            const st = activeTrack === "email" ? p.em_step_type : activeTrack === "linkedin" ? p.li_step_type : p.step_type;
+                            const st = activeTrack === "email" ? p.em_step_type : activeTrack === "linkedin" ? p.li_step_type : activeTrack === "integration" ? p.in_step_type : p.step_type;
                             return st === "connect" && p.connection_requested_at
                               ? "Awaiting acceptance"
                               : st === "email"
