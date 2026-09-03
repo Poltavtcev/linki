@@ -25,7 +25,7 @@ import {
   RiMailSendLine,
   RiMailLine,
   RiEditLine,
-  RiRobot2Line,
+  RiRobot2Line, RiThumbUpLine,
   RiSearchLine, RiSearchEyeLine,
   RiLoader4Line,
   RiUser3Line,
@@ -37,7 +37,7 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type StepType = "visit" | "connect" | "message" | "sales_inmail" | "delay" | "email" | "integration" | "change_status" | "linkedin_enrich" | "ai_qualify" | "ai_comment";
+type StepType = "visit" | "connect" | "message" | "sales_inmail" | "delay" | "email" | "integration" | "change_status" | "linkedin_enrich" | "ai_qualify" | "ai_comment" | "linkedin_like";
 type Track = "linkedin" | "email" | "integration" | "playbook";
 
 interface Step {
@@ -181,6 +181,7 @@ const STEP_LABELS: Record<string, string> = {
   change_status: "Change CRM Status",
   ai_qualify: "AI Qualify",
   ai_comment: "AI Comment",
+  linkedin_like: "Like Recent Posts",
 };
 
 // Returns dynamic label for an email step based on its position among all email steps
@@ -228,6 +229,7 @@ const AI_LANGUAGES = [
 ];
 
 const STEP_COLORS: Record<string, string> = {
+  linkedin_like: "bg-primary/10 text-primary border-primary/20",
   linkedin_enrich: "bg-blue-500/10 text-blue-500 border-blue-500/20",
   visit: "bg-info/10 text-info border-info/20",
   connect: "bg-primary/10 text-primary border-primary/20",
@@ -359,7 +361,7 @@ const PROVIDER_NAMES: Record<string, string> = {
   contactout: "ContactOut"
 };
 
-type WizardPage = "prospects" | "prompt" | "sequence" | "account" | "summary";
+type WizardPage = "prospects" | "prompt" | "sequence" | "ai_replies" | "account" | "summary";
 
 interface WizardStep {
   id?: string;
@@ -623,6 +625,11 @@ function Wizard({
   const isAddContacts = mode === "add-contacts";
   const [page, setPage] = useState<WizardPage>(isEditMode ? "sequence" : "prospects");
   const [campaignPrompt, setCampaignPrompt] = useState(initialPrompt);
+  const [arActive, setArActive] = useState(false);
+  const [arSender, setArSender] = useState("");
+  const [arCompany, setArCompany] = useState("");
+  const [arOffers, setArOffers] = useState("");
+  const [arVoice, setArVoice] = useState("");
   const [crossOverlap, setCrossOverlap] = useState(allowCrossCampaignOverlap);
   const [listId, setListId] = useState("");
   const [accountId, setAccountId] = useState("");
@@ -641,15 +648,15 @@ function Wizard({
       .then((rows) => setIntegrations(rows))
       .catch(() => {});
   }, []);
-  const [configIdx, setConfigIdx] = useState<number | null>(null); // which step is being configured
+  const [configPath, setConfigPath] = useState<(number | string)[] | null>(null); // which step is being configured
   const [launching, setLaunching] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // Email preview modal
-  const [emailPreviewIdx, setEmailPreviewIdx] = useState<number | null>(null);
+  const [emailPreviewIdx, setEmailPreviewIdx] = useState<(number | string)[] | null>(null);
 
   // Test email modal
-  const [testEmailIdx, setTestEmailIdx] = useState<number | null>(null);
+  const [testEmailIdx, setTestEmailIdx] = useState<(number | string)[] | null>(null);
   const [testEmailTo, setTestEmailTo] = useState("");
   const [testEmailAccountId, setTestEmailAccountId] = useState("");
   const [testEmailSending, setTestEmailSending] = useState(false);
@@ -669,11 +676,11 @@ function Wizard({
   // AI / OpenRouter models
   const [orModels, setOrModels] = useState<OrModel[]>([]);
   const [orModelSearch, setOrModelSearch] = useState("");
-  const [orModelOpen, setOrModelOpen] = useState<number | null>(null); // step idx with open picker
+  const [orModelOpen, setOrModelOpen] = useState<string | null>(null); // step idx with open picker
   const [collapsedProviders, setCollapsedProviders] = useState<Set<string>>(new Set()); // collapsed when not searching
 
   // AI preview modal
-  const [previewIdx, setPreviewIdx] = useState<number | null>(null);
+  const [previewIdx, setPreviewIdx] = useState<(number | string)[] | null>(null);
   const [previewListId, setPreviewListId] = useState("");
   const [previewTargetId, setPreviewTargetId] = useState("");
   const [previewListTargets, setPreviewListTargets] = useState<ListTarget[]>([]);
@@ -720,7 +727,7 @@ function Wizard({
 
   async function runPreview() {
     if (previewIdx === null || !previewTargetId) return;
-    const ws = wizardSteps[previewIdx];
+    const ws = getStepByPath(wizardSteps, previewIdx); if (!ws) return;
     setPreviewLoading(true);
     setPreviewResult(null);
     try {
@@ -743,7 +750,7 @@ function Wizard({
       if (d.cost_usd != null && previewIdx !== null) {
         setStepPreviewCosts((prev) => ({
           ...prev,
-          [previewIdx]: { input_tokens: d.input_tokens ?? 0, output_tokens: d.output_tokens ?? 0, cost_usd: d.cost_usd },
+          [JSON.stringify(previewIdx)]: { input_tokens: d.input_tokens ?? 0, output_tokens: d.output_tokens ?? 0, cost_usd: d.cost_usd },
         }));
       }
     } catch {
@@ -877,40 +884,70 @@ function Wizard({
 
   const hasConnect = wizardSteps.some((s) => s.type === "connect" || (s.branches && Object.values(s.branches).some(b => b.some(x => x.type === "connect"))));
 
-  function addWizardStep(type: StepType) {
+
+  function getStepByPath(steps: WizardStep[], path: (number | string)[]): WizardStep | undefined {
+    let curr: any = steps;
+    for (const p of path) {
+      if (!curr) return undefined;
+      curr = curr[p];
+    }
+    return curr as WizardStep;
+  }
+
+  function addWizardStep(type: StepType, path?: (number | string)[]) {
     const newStep: WizardStep = {
-      track: "playbook",
+      track: type === "email" ? "email" : "playbook",
       type,
       delayDaysBefore: wizardSteps.length === 0 ? 0 : 1,
       connectNote: "", messageBody: "", templateId: null, templateIds: [], emailSubject: "", emailBody: "", emailSignature: null,
       aiEnabled: false, aiModel: "gpt-4o", aiPrompt: "", aiMaxWordsEnabled: false, aiMaxWords: 100, aiLanguage: "English",
-      config: type === "integration" ? JSON.stringify({ action_type: "enrich_email", provider_chain: ["prospeo", "apollo", "snov", "skrapp", "hunter", "lusha", "contactout"] }) : type === "change_status" ? JSON.stringify({ status_id: "lead" }) : type === "ai_qualify" ? JSON.stringify({ rules: "Determine if prospect is a fit." }) : null,
+      config: type === "integration" ? JSON.stringify({ action_type: "enrich_email", provider_chain: ["prospeo", "apollo", "snov", "skrapp", "hunter", "lusha", "contactout"] }) : type === "change_status" ? JSON.stringify({ status_id: "lead" }) : type === "ai_qualify" ? JSON.stringify({ rules: "Determine if prospect is a fit." }) : (type === "linkedin_like" ? JSON.stringify({ like_n_posts: 1 }) : (type === "ai_comment" ? JSON.stringify({ max_age_days: 30, like_n_posts: 0 }) : null)),
       branches: type === "ai_qualify" ? { FIT: [], MAYBE: [], NOT_FIT: [] } : (type === "connect" ? { ACCEPTED: [] } : (type === "message" || type === "sales_inmail" || type === "email" ? { REPLIED: [] } : undefined))
     };
 
     setWizardSteps((prev) => {
-      if (type === "connect") {
-        const firstMsgIdx = prev.findIndex((s) => s.type === "message" || s.type === "sales_inmail");
-        if (firstMsgIdx !== -1) {
-          const inserted = [...prev];
-          inserted.splice(firstMsgIdx, 0, newStep);
-          return inserted;
+      const clone = structuredClone(prev);
+      if (!path) {
+        if (type === "connect") {
+          const firstMsgIdx = clone.findIndex((s: WizardStep) => s.type === "message" || s.type === "sales_inmail");
+          if (firstMsgIdx !== -1) {
+            clone.splice(firstMsgIdx, 0, newStep);
+            return clone;
+          }
         }
+        clone.push(newStep);
+      } else {
+        let curr: any = clone;
+        for (const p of path) curr = curr[p];
+        curr.push(newStep);
       }
-      return [...prev, newStep];
+      return clone;
     });
   }
 
-  function removeWizardStep(idx: number) {
-    setWizardSteps((prev) => prev.filter((_, i) => i !== idx));
-    if (configIdx === idx) setConfigIdx(null);
+  function removeWizardStep(path: (number | string)[]) {
+    setWizardSteps((prev) => {
+      const clone = structuredClone(prev);
+      let curr: any = clone;
+      for (let i = 0; i < path.length - 1; i++) curr = curr[path[i]];
+      curr.splice(path[path.length - 1] as number, 1);
+      return clone;
+    });
+    setConfigPath(null);
   }
 
-  function updateStep(idx: number, patch: Partial<WizardStep>) {
-    setWizardSteps((prev) => prev.map((s, i) => (i === idx ? { ...s, ...patch } : s)));
+  function updateStep(path: (number | string)[], patch: Partial<WizardStep>) {
+    setWizardSteps((prev) => {
+      const clone = structuredClone(prev);
+      let curr: any = clone;
+      for (let i = 0; i < path.length - 1; i++) curr = curr[path[i]];
+      const last = path[path.length - 1];
+      curr[last] = { ...curr[last], ...patch };
+      return clone;
+    });
   }
 
-  async function saveStepsToDB() {
+    async function saveStepsToDB() {
     setSaving(true);
     await fetch(`/api/workflows/${workflowId}`, {
       method: "PUT",
@@ -1012,6 +1049,22 @@ function Wizard({
     }
 
     await saveSequenceBackward(wizardSteps, null);
+    
+    // Save AI Context
+    try {
+      await fetch(`/api/workflows/${workflowId}/reply-context`, {
+         method: "PUT",
+         headers: { "Content-Type": "application/json" },
+         body: JSON.stringify({
+            is_active: arActive,
+            sender_profile: arSender,
+            company_product: arCompany,
+            offers_playbook: arOffers,
+            voice_rules: arVoice
+         })
+      });
+    } catch (e) {}
+    
     setSaving(false);
   }
 
@@ -1083,7 +1136,7 @@ function Wizard({
   }
 
   async function sendTestEmail() {
-    const ws = testEmailIdx !== null ? wizardSteps[testEmailIdx] : null;
+    const ws = testEmailIdx !== null ? getStepByPath(wizardSteps, testEmailIdx) : null;
     if (!ws || !testEmailAccountId || !testEmailTo) return;
     setTestEmailSending(true);
     const res = await fetch(`/api/email-accounts/${testEmailAccountId}/send-test`, {
@@ -1117,10 +1170,10 @@ function Wizard({
   const basePages: WizardPage[] = isStepsOnly
     ? ["prompt", "sequence"]
     : isEditMode
-    ? ["prompt", "sequence", "account"]
+    ? ["prompt", "sequence", "ai_replies", "account"]
     : isAddContacts
     ? ["prospects"]
-    : ["prospects", "prompt", "sequence", "account", "summary"];
+    : ["prospects", "prompt", "sequence", "ai_replies", "account", "summary"];
   // Open-core: "Campaign Context" is AI-only (feeds the AI writer). Hide it entirely
   // in the free build — no page, no nav entry, no upgrade stub.
   const pages = hasPremium ? basePages : basePages.filter((p) => p !== "prompt");
@@ -1151,6 +1204,7 @@ function Wizard({
     sequence: "Sequence",
     account: "Choose Account",
     summary: "Summary",
+    ai_replies: "AI Auto-Reply",
   };
 
   const PAGE_ICONS: Record<WizardPage, React.ReactNode> = {
@@ -1159,6 +1213,7 @@ function Wizard({
     sequence: <RiRouteLine size={14} />,
     account: <RiUser3Line size={14} />,
     summary: "✓",
+    ai_replies: <RiRobot2Line size={14} />,
   };
 
   return (
@@ -1474,7 +1529,7 @@ function Wizard({
 
               {/* ── Page: Sequence ── */}
               {page === "sequence" && (() => {
-                function StepCard({ ws, idx, isFirst }: { ws: WizardStep; idx: number; isFirst: boolean }) {
+                function StepCard({ ws, path, isFirst }: { ws: WizardStep; path: (number | string)[]; isFirst: boolean }) {
                   return (
                     <div className="relative">
                       {(!isFirst || ws.delayDaysBefore > 0) && (
@@ -1492,13 +1547,13 @@ function Wizard({
                       <div
                         className="flex flex-col border rounded-xl overflow-hidden bg-base-200 border-base-300/50 hover:border-primary/30 transition-colors group mx-auto w-full max-w-2xl"
                       >
-                        <div className="flex items-center gap-3 px-4 py-3 cursor-pointer" onClick={() => setConfigIdx(idx)}>
+                        <div className="flex items-center gap-3 px-4 py-3 cursor-pointer" onClick={() => setConfigPath(path)}>
                           <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${STEP_COLORS[ws.type] || 'bg-base-300 text-base-content border-base-300'}`}>
                             {STEP_ICONS[ws.type]}
                           </span>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-semibold text-base-content/90">
-                              {getDynamicStepLabel(ws, wizardSteps, idx)}
+                              {getDynamicStepLabel(ws, wizardSteps, path[path.length - 1] as number)}
                             </p>
                             {ws.type === "connect" && ws.connectNote && (
                               <p className="text-xs text-base-content/50 truncate">Note: {ws.connectNote}</p>
@@ -1506,19 +1561,44 @@ function Wizard({
                           </div>
                           <button
                             className="inline-flex items-center p-1.5 rounded-md bg-error/5 text-error/60 border border-error/10 hover:bg-error/20 hover:text-error hover:border-error/30 transition-colors shrink-0"
-                            onClick={(e) => { e.stopPropagation(); removeWizardStep(idx); }}
+                            onClick={(e) => { e.stopPropagation(); removeWizardStep(path); }}
                           >
                             <RiDeleteBinLine size={14} />
                           </button>
                         </div>
 
                         {ws.branches && (
-                          <div className="border-t border-base-300/30 bg-base-200/50 p-3 flex gap-2">
+                          <div className="border-t border-base-300/30 bg-base-200/50 p-4 flex flex-col gap-4">
                             {Object.entries(ws.branches).map(([bName, bSteps]) => (
-                              <div key={bName} className="flex-1 bg-base-100 rounded-lg border border-base-300/50 p-2">
-                                <p className="text-[10px] font-bold text-base-content/40 mb-2">{bName}</p>
-                                <div className="text-xs text-base-content/30 italic">
-                                  {bSteps.length > 0 ? `${bSteps.length} step(s)` : "Flow rejoins main sequence"}
+                              <div key={bName} className="flex-1 bg-base-100 rounded-lg border border-base-300/50 p-4">
+                                <div className="flex items-center justify-between mb-4">
+                                  <p className="text-xs font-bold text-base-content/50 uppercase tracking-wider">{bName}</p>
+                                  
+                                  <div className="dropdown dropdown-bottom dropdown-end">
+                                    <label tabIndex={0} className="btn btn-xs btn-outline bg-base-100 hover:bg-base-200 gap-1 rounded-md">
+                                      <RiAddLine size={12} /> Add Step
+                                    </label>
+                                    <ul tabIndex={0} className="dropdown-content z-[20] menu p-2 shadow-xl bg-base-100 rounded-xl w-56 mb-4 border border-base-300/50">
+                                      <li className="menu-title"><span className="text-[10px] font-bold text-base-content/40 uppercase tracking-wider">LinkedIn</span></li>
+                                      <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("visit", [...path, "branches", bName]); }} className="gap-3 text-xs"><RiEyeLine size={12} className="text-info"/> Visit Profile</a></li>
+                                      <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("linkedin_enrich", [...path, "branches", bName]); }} className="gap-3 text-xs"><RiSearchEyeLine size={12} className="text-info"/> Enrich Profile</a></li>
+                                      <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("connect", [...path, "branches", bName]); }} className="gap-3 text-xs"><RiLinkedinBoxLine size={12} className="text-primary"/> Connect</a></li>
+                                      <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("message", [...path, "branches", bName]); }} className="gap-3 text-xs"><RiMessage2Line size={12} className="text-success"/> Message</a></li>
+                                      
+                                      <li className="menu-title mt-2"><span className="text-[10px] font-bold text-base-content/40 uppercase tracking-wider">Integrations</span></li>
+                                      <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("change_status", [...path, "branches", bName]); }} className="gap-3 text-xs"><RiGroupLine size={12} className="text-secondary"/> CRM Status</a></li>
+                                    </ul>
+                                  </div>
+                                  
+                                </div>
+                                <div className="flex flex-col gap-2">
+                                  {bSteps.length > 0 ? (
+                                    bSteps.map((bStep, bIdx) => (
+                                      <StepCard key={bIdx} ws={bStep} path={[...path, "branches", bName, bIdx]} isFirst={bIdx === 0} />
+                                    ))
+                                  ) : (
+                                    <div className="text-xs text-base-content/30 italic">Flow rejoins main sequence</div>
+                                  )}
                                 </div>
                               </div>
                             ))}
@@ -1542,7 +1622,7 @@ function Wizard({
                           No steps yet. Add one below to start your sequence.
                         </div>
                       ) : (
-                        wizardSteps.map((ws, idx) => <StepCard key={idx} ws={ws} idx={idx} isFirst={idx === 0} />)
+                        wizardSteps.map((ws, idx) => <StepCard key={idx} ws={ws} path={[idx]} isFirst={idx === 0} />)
                       )}
                     </div>
                     
@@ -1576,6 +1656,46 @@ function Wizard({
                 );
               })()}
               
+              
+              {/* ── Page: AI Auto-Replies ── */}
+              {page === "ai_replies" && (
+                <div className="max-w-2xl mx-auto space-y-6">
+                  <div>
+                    <h2 className="text-xl font-semibold mb-1">AI Auto-Responder</h2>
+                    <p className="text-base-content/50 text-sm">Automatically draft and send replies when prospects respond to this playbook.</p>
+                  </div>
+                  
+                  <div className="flex items-center gap-3 p-4 rounded-2xl bg-base-200 border border-base-300">
+                    <input type="checkbox" className="toggle toggle-primary" checked={arActive} onChange={(e) => setArActive(e.target.checked)} />
+                    <div>
+                      <p className="font-semibold text-sm">Enable AI Auto-Replies</p>
+                      <p className="text-xs text-base-content/50">GPT-4o will handle incoming LinkedIn messages.</p>
+                    </div>
+                  </div>
+                  
+                  {arActive && (
+                    <div className="space-y-4">
+                      <div>
+                        <label className="text-xs font-semibold text-base-content/70 block mb-1">Sender Profile (Who are you?)</label>
+                        <textarea rows={3} placeholder="e.g. I am John, the CEO. I speak directly and professionally." value={arSender} onChange={(e) => setArSender(e.target.value)} className="w-full bg-base-200/50 border border-base-300/50 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary/40 resize-none" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-base-content/70 block mb-1">Company & Product</label>
+                        <textarea rows={3} placeholder="What do you do? What problem do you solve?" value={arCompany} onChange={(e) => setArCompany(e.target.value)} className="w-full bg-base-200/50 border border-base-300/50 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary/40 resize-none" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-base-content/70 block mb-1">Offers & Playbook</label>
+                        <textarea rows={3} placeholder="e.g. If they ask for pricing, say X. If they ask for a demo, say Y." value={arOffers} onChange={(e) => setArOffers(e.target.value)} className="w-full bg-base-200/50 border border-base-300/50 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary/40 resize-none" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-base-content/70 block mb-1">Voice & Reply Rules</label>
+                        <textarea rows={3} placeholder="e.g. Never use emojis. Keep it under 50 words. Ask a clarifying question." value={arVoice} onChange={(e) => setArVoice(e.target.value)} className="w-full bg-base-200/50 border border-base-300/50 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary/40 resize-none" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* ── Page: Account ── */}
               {page === "account" && (
                 <div>
@@ -1990,12 +2110,12 @@ function Wizard({
       </div>
 
       {/* ── Step Config Modal ── */}
-      {configIdx !== null && (() => {
-        const ws = wizardSteps[configIdx];
-        const idx = configIdx;
-        const stepLabel = getDynamicStepLabel(ws, wizardSteps, idx);
+      {configPath !== null && (() => {
+        const ws = getStepByPath(wizardSteps, configPath); if (!ws) return null;
+        const path = configPath;
+        const stepLabel = getDynamicStepLabel(ws, wizardSteps, path[path.length - 1] as number);
         return (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setConfigIdx(null)}>
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setConfigPath(null)}>
             <div
               className="bg-base-200 border border-base-300/50 rounded-2xl shadow-2xl w-full max-w-xl flex flex-col overflow-hidden"
               style={{ maxHeight: "85vh" }}
@@ -2012,7 +2132,7 @@ function Wizard({
                 </div>
                 <button
                   type="button"
-                  onClick={() => setConfigIdx(null)}
+                  onClick={() => setConfigPath(null)}
                   className="w-7 h-7 flex items-center justify-center rounded-lg text-base-content/40 hover:text-base-content hover:bg-base-300/50 transition-colors text-base"
                 >✕</button>
               </div>
@@ -2030,7 +2150,7 @@ function Wizard({
                       min={0}
                       className="input input-xs input-bordered w-16 bg-base-300/50 text-xs text-center"
                       value={ws.delayDaysBefore}
-                      onChange={(e) => updateStep(idx, { delayDaysBefore: Number(e.target.value) })}
+                      onChange={(e) => updateStep(path, { delayDaysBefore: Number(e.target.value) })}
                     />
                     <span className="text-xs text-base-content/40">days</span>
                   </div>
@@ -2047,12 +2167,12 @@ function Wizard({
                     <div className="flex items-center gap-3">
                       <input
                         type="checkbox"
-                        id={`note-modal-${idx}`}
+                        id={`note-modal-${path.join("-")}`}
                         className="w-4 h-4 rounded border border-base-300 bg-base-300/50 accent-primary cursor-pointer"
                         checked={!!ws.connectNote}
-                        onChange={(e) => updateStep(idx, { connectNote: e.target.checked ? " " : "" })}
+                        onChange={(e) => updateStep(path, { connectNote: e.target.checked ? " " : "" })}
                       />
-                      <label htmlFor={`note-modal-${idx}`} className="text-sm cursor-pointer">
+                      <label htmlFor={`note-modal-${path.join("-")}`} className="text-sm cursor-pointer">
                         Include a connection note
                       </label>
                     </div>
@@ -2060,14 +2180,14 @@ function Wizard({
                       <div>
                         <div className="flex flex-wrap gap-1.5 mb-2">
                           {VARIABLES.map(v => (
-                            <button key={v} type="button" onClick={() => updateStep(idx, { connectNote: ws.connectNote + v })} className="px-2 py-0.5 rounded bg-base-300/60 text-xs text-base-content/50 hover:text-base-content hover:bg-base-300 transition-colors font-mono">{v}</button>
+                            <button key={v} type="button" onClick={() => updateStep(path, { connectNote: ws.connectNote + v })} className="px-2 py-0.5 rounded bg-base-300/60 text-xs text-base-content/50 hover:text-base-content hover:bg-base-300 transition-colors font-mono">{v}</button>
                           ))}
                         </div>
                         <textarea
                           className="textarea textarea-bordered w-full bg-base-300/50 text-sm h-28 resize-none"
                           placeholder="Hi {{first_name}}, I'd love to connect..."
                           value={ws.connectNote.trimStart()}
-                          onChange={(e) => updateStep(idx, { connectNote: e.target.value })}
+                          onChange={(e) => updateStep(path, { connectNote: e.target.value })}
                           maxLength={300}
                           autoFocus
                         />
@@ -2082,7 +2202,7 @@ function Wizard({
                     {ws.type === "sales_inmail" && !(hasPremium && ws.aiEnabled) && (
                       <div>
                         <label className="text-xs text-base-content/40 mb-1.5 block">Subject <span className="text-error/70">(required for InMail)</span></label>
-                        <input type="text" placeholder="e.g. Quick question about {{company}}" value={ws.emailSubject} onChange={(e) => updateStep(idx, { emailSubject: e.target.value })} className="w-full bg-base-300/50 border border-base-300/50 rounded-xl px-3 py-2.5 text-sm text-base-content placeholder:text-base-content/20 focus:outline-none focus:border-primary/40" />
+                        <input type="text" placeholder="e.g. Quick question about {{company}}" value={ws.emailSubject} onChange={(e) => updateStep(path, { emailSubject: e.target.value })} className="w-full bg-base-300/50 border border-base-300/50 rounded-xl px-3 py-2.5 text-sm text-base-content placeholder:text-base-content/20 focus:outline-none focus:border-primary/40" />
                       </div>
                     )}
                     {ws.type === "sales_inmail" && hasPremium && ws.aiEnabled && (
@@ -2097,7 +2217,7 @@ function Wizard({
                       </div>
                       <button
                         type="button"
-                        onClick={() => updateStep(idx, { aiEnabled: !ws.aiEnabled })}
+                        onClick={() => updateStep(path, { aiEnabled: !ws.aiEnabled })}
                         className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${ws.aiEnabled ? "bg-primary" : "bg-base-300"}`}
                       >
                         <span className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${ws.aiEnabled ? "translate-x-5" : "translate-x-0"}`} />
@@ -2116,28 +2236,28 @@ function Wizard({
                     )}
                     {hasPremium && ws.aiEnabled ? (
                       <div className="space-y-4">
-                        <ModelPicker models={orModels} value={ws.aiModel} open={orModelOpen === idx} search={orModelSearch} collapsedProviders={collapsedProviders}
-                          onOpen={() => { setOrModelOpen(orModelOpen === idx ? null : idx); setOrModelSearch(""); }}
+                        <ModelPicker models={orModels} value={ws.aiModel} open={orModelOpen === JSON.stringify(path)} search={orModelSearch} collapsedProviders={collapsedProviders}
+                          onOpen={() => { setOrModelOpen(orModelOpen === JSON.stringify(path) ? null : JSON.stringify(path)); setOrModelSearch(""); }}
                           onClose={() => { setOrModelOpen(null); setOrModelSearch(""); }}
-                          onSelect={(id) => { updateStep(idx, { aiModel: id }); setOrModelOpen(null); setOrModelSearch(""); }}
+                          onSelect={(id: string) => { updateStep(path, { aiModel: id }); setOrModelOpen(null); setOrModelSearch(""); }}
                           onSearch={setOrModelSearch}
                           onToggleProvider={(p) => setCollapsedProviders(prev => { const n = new Set(prev); n.has(p) ? n.delete(p) : n.add(p); return n; })}
                         />
                         <div>
                           <label className="text-xs text-base-content/40 mb-1.5 block">Step instruction</label>
-                          <textarea rows={3} placeholder="e.g. Reference their recent role change." value={ws.aiPrompt} onChange={(e) => updateStep(idx, { aiPrompt: e.target.value })} className="w-full bg-base-300/50 border border-base-300/50 rounded-xl px-3 py-2.5 text-sm text-base-content placeholder:text-base-content/20 focus:outline-none focus:border-primary/40 resize-none" />
+                          <textarea rows={3} placeholder="e.g. Reference their recent role change." value={ws.aiPrompt} onChange={(e) => updateStep(path, { aiPrompt: e.target.value })} className="w-full bg-base-300/50 border border-base-300/50 rounded-xl px-3 py-2.5 text-sm text-base-content placeholder:text-base-content/20 focus:outline-none focus:border-primary/40 resize-none" />
                         </div>
                         <div className="flex items-center gap-3">
                           <label className="flex items-center gap-2 cursor-pointer">
-                            <input type="checkbox" className="checkbox checkbox-xs" checked={ws.aiMaxWordsEnabled} onChange={(e) => updateStep(idx, { aiMaxWordsEnabled: e.target.checked })} />
+                            <input type="checkbox" className="checkbox checkbox-xs" checked={ws.aiMaxWordsEnabled} onChange={(e) => updateStep(path, { aiMaxWordsEnabled: e.target.checked })} />
                             <span className="text-xs text-base-content/50">Max words</span>
                           </label>
-                          {ws.aiMaxWordsEnabled && <input type="number" min={10} max={500} value={ws.aiMaxWords} onChange={(e) => updateStep(idx, { aiMaxWords: Number(e.target.value) })} className="w-20 bg-base-300/50 border border-base-300/50 rounded-lg px-2 py-1.5 text-sm text-base-content focus:outline-none focus:border-primary/40" />}
-                          <select value={ws.aiLanguage} onChange={(e) => updateStep(idx, { aiLanguage: e.target.value })} className="flex-1 bg-base-300/50 border border-base-300/50 rounded-lg px-3 py-1.5 text-sm text-base-content focus:outline-none focus:border-primary/40">
+                          {ws.aiMaxWordsEnabled && <input type="number" min={10} max={500} value={ws.aiMaxWords} onChange={(e) => updateStep(path, { aiMaxWords: Number(e.target.value) })} className="w-20 bg-base-300/50 border border-base-300/50 rounded-lg px-2 py-1.5 text-sm text-base-content focus:outline-none focus:border-primary/40" />}
+                          <select value={ws.aiLanguage} onChange={(e) => updateStep(path, { aiLanguage: e.target.value })} className="flex-1 bg-base-300/50 border border-base-300/50 rounded-lg px-3 py-1.5 text-sm text-base-content focus:outline-none focus:border-primary/40">
                             {AI_LANGUAGES.map(l => <option key={l} value={l}>{l}</option>)}
                           </select>
                         </div>
-                        <button type="button" onClick={() => { setPreviewIdx(idx); setPreviewResult(null); setPreviewListId(""); setPreviewListTargets([]); setPreviewTargetId(""); setConfigIdx(null); }} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-colors">
+                        <button type="button" onClick={() => { setPreviewIdx(path); setPreviewResult(null); setPreviewListId(""); setPreviewListTargets([]); setPreviewTargetId(""); setConfigPath(null); }} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-colors">
                           <RiRobot2Line size={13} /> Preview AI output
                         </button>
                       </div>
@@ -2148,19 +2268,19 @@ function Wizard({
                             <p className="text-xs text-base-content/40 mb-2">Templates <span className="text-base-content/25">(random per send)</span></p>
                             {ws.templateIds.length > 0 && (
                               <div className="flex flex-wrap gap-1.5 mb-2">
-                                {ws.templateIds.map((tid) => {
+                                {ws.templateIds.map((tid: string) => {
                                   const t = templates.find((t) => t.id === tid);
                                   return (
                                     <span key={tid} className="inline-flex items-center gap-1 pl-2.5 pr-1 py-0.5 rounded-md text-xs font-medium bg-success/10 text-success border border-success/20">
                                       {t?.name ?? tid}
-                                      <button type="button" onClick={() => updateStep(idx, { templateIds: ws.templateIds.filter((id) => id !== tid) })} className="ml-0.5 hover:text-error transition-colors">×</button>
+                                      <button type="button" onClick={() => updateStep(path, { templateIds: ws.templateIds.filter((id: string) => id !== tid) })} className="ml-0.5 hover:text-error transition-colors">×</button>
                                     </span>
                                   );
                                 })}
                               </div>
                             )}
                             {templates.filter((t) => !ws.templateIds.includes(t.id)).length > 0 && (
-                              <select className="select select-bordered select-sm bg-base-300/50 text-sm" value="" onChange={(e) => { const tid = e.target.value; if (tid && !ws.templateIds.includes(tid)) updateStep(idx, { templateIds: [...ws.templateIds, tid], messageBody: "" }); }}>
+                              <select className="select select-bordered select-sm bg-base-300/50 text-sm" value="" onChange={(e) => { const tid = e.target.value; if (tid && !ws.templateIds.includes(tid)) updateStep(path, { templateIds: [...ws.templateIds, tid], messageBody: "" }); }}>
                                 <option value="">+ Add template</option>
                                 {templates.filter((t) => !ws.templateIds.includes(t.id)).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                               </select>
@@ -2170,10 +2290,10 @@ function Wizard({
                         <div>
                           <div className="flex flex-wrap gap-1.5 mb-2">
                             {VARIABLES.map(v => (
-                              <button key={v} type="button" onClick={() => updateStep(idx, { messageBody: ws.messageBody + v })} className="px-2 py-0.5 rounded bg-base-300/60 text-xs text-base-content/50 hover:text-base-content hover:bg-base-300 transition-colors font-mono">{v}</button>
+                              <button key={v} type="button" onClick={() => updateStep(path, { messageBody: ws.messageBody + v })} className="px-2 py-0.5 rounded bg-base-300/60 text-xs text-base-content/50 hover:text-base-content hover:bg-base-300 transition-colors font-mono">{v}</button>
                             ))}
                           </div>
-                          <textarea className={`textarea textarea-bordered w-full bg-base-300/50 text-sm h-32 resize-none font-mono ${ws.templateIds.length > 0 ? "opacity-40 pointer-events-none" : ""}`} placeholder="Hi {{first_name}}, I noticed..." value={ws.messageBody} onChange={(e) => updateStep(idx, { messageBody: e.target.value })} disabled={ws.templateIds.length > 0} />
+                          <textarea className={`textarea textarea-bordered w-full bg-base-300/50 text-sm h-32 resize-none font-mono ${ws.templateIds.length > 0 ? "opacity-40 pointer-events-none" : ""}`} placeholder="Hi {{first_name}}, I noticed..." value={ws.messageBody} onChange={(e) => updateStep(path, { messageBody: e.target.value })} disabled={ws.templateIds.length > 0} />
                           <p className="text-xs text-base-content/30 mt-1">{ws.messageBody.length} chars</p>
                         </div>
                       </div>
@@ -2199,7 +2319,7 @@ function Wizard({
                           value={parsedConfig.status_id}
                           onChange={(e) => {
                             const newConfig = { ...parsedConfig, status_id: e.target.value };
-                            setWizardSteps((prev) => prev.map((s, idx) => idx === configIdx ? { ...s, config: JSON.stringify(newConfig) } : s));
+                            updateStep(path, { config: JSON.stringify(newConfig) });
                           }}
                         >
                           {crmStatuses.map((s) => (
@@ -2242,7 +2362,7 @@ function Wizard({
                               value={parsedConfig.action_type || "enrich_email"}
                               onChange={(e) => {
                                 const newConf = { ...parsedConfig, action_type: e.target.value };
-                                updateStep(idx, { config: JSON.stringify(newConf) });
+                                updateStep(path, { config: JSON.stringify(newConf) });
                               }}
                             >
                               <option value="enrich_email">Enrich Email (Waterfall)</option>
@@ -2288,7 +2408,7 @@ function Wizard({
                                                   let newChain = [...active];
                                                   if (e.target.checked) newChain.push(key);
                                                   else newChain = newChain.filter((k) => k !== key);
-                                                  updateStep(idx, { config: JSON.stringify({ ...parsedConfig, provider_chain: newChain }) });
+                                                  updateStep(path, { config: JSON.stringify({ ...parsedConfig, provider_chain: newChain }) });
                                                 }}
                                               />
                                               <span className="text-sm font-medium">{PROVIDER_NAMES[key] || key}</span>
@@ -2303,7 +2423,7 @@ function Wizard({
                                                     const activeIdx = newChain.indexOf(key);
                                                     if (activeIdx > 0) {
                                                       [newChain[activeIdx - 1], newChain[activeIdx]] = [newChain[activeIdx], newChain[activeIdx - 1]];
-                                                      updateStep(idx, { config: JSON.stringify({ ...parsedConfig, provider_chain: newChain }) });
+                                                      updateStep(path, { config: JSON.stringify({ ...parsedConfig, provider_chain: newChain }) });
                                                     }
                                                   }}
                                                 >
@@ -2317,7 +2437,7 @@ function Wizard({
                                                     const activeIdx = newChain.indexOf(key);
                                                     if (activeIdx < active.length - 1) {
                                                       [newChain[activeIdx], newChain[activeIdx + 1]] = [newChain[activeIdx + 1], newChain[activeIdx]];
-                                                      updateStep(idx, { config: JSON.stringify({ ...parsedConfig, provider_chain: newChain }) });
+                                                      updateStep(path, { config: JSON.stringify({ ...parsedConfig, provider_chain: newChain }) });
                                                     }
                                                   }}
                                                 >
@@ -2358,7 +2478,7 @@ function Wizard({
                         <p className="text-sm text-base-content/70">AI writes this email</p>
                         <p className="text-xs text-base-content/30 mt-0.5">Subject + body generated per lead</p>
                       </div>
-                      <button type="button" onClick={() => updateStep(idx, { aiEnabled: !ws.aiEnabled })} className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${ws.aiEnabled ? "bg-primary" : "bg-base-300"}`}>
+                      <button type="button" onClick={() => updateStep(path, { aiEnabled: !ws.aiEnabled })} className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${ws.aiEnabled ? "bg-primary" : "bg-base-300"}`}>
                         <span className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${ws.aiEnabled ? "translate-x-5" : "translate-x-0"}`} />
                       </button>
                     </div>
@@ -2375,28 +2495,28 @@ function Wizard({
                     )}
                     {hasPremium && ws.aiEnabled ? (
                       <div className="space-y-4">
-                        <ModelPicker models={orModels} value={ws.aiModel} open={orModelOpen === idx} search={orModelSearch} collapsedProviders={collapsedProviders}
-                          onOpen={() => { setOrModelOpen(orModelOpen === idx ? null : idx); setOrModelSearch(""); }}
+                        <ModelPicker models={orModels} value={ws.aiModel} open={orModelOpen === JSON.stringify(path)} search={orModelSearch} collapsedProviders={collapsedProviders}
+                          onOpen={() => { setOrModelOpen(orModelOpen === JSON.stringify(path) ? null : JSON.stringify(path)); setOrModelSearch(""); }}
                           onClose={() => { setOrModelOpen(null); setOrModelSearch(""); }}
-                          onSelect={(id) => { updateStep(idx, { aiModel: id }); setOrModelOpen(null); setOrModelSearch(""); }}
+                          onSelect={(id: string) => { updateStep(path, { aiModel: id }); setOrModelOpen(null); setOrModelSearch(""); }}
                           onSearch={setOrModelSearch}
                           onToggleProvider={(p) => setCollapsedProviders(prev => { const n = new Set(prev); n.has(p) ? n.delete(p) : n.add(p); return n; })}
                         />
                         <div>
                           <label className="text-xs text-base-content/40 mb-1.5 block">Step instruction</label>
-                          <textarea rows={3} placeholder="e.g. Focus on their company's growth." value={ws.aiPrompt} onChange={(e) => updateStep(idx, { aiPrompt: e.target.value })} className="w-full bg-base-300/50 border border-base-300/50 rounded-xl px-3 py-2.5 text-sm text-base-content placeholder:text-base-content/20 focus:outline-none focus:border-primary/40 resize-none" />
+                          <textarea rows={3} placeholder="e.g. Focus on their company's growth." value={ws.aiPrompt} onChange={(e) => updateStep(path, { aiPrompt: e.target.value })} className="w-full bg-base-300/50 border border-base-300/50 rounded-xl px-3 py-2.5 text-sm text-base-content placeholder:text-base-content/20 focus:outline-none focus:border-primary/40 resize-none" />
                         </div>
                         <div className="flex items-center gap-3">
                           <label className="flex items-center gap-2 cursor-pointer">
-                            <input type="checkbox" className="checkbox checkbox-xs" checked={ws.aiMaxWordsEnabled} onChange={(e) => updateStep(idx, { aiMaxWordsEnabled: e.target.checked })} />
+                            <input type="checkbox" className="checkbox checkbox-xs" checked={ws.aiMaxWordsEnabled} onChange={(e) => updateStep(path, { aiMaxWordsEnabled: e.target.checked })} />
                             <span className="text-xs text-base-content/50">Max words</span>
                           </label>
-                          {ws.aiMaxWordsEnabled && <input type="number" min={10} max={1000} value={ws.aiMaxWords} onChange={(e) => updateStep(idx, { aiMaxWords: Number(e.target.value) })} className="w-20 bg-base-300/50 border border-base-300/50 rounded-lg px-2 py-1.5 text-sm text-base-content focus:outline-none focus:border-primary/40" />}
-                          <select value={ws.aiLanguage} onChange={(e) => updateStep(idx, { aiLanguage: e.target.value })} className="flex-1 bg-base-300/50 border border-base-300/50 rounded-lg px-3 py-1.5 text-sm text-base-content focus:outline-none focus:border-primary/40">
+                          {ws.aiMaxWordsEnabled && <input type="number" min={10} max={1000} value={ws.aiMaxWords} onChange={(e) => updateStep(path, { aiMaxWords: Number(e.target.value) })} className="w-20 bg-base-300/50 border border-base-300/50 rounded-lg px-2 py-1.5 text-sm text-base-content focus:outline-none focus:border-primary/40" />}
+                          <select value={ws.aiLanguage} onChange={(e) => updateStep(path, { aiLanguage: e.target.value })} className="flex-1 bg-base-300/50 border border-base-300/50 rounded-lg px-3 py-1.5 text-sm text-base-content focus:outline-none focus:border-primary/40">
                             {AI_LANGUAGES.map(l => <option key={l} value={l}>{l}</option>)}
                           </select>
                         </div>
-                        <button type="button" onClick={() => { setPreviewIdx(idx); setPreviewResult(null); setPreviewListId(""); setPreviewListTargets([]); setPreviewTargetId(""); setConfigIdx(null); }} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-colors">
+                        <button type="button" onClick={() => { setPreviewIdx(path); setPreviewResult(null); setPreviewListId(""); setPreviewListTargets([]); setPreviewTargetId(""); setConfigPath(null); }} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-colors">
                           <RiRobot2Line size={13} /> Preview AI output
                         </button>
                       </div>
@@ -2406,19 +2526,19 @@ function Wizard({
                           <label className="text-sm text-base-content/50 block mb-1.5">Subject</label>
                           <div className="flex flex-wrap gap-1.5 mb-2">
                             {VARIABLES.map(v => (
-                              <button key={v} type="button" onClick={() => updateStep(idx, { emailSubject: ws.emailSubject + v })} className="px-2 py-0.5 rounded bg-base-300/60 text-xs text-base-content/50 hover:text-base-content hover:bg-base-300 transition-colors font-mono">{v}</button>
+                              <button key={v} type="button" onClick={() => updateStep(path, { emailSubject: ws.emailSubject + v })} className="px-2 py-0.5 rounded bg-base-300/60 text-xs text-base-content/50 hover:text-base-content hover:bg-base-300 transition-colors font-mono">{v}</button>
                             ))}
                           </div>
-                          <input className="input input-bordered w-full bg-base-300/50 font-mono text-sm" placeholder="Hi {{first_name}}, quick question" value={ws.emailSubject} onChange={(e) => updateStep(idx, { emailSubject: e.target.value })} />
+                          <input className="input input-bordered w-full bg-base-300/50 font-mono text-sm" placeholder="Hi {{first_name}}, quick question" value={ws.emailSubject} onChange={(e) => updateStep(path, { emailSubject: e.target.value })} />
                         </div>
                         <div>
                           <label className="text-sm text-base-content/50 block mb-1.5">Body</label>
                           <div className="flex flex-wrap gap-1.5 mb-2">
                             {VARIABLES.map(v => (
-                              <button key={v} type="button" onClick={() => updateStep(idx, { emailBody: ws.emailBody + v })} className="px-2 py-0.5 rounded bg-base-300/60 text-xs text-base-content/50 hover:text-base-content hover:bg-base-300 transition-colors font-mono">{v}</button>
+                              <button key={v} type="button" onClick={() => updateStep(path, { emailBody: ws.emailBody + v })} className="px-2 py-0.5 rounded bg-base-300/60 text-xs text-base-content/50 hover:text-base-content hover:bg-base-300 transition-colors font-mono">{v}</button>
                             ))}
                           </div>
-                          <textarea className="textarea textarea-bordered w-full bg-base-300/50 text-sm resize-none font-mono" rows={7} placeholder={"Hi {{first_name}},\n\nI came across your profile..."} value={ws.emailBody} onChange={(e) => updateStep(idx, { emailBody: e.target.value })} />
+                          <textarea className="textarea textarea-bordered w-full bg-base-300/50 text-sm resize-none font-mono" rows={7} placeholder={"Hi {{first_name}},\n\nI came across your profile..."} value={ws.emailBody} onChange={(e) => updateStep(path, { emailBody: e.target.value })} />
                           <p className="text-xs text-base-content/30 mt-1">{ws.emailBody.length} chars</p>
                         </div>
                       </div>
@@ -2430,7 +2550,7 @@ function Wizard({
                         <label className="text-sm text-base-content/50">Signature</label>
                         <button
                           type="button"
-                          onClick={() => updateStep(idx, { emailSignature: ws.emailSignature === null ? "" : null })}
+                          onClick={() => updateStep(path, { emailSignature: ws.emailSignature === null ? "" : null })}
                           className="text-xs text-base-content/40 hover:text-base-content/70 transition-colors"
                         >
                           {ws.emailSignature === null ? "Override account default" : "Use account default"}
@@ -2443,7 +2563,7 @@ function Wizard({
                           className="textarea textarea-bordered w-full bg-base-300/50 text-sm resize-none font-mono h-20"
                           placeholder={"John Smith\nHead of Sales · Acme Corp\njohn@acme.com"}
                           value={ws.emailSignature}
-                          onChange={(e) => updateStep(idx, { emailSignature: e.target.value })}
+                          onChange={(e) => updateStep(path, { emailSignature: e.target.value })}
                         />
                       )}
                     </div>
@@ -2451,10 +2571,10 @@ function Wizard({
                     {/* Preview / Send-test — only meaningful for manual (non-AI) mode */}
                     {!ws.aiEnabled && (
                       <div className="flex items-center gap-2">
-                        <button type="button" onClick={() => { setEmailPreviewIdx(idx); setConfigIdx(null); }} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-base-300/60 text-base-content/70 hover:bg-base-300 transition-colors border border-base-300/50">
+                        <button type="button" onClick={() => { setEmailPreviewIdx(path); setConfigPath(null); }} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-base-300/60 text-base-content/70 hover:bg-base-300 transition-colors border border-base-300/50">
                           <RiEyeLine size={14} /> Preview
                         </button>
-                        <button type="button" onClick={() => { setTestEmailIdx(idx); setTestEmailAccountId(emailAccounts.find((e) => e.is_verified)?.id ?? ""); setConfigIdx(null); }} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-warning/10 text-warning border border-warning/20 hover:bg-warning/20 transition-colors">
+                        <button type="button" onClick={() => { setTestEmailIdx(path); setTestEmailAccountId(emailAccounts.find((e) => e.is_verified)?.id ?? ""); setConfigPath(null); }} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-warning/10 text-warning border border-warning/20 hover:bg-warning/20 transition-colors">
                           <RiMailSendLine size={14} /> Send test
                         </button>
                       </div>
@@ -2467,14 +2587,14 @@ function Wizard({
               <div className="flex items-center justify-between px-5 py-3.5 border-t border-base-300/50 shrink-0">
                 <button
                   type="button"
-                  onClick={() => { removeWizardStep(idx); setConfigIdx(null); }}
+                  onClick={() => { removeWizardStep(path); setConfigPath(null); }}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-error/10 text-error border border-error/20 hover:bg-error/20 transition-colors"
                 >
                   <RiDeleteBinLine size={13} /> Remove step
                 </button>
                 <button
                   type="button"
-                  onClick={() => setConfigIdx(null)}
+                  onClick={() => setConfigPath(null)}
                   className="inline-flex items-center px-5 py-1.5 rounded-lg text-sm font-medium bg-primary text-primary-content hover:bg-primary/90 transition-colors"
                 >
                   Done
@@ -2487,7 +2607,7 @@ function Wizard({
 
       {/* ── Email Preview Modal ── */}
       {emailPreviewIdx !== null && (() => {
-        const ws = wizardSteps[emailPreviewIdx];
+        const ws = getStepByPath(wizardSteps, emailPreviewIdx); if (!ws) return null;
         const previewSubject = ws.emailSubject
           .replace(/\{\{first_name\}\}/g, "Alex")
           .replace(/\{\{last_name\}\}/g, "Johnson")
@@ -2560,7 +2680,7 @@ function Wizard({
 
       {/* ── AI Preview Modal ── */}
       {previewIdx !== null && (() => {
-        const ws = wizardSteps[previewIdx];
+        const ws = getStepByPath(wizardSteps, previewIdx);
         return (
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm">
             <div className="bg-base-200 border border-base-300/50 rounded-2xl shadow-2xl w-full max-w-lg p-6 flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
@@ -2618,7 +2738,7 @@ function Wizard({
               <button
                 type="button"
                 onClick={runPreview}
-                disabled={previewLoading || !previewTargetId || !ws.aiModel}
+                disabled={previewLoading || !previewTargetId || !(ws?.aiModel)}
                 className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-primary text-white disabled:opacity-40 hover:bg-primary/90 transition-colors"
               >
                 {previewLoading
@@ -2626,7 +2746,7 @@ function Wizard({
                   : <><RiRobot2Line size={14} /> Generate</>}
               </button>
 
-              {!ws.aiModel && (
+              {!(ws?.aiModel) && (
                 <p className="text-xs text-warning">No model selected for this step.</p>
               )}
 

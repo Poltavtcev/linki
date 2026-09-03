@@ -421,6 +421,68 @@ export function captureLinkedInInboxObservations(
       } else {
         result.captured++;
         // Trigger AI classification for the newly captured reply
+        // Execute AI Auto-Responder Before DAG edge traversal
+        try {
+          const runInfo = db.prepare(`
+            SELECT r.id, r.workflow_id, r.account_id 
+            FROM run_profiles rp 
+            JOIN runs r ON rp.run_id = r.id 
+            WHERE rp.target_id = ? AND r.status IN ('running', 'paused')
+          `).get(resolution.targetId) as any;
+          
+          if (runInfo) {
+            const replyCtx = db.prepare(`SELECT * FROM reply_contexts WHERE workflow_id = ? AND is_active = 1`).get(runInfo.workflow_id) as any;
+            if (replyCtx) {
+              console.log(`[inbox-sync] Active Auto-Responder found for target ${resolution.targetId}, workflow ${runInfo.workflow_id}`);
+              
+              const history = db.prepare(`SELECT body, direction FROM inbound_messages WHERE target_id = ? ORDER BY created_at ASC`).all(resolution.targetId) as any[];
+              const historyText = history.map(h => h.direction.toUpperCase() + ": " + h.body).join("\n");
+              
+              const openaiInt = db.prepare("SELECT api_key FROM integrations WHERE key = 'openai'").get() as { api_key: string } | undefined;
+              let apiKey = process.env.OPENAI_API_KEY;
+              if (openaiInt?.api_key) {
+                const { decryptSecret } = require("@/lib/crypto");
+                apiKey = decryptSecret(openaiInt.api_key);
+              }
+              
+              if (apiKey) {
+                (async () => {
+                  const openai = new (require("openai").default)({ apiKey });
+                  const prompt = `
+You are an AI assistant managing LinkedIn replies for a user. 
+Sender Profile: ${replyCtx.sender_profile}
+Company/Product: ${replyCtx.company_product}
+Offers/Playbook: ${replyCtx.offers_playbook}
+Rules & Voice: ${replyCtx.voice_rules}
+
+Recent Conversation History:
+${historyText}
+
+Draft a short, natural LinkedIn reply to the latest message. Do not include subject lines or placeholders. 
+If the conversation is definitively over or they said NO, just output the exact string: "[END_CONVERSATION]"
+                  `;
+
+                  console.log(`[inbox-sync] Drafting LLM reply...`);
+                  const chat = await openai.chat.completions.create({
+                    model: "gpt-4o",
+                    messages: [ { role: "system", content: prompt } ],
+                    temperature: 0.7,
+                    max_tokens: 300
+                  });
+
+                  const draft = chat.choices[0].message.content?.trim() || "";
+                  if (draft && draft !== "[END_CONVERSATION]") {
+                     console.log(`[inbox-sync] LLM drafted reply: ${draft}`);
+                     console.log(`[inbox-sync] AI Auto-Responder execution complete for ${resolution.targetId}`);
+                  }
+                })().catch(e => console.error(e));
+              }
+            }
+          }
+        } catch (e) {
+          console.error("[inbox-sync] AI Auto-Responder execution failed:", e);
+        }
+
         try {
           // eslint-disable-next-line @typescript-eslint/no-require-imports
           const premium = require("../../ee").premium;
