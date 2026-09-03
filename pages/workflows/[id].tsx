@@ -1346,10 +1346,10 @@ function Wizard({
                 function StepCard({ ws, idx, isFirst }: { ws: WizardStep; idx: number; isFirst: boolean }) {
                   return (
                     <div>
-                      {!isFirst && (
+                      {(!isFirst || ws.delayDaysBefore > 0) && (
                         <div className="flex items-center gap-2 py-1 pl-3">
                           <div className="flex flex-col items-center gap-0.5">
-                            <div className="w-px h-2 bg-base-300/60" />
+                            {!isFirst && <div className="w-px h-2 bg-base-300/60" />}
                             <RiTimeLine size={11} className="text-base-content/30" />
                             <div className="w-px h-2 bg-base-300/60" />
                           </div>
