@@ -1015,7 +1015,7 @@ function Wizard({
       account_id: accountId,
       email_account_ids: Array.from(emailAccountIds),
     };
-    if (prospectMode === "manual") body.target_ids = Array.from(selectedTargetIds);
+    body.target_ids = Array.from(selectedTargetIds);
     const runRes = await fetch("/api/runs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
