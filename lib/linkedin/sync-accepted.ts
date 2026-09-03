@@ -140,6 +140,18 @@ export async function syncAcceptedConnections(accountId: string): Promise<number
           stampAccepted.run(msToSqlite(c.createdAt), m.id);
           console.log(`[sync-accepted] Accepted: ${m.full_name ?? c.vanity}`);
           stamped++;
+
+          // Active Event Emitter: Traverse DAG on_accepted
+          try {
+            db.prepare(`
+              UPDATE run_profile_states
+              SET waiting_for_condition = NULL,
+                  current_step_id = json_extract((SELECT edges_json FROM workflow_steps WHERE id = run_profile_states.current_step_id), '$.on_accepted'),
+                  next_eval_at = datetime('now')
+              WHERE run_profile_id IN (SELECT id FROM run_profiles WHERE target_id = ?)
+                AND waiting_for_condition = 'accept'
+            `).run(m.id);
+          } catch (e) { console.error("DAG traversal error on accept", e); }
         }
       }
 

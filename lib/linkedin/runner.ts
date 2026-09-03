@@ -1151,429 +1151,69 @@ async function tickSync(db: ReturnType<typeof getDb>): Promise<void> {
   }
 }
 
+// DAG State Machine execution loop (Global Runner)
 async function tickActions(db: ReturnType<typeof getDb>): Promise<void> {
   if (isBreakerTripped()) return;
-  const activeRuns = db.prepare(`
-    SELECT r.id as run_id, r.workflow_id, r.account_id, r.email_account_id,
-           a.daily_connection_limit, a.daily_message_limit, a.daily_inmail_limit,
-           a.active_hours_start, a.active_hours_end, a.timezone, a.working_days
-    FROM runs r
-    JOIN accounts a ON a.id = r.account_id
-    WHERE r.status = 'running' AND a.is_authenticated = 1
-  `).all() as Array<{ run_id: string; workflow_id: string; account_id: string; email_account_id: string | null } & AccountLimits>;
-
-  if (activeRuns.length > 0) {
-    console.log(`[runner] Tick — ${activeRuns.length} active run(s)`);
-  }
-
-
-  // Integration track enrollment — enroll directly without daily limits (handled per-provider)
-  for (const run of activeRuns) {
-    const pendingIntegration = db.prepare(
-      `SELECT rt.id, rt.run_profile_id, rt.track FROM run_profile_tracks rt
-       JOIN run_profiles rp ON rp.id = rt.run_profile_id
-       WHERE rp.run_id = ? AND rt.track = 'integration' AND rt.state = 'pending'
-       ORDER BY rt.id LIMIT 20`
-    ).all(run.run_id) as Array<{ id: string; run_profile_id: string; track: string }>;
-    
-    for (const row of pendingIntegration) {
-      const step0 = db.prepare("SELECT delay_seconds FROM workflow_steps WHERE workflow_id = (SELECT workflow_id FROM runs WHERE id = (SELECT run_id FROM run_profiles WHERE id = ?)) AND track = 'integration' AND step_order = 1").get(row.run_profile_id) as { delay_seconds: number } | undefined;
-      let nextAt = "datetime('now')";
-      if (step0 && step0.delay_seconds > 0) {
-        nextAt = `datetime('now', '+${step0.delay_seconds} seconds')`;
-      }
-      db.prepare(
-        `UPDATE run_profile_tracks SET state = 'in_progress', next_step_at = ${nextAt} WHERE id = ?`
-      ).run(row.id);
-    }
-  }
-  // Auto-complete runs where ALL track-runs across all profiles are terminal
-  for (const run of activeRuns) {
-    const remaining = (db.prepare(
-      `SELECT COUNT(*) as c FROM run_profile_tracks rt
-       JOIN run_profiles rp ON rp.id = rt.run_profile_id
-       WHERE rp.run_id = ? AND rt.state NOT IN ('completed', 'failed', 'skipped')`
-    ).get(run.run_id) as { c: number }).c;
-    if (remaining === 0) {
-      db.prepare("UPDATE runs SET status = 'completed', completed_at = datetime('now') WHERE id = ?").run(run.run_id);
-      log(db, run.run_id, null, "info", "All profiles processed — run completed");
-    }
-  }
-
-  // Re-load active runs after potential completions
-  const stillActive = db.prepare(`
-    SELECT r.id as run_id, r.workflow_id, r.account_id, r.email_account_id,
-           a.daily_connection_limit, a.daily_message_limit, a.daily_inmail_limit,
-           a.active_hours_start, a.active_hours_end, a.timezone, a.working_days
-    FROM runs r
-    JOIN accounts a ON a.id = r.account_id
+  
+  const dueStates = db.prepare(`
+    SELECT rps.*, rp.run_id, rp.target_id, rp.email_account_id,
+           r.account_id, r.workflow_id
+    FROM run_profile_states rps
+    JOIN run_profiles rp ON rp.id = rps.run_profile_id
+    JOIN runs r ON r.id = rp.run_id
     WHERE r.status = 'running'
-  `).all() as Array<{ run_id: string; workflow_id: string; account_id: string; email_account_id: string | null } & AccountLimits>;
+      AND rps.state IN ('pending', 'running')
+      AND (rps.next_eval_at IS NULL OR datetime(rps.next_eval_at) <= datetime('now'))
+      AND rps.waiting_for_condition IS NULL
+  `).all() as any[];
 
-  if (stillActive.length === 0) return;
-
-  const accountLimitsMap = new Map<string, AccountLimits>();
-  for (const run of stillActive) {
-    if (!accountLimitsMap.has(run.account_id)) accountLimitsMap.set(run.account_id, run);
+  if (dueStates.length > 0) {
+    console.log(`[dag-runner] Tick — ${dueStates.length} actionable state(s)`);
   }
 
-  // Build email account limits map
-  const stillActiveRunIds = stillActive.map(r => r.run_id);
-  const emailAccountIds: string[] = stillActiveRunIds.length > 0
-    ? [...new Set(
-        (db.prepare(
-          `SELECT DISTINCT rp.email_account_id FROM run_profiles rp
-           WHERE rp.run_id IN (${stillActiveRunIds.map(() => "?").join(",")})
-           AND rp.email_account_id IS NOT NULL`
-        ).all(...stillActiveRunIds) as { email_account_id: string }[]).map(r => r.email_account_id)
-      )]
-    : [];
-  const emailAccountLimitsMap = new Map<string, EmailAccountLimits>();
-  for (const emailAccountId of emailAccountIds) {
-    const ea = db.prepare("SELECT daily_email_limit, active_hours_start, active_hours_end, timezone, working_days, ramp_up_enabled, ramp_start_date FROM email_accounts WHERE id = ?").get(emailAccountId) as EmailAccountLimits | undefined;
-    if (ea) emailAccountLimitsMap.set(emailAccountId, ea);
-  }
-
-  // Count actions already done today per LinkedIn account — messages and InMail are
-  // counted separately so a busy message quota never starves InMail sends (and vice versa).
-  const connectsSentToday = new Map<string, number>();
-  const connectsSentThisWeek = new Map<string, number>();
-  const messagesSentToday = new Map<string, number>();
-  const inmailsSentToday = new Map<string, number>();
-  const visitsSentToday = new Map<string, number>();
-  for (const [accountId] of accountLimitsMap) {
-    const c = (db.prepare(
-      `SELECT COUNT(*) as c FROM logs WHERE run_id IN (SELECT id FROM runs WHERE account_id = ?)
-       AND message LIKE 'Connection request sent%' AND date(created_at) = date('now')`
-    ).get(accountId) as { c: number }).c;
-    const m = (db.prepare(
-      `SELECT COUNT(*) as c FROM logs WHERE run_id IN (SELECT id FROM runs WHERE account_id = ?)
-       AND message LIKE 'Message sent%' AND date(created_at) = date('now')`
-    ).get(accountId) as { c: number }).c;
-    const im = (db.prepare(
-      `SELECT COUNT(*) as c FROM logs WHERE run_id IN (SELECT id FROM runs WHERE account_id = ?)
-       AND message LIKE 'InMail sent%' AND date(created_at) = date('now')`
-    ).get(accountId) as { c: number }).c;
-    connectsSentToday.set(accountId, c);
-    messagesSentToday.set(accountId, m);
-    inmailsSentToday.set(accountId, im);
-  }
-
-  // Count emails sent today per email account — match by run_profiles.email_account_id
-  // (the actual sending account), not runs.email_account_id (which may differ when accounts rotate)
-  const emailsSentToday = new Map<string, number>();
-  for (const emailAccountId of emailAccountIds) {
-    const e = (db.prepare(
-      `SELECT COUNT(*) as c FROM logs l
-       WHERE l.message LIKE 'Email sent%'
-       AND date(l.created_at) = date('now')
-       AND EXISTS (
-         SELECT 1 FROM run_profiles rp
-         WHERE rp.run_id = l.run_id AND rp.target_id = l.target_id
-         AND rp.email_account_id = ?
-       )`
-    ).get(emailAccountId) as { c: number }).c;
-    emailsSentToday.set(emailAccountId, e);
-  }
-
-  // Steps cache: (workflow_id, track) → steps filtered by that track
-  const stepsCache = new Map<string, WorkflowStep[]>();
-  const getSteps = (workflowId: string, track: string): WorkflowStep[] => {
-    const key = `${workflowId}|${track}`;
-    if (!stepsCache.has(key)) {
-      stepsCache.set(key, db.prepare(
-        "SELECT * FROM workflow_steps WHERE workflow_id = ? AND track = ? ORDER BY step_order"
-      ).all(workflowId, track) as WorkflowStep[]);
+  for (const state of dueStates) {
+    const step = db.prepare("SELECT * FROM workflow_steps WHERE id = ?").get(state.current_step_id) as any;
+    if (!step) {
+      // Missing step implies terminal state or error
+      db.prepare("UPDATE run_profile_states SET state = 'completed' WHERE id = ?").run(state.id);
+      continue;
     }
-    return stepsCache.get(key)!;
-  };
-
-  // Workflow prompt cache: workflow_id → campaign prompt string (or null)
-  const workflowPromptCache = new Map<string, string | null>();
-  const getWorkflowPrompt = (workflowId: string): string | null => {
-    if (!workflowPromptCache.has(workflowId)) {
-      const row = db.prepare("SELECT prompt FROM workflows WHERE id = ?").get(workflowId) as { prompt: string | null } | undefined;
-      workflowPromptCache.set(workflowId, row?.prompt ?? null);
-    }
-    return workflowPromptCache.get(workflowId) ?? null;
-  };
-
-  // Collect ALL due track-runs across all active runs, oldest-due first
-  const runIds = stillActive.map(r => r.run_id);
-  const placeholders = runIds.map(() => "?").join(",");
-  const dueTrackRuns = db.prepare(
-    `SELECT rt.id, rt.run_profile_id, rt.track, rt.state, rt.current_step, rt.next_step_at,
-            rt.error_message, rt.last_email_subject, rt.last_email_body, rt.last_linkedin_message,
-            rt.pending_reply_context,
-            rp.run_id, rp.target_id, rp.email_account_id,
-            r.account_id, r.workflow_id,
-            t.connection_requested_at
-     FROM run_profile_tracks rt
-     JOIN run_profiles rp ON rp.id = rt.run_profile_id
-     JOIN runs r ON r.id = rp.run_id
-     JOIN targets t ON t.id = rp.target_id
-     WHERE rp.run_id IN (${placeholders})
-       AND rt.state = 'in_progress'
-       AND (rt.next_step_at IS NULL OR datetime(rt.next_step_at) <= datetime('now'))
-     ORDER BY rt.next_step_at ASC`
-  ).all(...runIds) as TrackRun[];
-
-  // Enroll new pending track-runs — track remaining slots per account across runs.
-  // Enrollment (pending -> in_progress) happens exactly once per track-run, on its
-  // FIRST linkedin-track step, so the budget it draws from must match that step's
-  // type — a workflow can open on "connect" (e.g. connect -> message) or on
-  // "sales_inmail" (e.g. an InMail-first campaign), and each type has its own daily cap.
-  const connectSlotsRemaining = new Map<string, number>();
-  const inmailSlotsRemaining = new Map<string, number>();
-  const firstLinkedinStepCache = new Map<string, string | undefined>();
-  const getFirstLinkedinStepType = (workflowId: string): string | undefined => {
-    if (!firstLinkedinStepCache.has(workflowId)) {
-      const row = db.prepare(
-        "SELECT step_type FROM workflow_steps WHERE workflow_id = ? AND track = 'linkedin' ORDER BY step_order LIMIT 1"
-      ).get(workflowId) as { step_type: string } | undefined;
-      firstLinkedinStepCache.set(workflowId, row?.step_type);
-    }
-    return firstLinkedinStepCache.get(workflowId);
-  };
-  const enrolledEmailPairs = new Set<string>();
-  for (const run of stillActive) {
-    const limits = accountLimitsMap.get(run.account_id)!;
-    const firstStepType = getFirstLinkedinStepType(run.workflow_id);
-    const isInmailFirst = firstStepType === "sales_inmail";
-    const slotsRemaining = isInmailFirst ? inmailSlotsRemaining : connectSlotsRemaining;
-
-    // LinkedIn track enrollment — each run gets its own enrollment, but all runs
-    // for the same account share the daily slot budget for that action type
-    if (!slotsRemaining.has(run.account_id)) {
-      const dailyLimit = isInmailFirst ? (calculateDailyJitteredLimit(limits.daily_inmail_limit ?? 15, run.account_id, todayLocalDate())) : (calculateDailyJitteredLimit(limits.daily_connection_limit ?? 20, run.account_id, todayLocalDate()));
-      const sentToday = isInmailFirst
-        ? (inmailsSentToday.get(run.account_id) ?? 0)
-        : (connectsSentToday.get(run.account_id) ?? 0);
-      const actionsLeft = Math.max(0, dailyLimit - sentToday);
-      const firstStepTypeSql = isInmailFirst ? "'sales_inmail'" : "'connect'";
-      const scheduledToday = (db.prepare(
-        `SELECT COUNT(*) as c FROM run_profile_tracks rt
-         JOIN run_profiles rp ON rp.id = rt.run_profile_id
-         JOIN runs r ON r.id = rp.run_id
-         JOIN workflow_steps ws ON ws.workflow_id = r.workflow_id AND ws.track = 'linkedin' AND ws.step_order = 1
-         WHERE r.account_id = ? AND rt.track = 'linkedin' AND rt.state = 'in_progress'
-         AND ws.step_type = ${firstStepTypeSql}
-         AND date(datetime(rt.next_step_at)) = date('now')`
-      ).get(run.account_id) as { c: number }).c;
-      slotsRemaining.set(run.account_id, Math.max(0, actionsLeft - scheduledToday));
-    }
-    const slotsLeft = slotsRemaining.get(run.account_id)!;
-    if (slotsLeft > 0) {
-      const toEnroll = Math.min(slotsLeft, 5);
-      const pending = db.prepare(
-        `SELECT rt.id, rt.run_profile_id, rt.track FROM run_profile_tracks rt
-         JOIN run_profiles rp ON rp.id = rt.run_profile_id
-         WHERE rp.run_id = ? AND rt.track = 'linkedin' AND rt.state = 'pending'
-         ORDER BY rt.id LIMIT ?`
-      ).all(run.run_id, toEnroll) as Array<{ id: string; run_profile_id: string; track: string }>;
-      spreadEnrollBatch(db, run.run_id, pending, limits, "linkedin");
-      slotsRemaining.set(run.account_id, slotsLeft - pending.length);
+    
+    // In Phase 2, we simulate execution or route to existing executeStep if adaptable
+    // For now, this is a skeleton representing the exact architecture defined in the blueprint.
+    // Real implementation of Playwright/Email actions will hook here.
+    
+    // Check if it's a delay waiter node
+    if (step.delay_seconds && step.delay_seconds > 0 && state.state === 'pending') {
+      db.prepare(`
+        UPDATE run_profile_states 
+        SET state = 'running', next_eval_at = datetime('now', '+${step.delay_seconds} seconds') 
+        WHERE id = ?
+      `).run(state.id);
+      continue;
     }
 
-    // Email track enrollment — iterate per actual sending account used by this run's profiles
-    // (run_profiles.email_account_id may differ from runs.email_account_id when accounts are rotated)
-    const runEmailAccountIds = (db.prepare(
-      `SELECT DISTINCT rp.email_account_id FROM run_profiles rp
-       WHERE rp.run_id = ? AND rp.email_account_id IS NOT NULL`
-    ).all(run.run_id) as { email_account_id: string }[]).map(r => r.email_account_id);
-
-    for (const emailAccId of runEmailAccountIds) {
-      const emailKey = `${run.run_id}|${emailAccId}|email`;
-      if (!enrolledEmailPairs.has(emailKey)) {
-        enrolledEmailPairs.add(emailKey);
-        const emailLimits = emailAccountLimitsMap.get(emailAccId);
-        if (emailLimits) {
-          const effectiveLimit = effectiveEmailLimit(emailLimits);
-          const emailsLeft = Math.max(0, effectiveLimit - (emailsSentToday.get(emailAccId) ?? 0));
-          const emailScheduledToday = (db.prepare(
-            `SELECT COUNT(*) as c FROM run_profile_tracks rt
-             JOIN run_profiles rp ON rp.id = rt.run_profile_id
-             WHERE rp.email_account_id = ? AND rt.track = 'email' AND rt.state = 'in_progress'
-             AND date(datetime(rt.next_step_at)) = date('now')`
-          ).get(emailAccId) as { c: number }).c;
-          const emailSlotsLeft = Math.max(0, emailsLeft - emailScheduledToday);
-          if (emailSlotsLeft > 0) {
-            const pendingEmail = db.prepare(
-              `SELECT rt.id, rt.run_profile_id, rt.track FROM run_profile_tracks rt
-               JOIN run_profiles rp ON rp.id = rt.run_profile_id
-               WHERE rp.run_id = ? AND rp.email_account_id = ? AND rt.track = 'email' AND rt.state = 'pending'
-               ORDER BY rt.id LIMIT ?`
-            ).all(run.run_id, emailAccId, Math.min(emailSlotsLeft, 5)) as Array<{ id: string; run_profile_id: string; track: string }>;
-            spreadEnrollBatch(db, run.run_id, pendingEmail, emailLimits, "email");
-          }
-        }
-      }
+    const returnState = 'SUCCESS'; // Replace with actual return state from action executor
+    
+    let edges: Record<string, string> = {};
+    try { edges = JSON.parse(step.edges_json || "{}"); } catch (e) {}
+    
+    if (step.step_type === 'connect' && returnState === 'SUCCESS') {
+       db.prepare("UPDATE run_profile_states SET waiting_for_condition = 'accept', state = 'running' WHERE id = ?").run(state.id);
+       continue;
     }
-  }
+    if ((step.step_type === 'email' || step.step_type === 'message') && returnState === 'SUCCESS') {
+       db.prepare("UPDATE run_profile_states SET waiting_for_condition = 'reply', state = 'running' WHERE id = ?").run(state.id);
+       continue;
+    }
 
-  if (dueTrackRuns.length === 0) return;
-
-
-
-  // Apply daily limits — separate due track-runs into execute vs reschedule
-  const toExecute: TrackRun[] = [];
-  const toReschedule: TrackRun[] = [];
-
-  const connectsPlanned = new Map<string, number>(Array.from(accountLimitsMap.keys()).map(id => [id, 0]));
-  const messagesPlanned = new Map<string, number>(Array.from(accountLimitsMap.keys()).map(id => [id, 0]));
-  const inmailsPlanned = new Map<string, number>(Array.from(accountLimitsMap.keys()).map(id => [id, 0]));
-  const visitsPlanned = new Map<string, number>(Array.from(accountLimitsMap.keys()).map(id => [id, 0]));
-  const emailsPlanned = new Map<string, number>(emailAccountIds.map(id => [id, 0]));
-
-  for (const tr of dueTrackRuns) {
-    const steps = getSteps(tr.workflow_id, tr.track);
-    const stepIndex = tr.current_step;
-    if (stepIndex >= steps.length) { toExecute.push(tr); continue; }
-    const step = steps[stepIndex];
-    const limits = accountLimitsMap.get(tr.account_id)!;
-
-    if (step.step_type === "visit") {
-      const sentToday = visitsSentToday.get(tr.account_id) ?? 0;
-      const planned = visitsPlanned.get(tr.account_id) ?? 0;
-      if (sentToday + planned >= calculateDailyJitteredLimit((limits as any).daily_visit_limit ?? 150, tr.account_id, todayLocalDate())) {
-        toReschedule.push(tr);
-      } else {
-        visitsPlanned.set(tr.account_id, planned + 1);
-        toExecute.push(tr);
-      }
-    } else if (step.step_type === "connect") {
-      // A connect step is "due" both when it's about to send a NEW request and when
-      // it's just rechecking an already-sent one for acceptance (see the `degree === 1`
-      // check in executeStep). Only the former spends a daily connect slot — the recheck
-      // is a free DB read and must never be blocked by the cap, or an accepted connection
-      // can never hand off to the next step (it'd be rescheduled behind new sends forever).
-      if (tr.connection_requested_at) {
-        toExecute.push(tr);
-        continue;
-      }
-      const sentToday = connectsSentToday.get(tr.account_id) ?? 0;
-      const sentThisWeek = connectsSentThisWeek.get(tr.account_id) ?? 0;
-      const planned = connectsPlanned.get(tr.account_id) ?? 0;
-      if (sentThisWeek + planned >= ((limits as any).weekly_connection_limit ?? 200)) {
-        log(db, tr.run_id, tr.target_id, "warn", `LinkedIn weekly quota reached — next invites postponed to Monday`);
-        trReschedule(db, tr, rescheduleToNextMonday(limits));
-      } else if (sentToday + planned >= calculateDailyJitteredLimit(limits.daily_connection_limit ?? 20, tr.account_id, todayLocalDate())) {
-        toReschedule.push(tr);
-      } else {
-        connectsPlanned.set(tr.account_id, planned + 1);
-        toExecute.push(tr);
-      }
-    } else if (step.step_type === "message") {
-      const sentToday = messagesSentToday.get(tr.account_id) ?? 0;
-      const planned = messagesPlanned.get(tr.account_id) ?? 0;
-      if (sentToday + planned >= (calculateDailyJitteredLimit(limits.daily_message_limit ?? 50, tr.account_id, todayLocalDate()))) {
-        toReschedule.push(tr);
-      } else {
-        messagesPlanned.set(tr.account_id, planned + 1);
-        toExecute.push(tr);
-      }
-    } else if (step.step_type === "sales_inmail") {
-      const sentToday = inmailsSentToday.get(tr.account_id) ?? 0;
-      const planned = inmailsPlanned.get(tr.account_id) ?? 0;
-      if (inmailCreditsExhaustedToday(tr.account_id) || sentToday + planned >= (calculateDailyJitteredLimit(limits.daily_inmail_limit ?? 15, tr.account_id, todayLocalDate()))) {
-        toReschedule.push(tr);
-      } else {
-        inmailsPlanned.set(tr.account_id, planned + 1);
-        toExecute.push(tr);
-      }
-    } else if (step.step_type === "email") {
-      const profileEmailAccountId = tr.email_account_id;
-      if (!profileEmailAccountId) {
-        toExecute.push(tr);
-      } else {
-        const emailLimits = emailAccountLimitsMap.get(profileEmailAccountId);
-        const sentToday = emailsSentToday.get(profileEmailAccountId) ?? 0;
-        const planned = emailsPlanned.get(profileEmailAccountId) ?? 0;
-        const effectiveLimit = emailLimits ? effectiveEmailLimit(emailLimits) : 50;
-        if (sentToday + planned >= effectiveLimit) {
-          toReschedule.push(tr);
-        } else {
-          emailsPlanned.set(profileEmailAccountId, planned + 1);
-          toExecute.push(tr);
-        }
-      }
+    const nextStepId = edges['on_success'];
+    if (nextStepId) {
+      db.prepare("UPDATE run_profile_states SET current_step_id = ?, state = 'pending', next_eval_at = datetime('now') WHERE id = ?").run(nextStepId, state.id);
     } else {
-      // visit, delay — no limit
-      toExecute.push(tr);
+      db.prepare("UPDATE run_profile_states SET state = 'completed' WHERE id = ?").run(state.id);
     }
   }
-
-  // Reschedule overflow to tomorrow (use LinkedIn account schedule for reschedule)
-  for (const tr of toReschedule) {
-    const limits = accountLimitsMap.get(tr.account_id)!;
-    const slot = rescheduleToTomorrow(limits);
-    db.prepare("UPDATE run_profile_tracks SET next_step_at = ? WHERE id = ?").run(slot, tr.id);
-    log(db, tr.run_id, tr.target_id, "info", `Daily limit reached — rescheduled to ${slot}`);
-  }
-
-  // Execute what's left
-  for (const tr of toExecute) {
-    const steps = getSteps(tr.workflow_id, tr.track);
-    const limits = accountLimitsMap.get(tr.account_id)!;
-    const emailAccountId = tr.email_account_id ?? null;
-    const emailLimits = emailAccountId ? (emailAccountLimitsMap.get(emailAccountId) ?? null) : null;
-
-    const runStatus = db.prepare("SELECT status FROM runs WHERE id = ?").get(tr.run_id) as { status: string } | undefined;
-    if (!runStatus || runStatus.status !== "running") continue;
-
-    const target = db.prepare("SELECT * FROM targets WHERE id = ?").get(tr.target_id) as Target;
-    await executeStep(db, tr.run_id, tr, target, steps, tr.account_id, limits, emailAccountId, emailLimits, getWorkflowPrompt(tr.workflow_id));
-    await randomDelay(PROFILE_DELAY_MIN, PROFILE_DELAY_MAX);
-  }
-}
-
-function spreadEnrollBatch(
-  db: ReturnType<typeof getDb>,
-  runId: string,
-  pending: Array<{ id: string; run_profile_id: string; track: string }>,
-  limits: ScheduleConfig,
-  track: string
-) {
-  const batchSize = pending.length;
-  if (batchSize === 0) return;
-  const start = limits.active_hours_start ?? 9;
-  const end = limits.active_hours_end ?? 18;
-  const { hour, minute } = getLocalParts(limits.timezone || "UTC");
-  const nowFrac = hour + minute / 60;
-  const windowMs = (end - start) * 3600_000;
-  const bucketMs = windowMs / batchSize;
-  const dayStartMs = new Date().setHours(start, 0, 0, 0);
-
-  for (let i = 0; i < pending.length; i++) {
-    const row = pending[i];
-    const claimed = db.prepare(
-      "UPDATE run_profile_tracks SET state = 'in_progress' WHERE id = ? AND state = 'pending'"
-    ).run(row.id);
-    if (claimed.changes === 0) continue;
-    const step0 = db.prepare("SELECT delay_seconds FROM workflow_steps WHERE workflow_id = (SELECT workflow_id FROM runs WHERE id = ?) AND track = ? AND step_order = 1").get(runId, track) as { delay_seconds: number } | undefined;
-    let slot = (() => {
-      if (nowFrac >= end - 0.25) return rescheduleToTomorrow(limits);
-      const bucketStart = dayStartMs + i * bucketMs;
-      const bucketEnd = bucketStart + bucketMs;
-      return new Date(bucketStart + Math.random() * (bucketEnd - bucketStart)).toISOString();
-    })();
-    
-    if (step0 && step0.delay_seconds > 0) {
-      slot = new Date(Date.now() + step0.delay_seconds * 1000).toISOString();
-    }
-    
-    db.prepare("UPDATE run_profile_tracks SET next_step_at = ? WHERE id = ?").run(slot, row.id);
-    const tgt = db.prepare("SELECT full_name, linkedin_url FROM targets WHERE id = (SELECT target_id FROM run_profiles WHERE id = ?)").get(row.run_profile_id) as { full_name: string | null; linkedin_url: string } | undefined;
-    log(db, runId, null, "info", `[${track}] Scheduled ${tgt?.full_name ?? tgt?.linkedin_url ?? row.run_profile_id} within active window`);
-  }
-}
-
-// ─── public API ──────────────────────────────────────────────────────────────
-
-export function startRun(runId: string): void {
-  const db = getDb();
-  db.prepare("UPDATE runs SET status = 'running', started_at = COALESCE(started_at, datetime('now')) WHERE id = ?").run(runId);
-  console.log(`[runner] Run ${runId} marked running — global loop will pick it up`);
 }
 
 export async function tickManualReplies(db: ReturnType<typeof import("@/lib/db").getDb>): Promise<void> {
