@@ -1348,7 +1348,7 @@ async function tickActions(db: ReturnType<typeof getDb>): Promise<void> {
       const sentToday = isInmailFirst
         ? (inmailsSentToday.get(run.account_id) ?? 0)
         : (connectsSentToday.get(run.account_id) ?? 0);
-      const actionsLeft = Math.max(0, calculateDailyJitteredLimit(dailyLimit, run.account_id, todayLocalDate()) - sentToday);
+      const actionsLeft = Math.max(0, dailyLimit - sentToday);
       const firstStepTypeSql = isInmailFirst ? "'sales_inmail'" : "'connect'";
       const scheduledToday = (db.prepare(
         `SELECT COUNT(*) as c FROM run_profile_tracks rt

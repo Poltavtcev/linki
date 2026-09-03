@@ -53,7 +53,7 @@ export default function SystemHealth() {
             </div>
             <div>
               <h2 className="text-lg font-semibold">LinkedIn Quotas</h2>
-              <p className="text-xs text-base-content/60">Daily actions jitter by 20% to mimic human behavior (Waalaxy model).</p>
+              <p className="text-xs text-base-content/60">Daily actions jitter by 20% to mimic human behavior .</p>
             </div>
           </div>
 
@@ -68,7 +68,7 @@ export default function SystemHealth() {
                   <h3 className="font-medium text-base">{acc.name}</h3>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
                   {/* INVITATIONS */}
                   <div className="bg-base-100 rounded-xl p-4 border border-base-300/50 relative overflow-hidden group">
                     <div className="text-[10px] font-bold text-base-content/40 uppercase tracking-widest mb-4">Invitations</div>
@@ -112,6 +112,23 @@ export default function SystemHealth() {
                     </div>
                     <div className="w-full bg-base-300/50 rounded-full h-1.5">
                       <div className="bg-[#0a66c2] h-1.5 rounded-full" style={{ width: `${Math.min(100, (acc.messages.sentToday / acc.messages.limitToday) * 100)}%` }}></div>
+                    </div>
+                  </div>
+
+                  
+                  {/* INMAILS */}
+                  <div className="bg-base-100 rounded-xl p-4 border border-base-300/50">
+                    <div className="text-[10px] font-bold text-base-content/40 uppercase tracking-widest mb-4">InMails</div>
+                    <div className="flex items-end justify-between mb-2">
+                      <div className="text-3xl font-light text-base-content">{Math.max(0, acc.inmails.limitToday - acc.inmails.sentToday)}</div>
+                      <div className="text-xs text-base-content/40 mb-1">left today</div>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-base-content/50 mb-1">
+                      <span>{acc.inmails.sentToday}</span>
+                      <span>{acc.inmails.limitToday}</span>
+                    </div>
+                    <div className="w-full bg-base-300/50 rounded-full h-1.5">
+                      <div className="bg-[#0a66c2] h-1.5 rounded-full" style={{ width: `${Math.min(100, (acc.inmails.sentToday / acc.inmails.limitToday) * 100)}%` }}></div>
                     </div>
                   </div>
 

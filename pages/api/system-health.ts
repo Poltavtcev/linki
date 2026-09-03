@@ -110,14 +110,14 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     SELECT 
       a.id,
       SUM(CASE WHEN l.message LIKE 'Connection request sent%' AND date(l.created_at) = date('now') THEN 1 ELSE 0 END) as connects_today,
-      SUM(CASE WHEN l.message LIKE 'Connection request sent%' AND l.created_at >= datetime('now', 'weekday 1', '-7 days') THEN 1 ELSE 0 END) as connects_week,
+      SUM(CASE WHEN l.message LIKE 'Connection request sent%' AND l.created_at >= date('now', 'weekday 1', '-7 days') THEN 1 ELSE 0 END) as connects_week,
       SUM(CASE WHEN l.message LIKE 'Sending message to%' AND date(l.created_at) = date('now') THEN 1 ELSE 0 END) as messages_today,
       SUM(CASE WHEN l.message LIKE 'InMail sent to%' AND date(l.created_at) = date('now') THEN 1 ELSE 0 END) as inmails_today,
       SUM(CASE WHEN l.message LIKE 'Profile visited:%' AND date(l.created_at) = date('now') THEN 1 ELSE 0 END) as visits_today
     FROM logs l
     JOIN runs r ON r.id = l.run_id
     JOIN accounts a ON a.id = r.account_id
-    WHERE l.created_at >= datetime('now', 'weekday 1', '-7 days')
+    WHERE l.created_at >= date('now', 'weekday 1', '-7 days')
     GROUP BY a.id
   `).all() as any[];
 
