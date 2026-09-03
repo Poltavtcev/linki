@@ -1155,8 +1155,13 @@ async function tickActions(db: ReturnType<typeof getDb>): Promise<void> {
     ).all(run.run_id) as Array<{ id: string; run_profile_id: string; track: string }>;
     
     for (const row of pendingIntegration) {
+      const step0 = db.prepare("SELECT delay_seconds FROM workflow_steps WHERE workflow_id = (SELECT workflow_id FROM runs WHERE id = (SELECT run_id FROM run_profiles WHERE id = ?)) AND track = 'integration' AND step_order = 1").get(row.run_profile_id) as { delay_seconds: number } | undefined;
+      let nextAt = "datetime('now')";
+      if (step0 && step0.delay_seconds > 0) {
+        nextAt = `datetime('now', '+${step0.delay_seconds} seconds')`;
+      }
       db.prepare(
-        "UPDATE run_profile_tracks SET state = 'in_progress', next_step_at = datetime('now') WHERE id = ?"
+        `UPDATE run_profile_tracks SET state = 'in_progress', next_step_at = ${nextAt} WHERE id = ?`
       ).run(row.id);
     }
   }
@@ -1507,12 +1512,18 @@ function spreadEnrollBatch(
       "UPDATE run_profile_tracks SET state = 'in_progress' WHERE id = ? AND state = 'pending'"
     ).run(row.id);
     if (claimed.changes === 0) continue;
-    const slot = (() => {
+    const step0 = db.prepare("SELECT delay_seconds FROM workflow_steps WHERE workflow_id = (SELECT workflow_id FROM runs WHERE id = ?) AND track = ? AND step_order = 1").get(runId, track) as { delay_seconds: number } | undefined;
+    let slot = (() => {
       if (nowFrac >= end - 0.25) return rescheduleToTomorrow(limits);
       const bucketStart = dayStartMs + i * bucketMs;
       const bucketEnd = bucketStart + bucketMs;
       return new Date(bucketStart + Math.random() * (bucketEnd - bucketStart)).toISOString();
     })();
+    
+    if (step0 && step0.delay_seconds > 0) {
+      slot = new Date(Date.now() + step0.delay_seconds * 1000).toISOString();
+    }
+    
     db.prepare("UPDATE run_profile_tracks SET next_step_at = ? WHERE id = ?").run(slot, row.id);
     const tgt = db.prepare("SELECT full_name, linkedin_url FROM targets WHERE id = (SELECT target_id FROM run_profiles WHERE id = ?)").get(row.run_profile_id) as { full_name: string | null; linkedin_url: string } | undefined;
     log(db, runId, null, "info", `[${track}] Scheduled ${tgt?.full_name ?? tgt?.linkedin_url ?? row.run_profile_id} within active window`);
