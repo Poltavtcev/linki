@@ -537,20 +537,7 @@ async function executeStep(
         const count = await posts.count();
         if (count > 0) {
           // Process liking N posts
-          if (likeNPosts > 0) {
-            const limit = Math.min(count, likeNPosts);
-            for (let i = 0; i < limit; i++) {
-              const likeBtn = posts.nth(i).locator('button[aria-label*="Like"]').first();
-              if (await likeBtn.count() > 0) {
-                 const isPressed = await likeBtn.getAttribute('aria-pressed');
-                 if (isPressed !== 'true') {
-                   await likeBtn.click();
-                   await page.waitForTimeout(1000);
-                 }
-              }
-            }
-            log(db, runId, target.id, "info", `Liked ${limit} recent posts for ${name}`);
-          }
+          
 
           // Process commenting on the first valid post
           const post = posts.first();

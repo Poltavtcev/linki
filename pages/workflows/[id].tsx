@@ -679,15 +679,16 @@ function Wizard({
                             </div>
                           ) : (
                             <div className="flex flex-col items-center gap-1.5 z-10">
-                              {path.length === 1 && prevWs && ["message", "email", "sales_inmail"].includes(prevWs.type) && (
+                              {path.length === 1 && prevWs && ["message", "email", "sales_inmail", "connect"].includes(prevWs.type) && (
                                 <span className="px-2.5 py-0.5 rounded-full bg-base-100 border border-base-content/10 text-base-content/70 text-[10px] font-bold shadow-sm">
-                                  If no reply
+                                  {prevWs.type === "connect" ? "If not accepted" : "If no reply"}
                                 </span>
                               )}
                               <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-base-200/90 border border-base-content/10 backdrop-blur-sm shadow-sm">
                                 <RiTimeLine size={13} className="text-base-content/40" />
                                 <span className="text-[10.5px] text-base-content/60 font-medium tracking-wide">
-                                  {path.length === 1 && prevWs && !["message", "email", "sales_inmail", "ai_qualify"].includes(prevWs.type) ? 'Default ' : ''}
+                                  {path.length === 1 && prevWs && !["message", "email", "sales_inmail", "ai_qualify", "connect"].includes(prevWs.type) ? 'Default ' : ''}
+                                  {path.length === 1 && prevWs && prevWs.type === "connect" ? 'If not accepted ' : ''}
                                   {ws.delayDaysBefore > 0 ? `(Wait ${ws.delayDaysBefore} day${ws.delayDaysBefore > 1 ? 's' : ''})` : "(Immediately)"}
                                 </span>
                               </div>
@@ -2392,14 +2393,7 @@ function Wizard({
                             updateStep(path, { config: JSON.stringify(c) });
                          }} className="w-full bg-base-300/50 border border-base-300/50 rounded-xl px-3 py-2 text-sm text-base-content focus:outline-none focus:border-secondary/40" />
                        </div>
-                       <div className="flex-1">
-                         <label className="text-xs text-base-content/40 mb-1.5 block">Like N Recent Posts</label>
-                         <input type="number" value={(() => { try { return (JSON.parse(ws.config || '{}') as any).like_n_posts || 0; } catch { return 0; } })()} onChange={(e) => {
-                            let c: any = {}; try { c = JSON.parse(ws.config || '{}'); } catch {}
-                            c.like_n_posts = Number(e.target.value);
-                            updateStep(path, { config: JSON.stringify(c) });
-                         }} className="w-full bg-base-300/50 border border-base-300/50 rounded-xl px-3 py-2 text-sm text-base-content focus:outline-none focus:border-secondary/40" />
-                       </div>
+                       
                     </div>
                   </div>
                 )}
