@@ -167,6 +167,7 @@ const STEP_ICONS: Record<string, React.ReactNode> = {
   change_status: <RiGroupLine size={15} />,
   ai_qualify: <RiRobot2Line size={15} />,
   ai_comment: <RiMessage2Line size={15} />,
+  linkedin_like: <RiThumbUpLine size={15} />,
 };
 
 // Static base labels — email steps use getEmailStepLabel() for dynamic numbering
@@ -680,7 +681,11 @@ function Wizard({
                           ) : (
                             <div className="flex flex-col items-center gap-1.5 z-10">
                               {path.length === 1 && prevWs && ["message", "email", "sales_inmail", "connect"].includes(prevWs.type) && (
-                                <span className="px-2.5 py-0.5 rounded-full bg-base-100 border border-base-content/10 text-base-content/70 text-[10px] font-bold shadow-sm">
+                                <span className={`px-2.5 py-0.5 rounded-full border text-[10px] font-bold shadow-sm ${
+                                  prevWs.type === "connect" 
+                                    ? "bg-secondary/10 border-secondary/30 text-secondary" 
+                                    : "bg-warning/10 border-warning/30 text-warning"
+                                }`}>
                                   {prevWs.type === "connect" ? "If not accepted" : "If no reply"}
                                 </span>
                               )}
@@ -737,6 +742,8 @@ function Wizard({
                                                                   if (mainOutcomes.includes(bName)) return false; 
                                                                 } catch {}
                                                              }
+                                                             if (ws.type === 'connect' && bName === 'IF NOT ACCEPTED (Timeout)') return false;
+                                                             if (['message', 'email', 'sales_inmail'].includes(ws.type) && bName === 'IF NO REPLY') return false;
                                                              return true;
                                                           })
                                                           .map(([bName, bSteps]) => (
@@ -2196,6 +2203,7 @@ function Wizard({
                                 <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("message", drawerPath); }} className="gap-3 text-xs"><RiMessage2Line size={12} className="text-success"/> Message</a></li>
                                 {hasPremium && <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("sales_inmail", drawerPath); }} className="gap-3 text-xs"><RiSendPlaneLine size={12} className="text-primary"/> Sales Nav InMail</a></li>}
                                 <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("linkedin_like", drawerPath); }} className="gap-3 text-xs"><RiThumbUpLine size={12} className="text-primary"/> Like Recent Posts</a></li>
+                                <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("ai_comment", drawerPath); }} className="gap-3 text-xs"><RiRobot2Line size={12} className="text-info"/> AI Comment</a></li>
                                 
                                 <li className="menu-title mt-1"><span className="text-[10px] font-bold text-base-content/40 uppercase tracking-wider">Email</span></li>
                                 <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("email", drawerPath); }} className="gap-3 text-xs"><RiMailLine size={12} className="text-warning"/> Cold Email</a></li>
