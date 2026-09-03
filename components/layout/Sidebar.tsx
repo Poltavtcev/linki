@@ -33,7 +33,7 @@ const mainNav = [
   { href: "/companies", label: "Companies", icon: RiBuildingLine, color: "var(--nav-purple)", tour: "nav-companies" },
   { href: "/workflows", label: "Campaigns", icon: RiFlowChart, color: "var(--nav-yellow)", tour: "nav-workflows" },
   { href: "/inbox", label: "Inbox", icon: RiInboxLine, color: "var(--nav-sky)", tour: "nav-inbox" },
-  { href: "/email-health", label: "Email Health", icon: RiMailCheckLine, color: "var(--nav-yellow)", tour: "nav-email-health" },
+  { href: "/system-health", label: "System Health", icon: RiMailCheckLine, color: "var(--nav-yellow)", tour: "nav-system-health" },
   { href: "/todos", label: "Todos", icon: RiCheckboxCircleLine, color: "var(--nav-orange)", tour: "nav-todos" },
 ];
 

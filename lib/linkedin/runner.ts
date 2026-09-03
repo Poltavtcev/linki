@@ -102,11 +102,33 @@ function randomSlotInActiveWindow(account: ScheduleConfig, targetDate?: Date): s
   return new Date(startMs + Math.random() * (endMs - startMs)).toISOString();
 }
 
+
+function calculateDailyJitteredLimit(maxLimit: number, accountId: string, dateStr: string): number {
+  if (maxLimit <= 0) return 0;
+  // Deterministic hash of accountId + dateStr
+  const input = accountId + "_" + dateStr;
+  let h = 0;
+  for (let i = 0; i < input.length; i++) h = (h * 31 + input.charCodeAt(i)) >>> 0;
+  
+  // Randomness between 0.80 and 1.00
+  // e.g. h % 21 => 0 to 20 => 80% to 100%
+  const variancePercent = 80 + (h % 21); 
+  return Math.max(1, Math.floor((maxLimit * variancePercent) / 100));
+}
+
 function rescheduleToTomorrow(account: ScheduleConfig): string {
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   return randomSlotInActiveWindow(account, tomorrow);
 }
+
+function rescheduleToNextMonday(account: ScheduleConfig): string {
+  const next = new Date();
+  // Move to next Monday
+  next.setDate(next.getDate() + ((1 + 7 - next.getDay()) % 7 || 7));
+  return randomSlotInActiveWindow(account, next);
+}
+
 
 function nextScheduledSlot(account: ScheduleConfig): string {
   const tz = account.timezone || "UTC";
@@ -525,7 +547,7 @@ async function executeStep(
       const linkedinUrl = await getLinkedinUrl(db, target, accountId);
       const page = await getSessionPage(accountId);
       let visitResult: { isFirstDegree: boolean; messagingUrn: string | null };
-      try { visitResult = await visitProfile(page, linkedinUrl); recordSuccess('visit'); } catch(e) { recordFailure('visit', (e as Error).message); throw e; } finally { await page.close(); }
+      try { visitResult = await visitProfile(page, linkedinUrl); recordSuccess('visit'); log(db, runId, target.id, 'info', `Profile visited: ${target.full_name ?? linkedinUrl}`); } catch(e) { recordFailure('visit', (e as Error).message); throw e; } finally { await page.close(); }
       await saveSessionState(accountId);
       if (visitResult.isFirstDegree && target.degree !== 1) {
         db.prepare("UPDATE targets SET degree = 1, connected_at = COALESCE(connected_at, ?) WHERE id = ?").run(nowIso(), target.id);
@@ -1215,6 +1237,7 @@ async function tickActions(db: ReturnType<typeof getDb>): Promise<void> {
   // Count actions already done today per LinkedIn account — messages and InMail are
   // counted separately so a busy message quota never starves InMail sends (and vice versa).
   const connectsSentToday = new Map<string, number>();
+  const connectsSentThisWeek = new Map<string, number>();
   const messagesSentToday = new Map<string, number>();
   const inmailsSentToday = new Map<string, number>();
   for (const [accountId] of accountLimitsMap) {
@@ -1321,11 +1344,11 @@ async function tickActions(db: ReturnType<typeof getDb>): Promise<void> {
     // LinkedIn track enrollment — each run gets its own enrollment, but all runs
     // for the same account share the daily slot budget for that action type
     if (!slotsRemaining.has(run.account_id)) {
-      const dailyLimit = isInmailFirst ? (limits.daily_inmail_limit ?? 15) : (limits.daily_connection_limit ?? 20);
+      const dailyLimit = isInmailFirst ? (calculateDailyJitteredLimit(limits.daily_inmail_limit ?? 15, run.account_id, todayLocalDate())) : (calculateDailyJitteredLimit(limits.daily_connection_limit ?? 20, run.account_id, todayLocalDate()));
       const sentToday = isInmailFirst
         ? (inmailsSentToday.get(run.account_id) ?? 0)
         : (connectsSentToday.get(run.account_id) ?? 0);
-      const actionsLeft = Math.max(0, dailyLimit - sentToday);
+      const actionsLeft = Math.max(0, calculateDailyJitteredLimit(dailyLimit, run.account_id, todayLocalDate()) - sentToday);
       const firstStepTypeSql = isInmailFirst ? "'sales_inmail'" : "'connect'";
       const scheduledToday = (db.prepare(
         `SELECT COUNT(*) as c FROM run_profile_tracks rt
@@ -1418,8 +1441,12 @@ async function tickActions(db: ReturnType<typeof getDb>): Promise<void> {
         continue;
       }
       const sentToday = connectsSentToday.get(tr.account_id) ?? 0;
+      const sentThisWeek = connectsSentThisWeek.get(tr.account_id) ?? 0;
       const planned = connectsPlanned.get(tr.account_id) ?? 0;
-      if (sentToday + planned >= (limits.daily_connection_limit ?? 20)) {
+      if (sentThisWeek + planned >= ((limits as any).weekly_connection_limit ?? 200)) {
+        log(db, tr.run_id, tr.target_id, "warn", `LinkedIn weekly quota reached — next invites postponed to Monday`);
+        trReschedule(db, tr, rescheduleToNextMonday(limits));
+      } else if (sentToday + planned >= calculateDailyJitteredLimit(limits.daily_connection_limit ?? 20, tr.account_id, todayLocalDate())) {
         toReschedule.push(tr);
       } else {
         connectsPlanned.set(tr.account_id, planned + 1);
@@ -1428,7 +1455,7 @@ async function tickActions(db: ReturnType<typeof getDb>): Promise<void> {
     } else if (step.step_type === "message") {
       const sentToday = messagesSentToday.get(tr.account_id) ?? 0;
       const planned = messagesPlanned.get(tr.account_id) ?? 0;
-      if (sentToday + planned >= (limits.daily_message_limit ?? 50)) {
+      if (sentToday + planned >= (calculateDailyJitteredLimit(limits.daily_message_limit ?? 50, tr.account_id, todayLocalDate()))) {
         toReschedule.push(tr);
       } else {
         messagesPlanned.set(tr.account_id, planned + 1);
@@ -1437,7 +1464,7 @@ async function tickActions(db: ReturnType<typeof getDb>): Promise<void> {
     } else if (step.step_type === "sales_inmail") {
       const sentToday = inmailsSentToday.get(tr.account_id) ?? 0;
       const planned = inmailsPlanned.get(tr.account_id) ?? 0;
-      if (inmailCreditsExhaustedToday(tr.account_id) || sentToday + planned >= (limits.daily_inmail_limit ?? 15)) {
+      if (inmailCreditsExhaustedToday(tr.account_id) || sentToday + planned >= (calculateDailyJitteredLimit(limits.daily_inmail_limit ?? 15, tr.account_id, todayLocalDate()))) {
         toReschedule.push(tr);
       } else {
         inmailsPlanned.set(tr.account_id, planned + 1);
