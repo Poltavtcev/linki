@@ -1585,6 +1585,7 @@ function Wizard({
                                       <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("connect", [...path, "branches", bName]); }} className="gap-3 text-xs"><RiLinkedinBoxLine size={12} className="text-primary"/> Connect</a></li>
                                       <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("message", [...path, "branches", bName]); }} className="gap-3 text-xs"><RiMessage2Line size={12} className="text-success"/> Message</a></li>
                                       {hasPremium && <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("sales_inmail", [...path, "branches", bName]); }} className="gap-3 text-xs"><RiSendPlaneLine size={12} className="text-primary"/> Sales Nav InMail</a></li>}
+                                      <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("linkedin_like", [...path, "branches", bName]); }} className="gap-3 text-xs"><RiThumbUpLine size={12} className="text-primary"/> Like Recent Posts</a></li>
                                       
                                       <li className="menu-title mt-1"><span className="text-[10px] font-bold text-base-content/40 uppercase tracking-wider">Email</span></li>
                                       <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("email", [...path, "branches", bName]); }} className="gap-3 text-xs"><RiMailLine size={12} className="text-warning"/> Cold Email</a></li>
@@ -1596,7 +1597,6 @@ function Wizard({
                                       <li className="menu-title mt-1"><span className="text-[10px] font-bold text-base-content/40 uppercase tracking-wider">AI Agents</span></li>
                                       <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("ai_qualify", [...path, "branches", bName]); }} className="gap-3 text-xs"><RiRobot2Line size={12} className="text-secondary"/> AI Qualify</a></li>
                                       <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("ai_comment", [...path, "branches", bName]); }} className="gap-3 text-xs"><RiMessage2Line size={12} className="text-secondary"/> AI Comment</a></li>
-                                      <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("linkedin_like", [...path, "branches", bName]); }} className="gap-3 text-xs"><RiThumbUpLine size={12} className="text-primary"/> Like Recent Posts</a></li>
                                     </ul>
                                   </div>
                                   
@@ -1654,6 +1654,7 @@ function Wizard({
                           <li><a onClick={() => addWizardStep("connect")} className="gap-3"><RiLinkedinBoxLine size={14} className="text-primary"/> Connect</a></li>
                           <li><a onClick={() => addWizardStep("message")} className="gap-3"><RiMessage2Line size={14} className="text-success"/> Message</a></li>
                           {hasPremium && <li><a onClick={() => addWizardStep("sales_inmail")} className="gap-3"><RiSendPlaneLine size={14} className="text-primary"/> Sales Nav InMail</a></li>}
+                          <li><a onClick={() => addWizardStep("linkedin_like")} className="gap-3"><RiThumbUpLine size={14} className="text-primary"/> Like Recent Posts</a></li>
                           
                           <li className="menu-title mt-2"><span className="text-xs font-bold text-base-content/40 uppercase tracking-wider">Email</span></li>
                           <li><a onClick={() => addWizardStep("email")} className="gap-3"><RiMailLine size={14} className="text-warning"/> Cold Email</a></li>
@@ -1665,7 +1666,6 @@ function Wizard({
                           <li className="menu-title mt-2"><span className="text-xs font-bold text-base-content/40 uppercase tracking-wider">AI Agents</span></li>
                           <li><a onClick={() => addWizardStep("ai_qualify")} className="gap-3"><RiRobot2Line size={14} className="text-secondary"/> AI Qualify</a></li>
                           <li><a onClick={() => addWizardStep("ai_comment")} className="gap-3"><RiMessage2Line size={14} className="text-secondary"/> AI Comment</a></li>
-                          <li><a onClick={() => addWizardStep("linkedin_like")} className="gap-3"><RiThumbUpLine size={14} className="text-primary"/> Like Recent Posts</a></li>
                         </ul>
                       </div>
                     </div>
