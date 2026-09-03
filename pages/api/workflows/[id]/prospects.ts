@@ -22,14 +22,28 @@ function buildFilterClause(filters: ActiveFilter[]): { sql: string; params: unkn
   const params: unknown[] = [];
 
   const ALLOWED: Record<string, string> = {
+    lead_status: "t.lead_status",
+    seniority: "t.seniority",
+    email_status: "t.email_status",
     degree: "t.degree",
+    email: "t.email",
+    enriched: "t.apollo_enriched_at",
+    apollo_enriched_at: "t.apollo_enriched_at",
+    hubspot: "t.hubspot_contact_id",
+    connection_status: "t.connection_status",
     connection_requested_at: "t.connection_requested_at",
     connected_at: "t.connected_at",
     message_sent_at: "t.message_sent_at",
+    last_replied_at: "t.last_replied_at",
+    open_link: "t.open_link",
+    email_domain_catchall: "t.email_domain_catchall",
+    company_size: "t.company_size",
+    tenure_months: "t.tenure_months",
+    country: "t.country",
+    industry: "t.company_industry",
+    company_industry: "t.company_industry",
     company: "t.company",
     title: "t.title",
-    seniority: "t.seniority",
-    country: "t.country",
   };
 
   for (const f of filters) {
@@ -42,6 +56,12 @@ function buildFilterClause(filters: ActiveFilter[]): { sql: string; params: unkn
         break;
       case "is_not_set":
         parts.push(`(${col} IS NULL OR ${col} = '')`);
+        break;
+      case "is_true":
+        parts.push(`${col} = 1`);
+        break;
+      case "is_false":
+        parts.push(`(${col} = 0 OR ${col} IS NULL)`);
         break;
       case "is":
         parts.push(`LOWER(${col}) = LOWER(?)`);

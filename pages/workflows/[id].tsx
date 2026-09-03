@@ -757,10 +757,21 @@ function Wizard({
     if (wizardFilters.length > 0) {
       result = result.filter((t: ListTarget) => {
         for (const f of wizardFilters) {
-          const val = (t as any)[f.field];
+          let fieldKey = f.field;
+          if (fieldKey === "hubspot") fieldKey = "hubspot_contact_id";
+          if (fieldKey === "enriched") fieldKey = "apollo_enriched_at";
+          if (fieldKey === "industry") fieldKey = "company_industry";
+          
+          const val = (t as any)[fieldKey];
           const query = f.value ? f.value.toLowerCase() : "";
           
           switch (f.op) {
+            case "is_true":
+              if (Number(val) !== 1) return false;
+              break;
+            case "is_false":
+              if (Number(val) === 1) return false;
+              break;
             case "is_set":
               if (val === null || val === undefined || val === "") return false;
               break;
@@ -1341,8 +1352,7 @@ function Wizard({
                                     // Let's rely on a useEffect to sync selectedTargetIds when in "all" mode.
                                   }
                                 }}
-                                fieldSubset={["lead_status", "degree", "seniority", "country", "email", "enriched", "hubspot"]}
-                              />
+                                />
                             </div>
                             
                             {prospectMode === "all" ? (
@@ -3548,8 +3558,7 @@ export default function WorkflowDetailPage({
                     <FilterBar
                       filters={prospectFilters}
                       onChange={(f) => { setProspectFilters(f); setProspectsPage(0); }}
-                      fieldSubset={["connection_status", "degree", "connection_requested_at", "connected_at", "message_sent_at", "seniority", "country", "company"]}
-                    />
+                      />
                   </div>
                 ) : (() => {
                   const sel = prospects.filter((p) => selected.has(p.target_id));
