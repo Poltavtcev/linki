@@ -2090,6 +2090,78 @@ function Wizard({
         </div>
       </div>
 
+      
+      {/* ── Fixed Right Drawer for Branch Editing ── */}
+      {drawerPath && (() => {
+           let arr: any = wizardSteps;
+           let parentName = "";
+           for (let i = 0; i < drawerPath.length; i++) {
+             arr = arr[drawerPath[i]];
+             if (i === drawerPath.length - 1) parentName = String(drawerPath[i]);
+           }
+           const branchSteps = (arr || []) as WizardStep[];
+           const close = () => setDrawerPath(null);
+           
+           return (
+             <>
+               <div className="fixed inset-0 bg-base-300/20 backdrop-blur-[1px] z-[40]" onClick={close}></div>
+               <div className="fixed inset-y-0 right-0 w-[450px] bg-base-100 border-l border-base-300 shadow-2xl z-[45] transform transition-transform duration-300 overflow-y-auto translate-x-0">
+                 <div className="flex flex-col min-h-full">
+                   <div className="flex items-center justify-between p-5 border-b border-base-300 bg-base-200/80 sticky top-0 z-10 backdrop-blur-md">
+                     <div>
+                       <h3 className="text-lg font-bold">{parentName}</h3>
+                       <p className="text-xs text-base-content/50 mt-0.5">Editing branch sequence</p>
+                     </div>
+                     <button onClick={close} className="p-2 rounded-full hover:bg-base-300 transition-colors">
+                       <RiCloseLine size={20} />
+                     </button>
+                   </div>
+                   <div className="p-6 space-y-0 flex-1">
+                     {branchSteps.length === 0 ? (
+                        <div className="text-[11px] text-base-content/40 italic px-4 py-3 bg-base-200/50 rounded-xl text-center border border-base-300/50 mb-8">
+                          {parentName === "IF REPLIED" ? "Sequence marks as Responded and stops here." : 
+                           parentName === "IF ACCEPTED" ? "Sequence continues to next step in main trunk." : 
+                           parentName === "IF NOT ACCEPTED (Timeout)" ? "Sequence skips to here if invite expires." : 
+                           parentName === "FIT" || parentName === "NOT_FIT" || parentName === "MAYBE" ? "Sequence ends." : 
+                           "Flow rejoins main sequence."}
+                        </div>
+                     ) : (
+                        branchSteps.map((bWs, bIdx) => <StepCard key={bIdx} ws={bWs} path={[...drawerPath, bIdx]} isFirst={bIdx === 0} />)
+                     )}
+                     
+                     <div className="mt-8 flex justify-center pb-12">
+                       <div className="dropdown dropdown-end dropdown-top">
+                          <label tabIndex={0} className="btn btn-sm btn-outline shadow-sm gap-1.5 rounded-full px-4 text-xs font-semibold">
+                            <RiAddLine size={14} /> Add Step
+                          </label>
+                          <ul tabIndex={0} className="dropdown-content z-[50] menu p-2 shadow-xl bg-base-100 rounded-xl w-60 mb-4 border border-base-300/50">
+                            <li className="menu-title"><span className="text-[10px] font-bold text-base-content/40 uppercase tracking-wider">LinkedIn</span></li>
+                            <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("visit", drawerPath); }} className="gap-3 text-xs"><RiEyeLine size={12} className="text-info"/> Visit Profile</a></li>
+                            <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("linkedin_enrich", drawerPath); }} className="gap-3 text-xs"><RiSearchEyeLine size={12} className="text-info"/> Enrich Profile</a></li>
+                            <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("connect", drawerPath); }} className="gap-3 text-xs"><RiLinkedinBoxLine size={12} className="text-primary"/> Connect</a></li>
+                            <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("message", drawerPath); }} className="gap-3 text-xs"><RiMessage2Line size={12} className="text-success"/> Message</a></li>
+                            {hasPremium && <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("sales_inmail", drawerPath); }} className="gap-3 text-xs"><RiSendPlaneLine size={12} className="text-primary"/> Sales Nav InMail</a></li>}
+                            <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("linkedin_like", drawerPath); }} className="gap-3 text-xs"><RiThumbUpLine size={12} className="text-primary"/> Like Recent Posts</a></li>
+                            
+                            <li className="menu-title mt-1"><span className="text-[10px] font-bold text-base-content/40 uppercase tracking-wider">Email</span></li>
+                            <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("email", drawerPath); }} className="gap-3 text-xs"><RiMailLine size={12} className="text-warning"/> Cold Email</a></li>
+                            
+                            <li className="menu-title mt-1"><span className="text-[10px] font-bold text-base-content/40 uppercase tracking-wider">Integrations</span></li>
+                            <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("integration", drawerPath); }} className="gap-3 text-xs"><RiPlugLine size={12} className="text-accent"/> Integration</a></li>
+                            <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("change_status", drawerPath); }} className="gap-3 text-xs"><RiGroupLine size={12} className="text-secondary"/> CRM Status</a></li>
+                            
+                            <li className="menu-title mt-1"><span className="text-[10px] font-bold text-base-content/40 uppercase tracking-wider">AI Agents</span></li>
+                            <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("ai_qualify", drawerPath); }} className="gap-3 text-xs"><RiRobot2Line size={12} className="text-secondary"/> AI Qualify</a></li>
+                            <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("ai_comment", drawerPath); }} className="gap-3 text-xs"><RiMessage2Line size={12} className="text-secondary"/> AI Comment</a></li>
+                          </ul>
+                       </div>
+                     </div>
+                   </div>
+                 </div>
+             </>
+           );
+      })()}
+
       {/* ── Step Config Modal ── */}
       {configPath !== null && (() => {
         const ws = getStepByPath(wizardSteps, configPath); if (!ws) return null;
