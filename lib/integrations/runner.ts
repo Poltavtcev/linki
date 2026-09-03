@@ -300,8 +300,13 @@ export async function executeEnrichmentWaterfall(db: ReturnType<typeof getDb>, t
         
         log(db, runId, target.id, "info", `Provider ${provider} did not find an email`);
       } catch (err: any) {
-        log(db, runId, target.id, "warn", `${provider} enrichment failed: ${err.message || JSON.stringify(err)}`);
-        if (err.response?.status === 402 || err.response?.status === 429 || err.message?.includes('402') || err.message?.includes('429')) {
+        const errorMsg = err.message || JSON.stringify(err);
+        if (errorMsg.includes('404 Not Found') || errorMsg.includes('404') || errorMsg.includes('not_found')) {
+          log(db, runId, target.id, "info", `Provider ${provider} did not find an email (404 Not Found)`);
+        } else {
+          log(db, runId, target.id, "warn", `${provider} enrichment failed: ${errorMsg}`);
+        }
+        if (err.response?.status === 402 || err.response?.status === 429 || errorMsg.includes('402') || errorMsg.includes('429')) {
           const tomorrow = new Date();
           tomorrow.setDate(tomorrow.getDate() + 1);
           db.prepare("UPDATE integrations SET quota_resets_at = ? WHERE key = ?").run(tomorrow.toISOString(), provider);
