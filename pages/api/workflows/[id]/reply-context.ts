@@ -10,11 +10,11 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
       const row = db.prepare("SELECT * FROM reply_contexts WHERE workflow_id = ?").get(id);
       return res.status(200).json(row || {});
     } catch (e) {
-      return res.status(500).json({ error: "DB Error" });
+      console.error(e); return res.status(500).json({ error: "DB Error", details: e instanceof Error ? e.message : String(e) });
     }
   }
 
-  if (req.method === "PUT") {
+  if (req.method === "PUT") { console.log("PUT /reply-context called for", id);
     const { is_active, sender_profile, company_product, offers_playbook, voice_rules } = req.body;
     try {
       db.prepare(`
@@ -30,7 +30,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
       `).run(id, is_active ? 1 : 0, sender_profile, company_product, offers_playbook, voice_rules);
       return res.status(200).json({ success: true });
     } catch (e) {
-      return res.status(500).json({ error: "DB Error" });
+      console.error(e); return res.status(500).json({ error: "DB Error", details: e instanceof Error ? e.message : String(e) });
     }
   }
 

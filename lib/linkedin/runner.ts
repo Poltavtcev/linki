@@ -584,10 +584,72 @@ async function executeStep(
       }
       return { status: "SUCCESS" };
 
-    } else if (step.step_type === "connect" || step.step_type === "message" || step.step_type === "email") {
-      // Basic mock of old execution logic for Phase 3
-      log(db, runId, target.id, "info", `Executing legacy step ${step.step_type} for ${name}`);
+    } else if (step.step_type === "connect") {
+      log(db, runId, target.id, "info", `Connecting to ${name}`);
+      const linkedinUrl = await getLinkedinUrl(db, target, accountId);
+      const page = await getSessionPage(accountId);
+      try {
+        await sendConnectionRequest(page, linkedinUrl);
+        recordSuccess('connect');
+      } catch (e: any) {
+        recordFailure('connect', e.message);
+        if (e instanceof WeeklyLimitError) {
+           return { status: "LIMIT_REACHED", next_eval_at: rescheduleToNextMonday(accountLimits) };
+        } else if (e instanceof AlreadyConnectedError) {
+           db.prepare("UPDATE targets SET degree = 1, connected_at = ? WHERE id = ?").run(nowIso(), target.id);
+        } else if (e instanceof PendingInviteError) {
+           db.prepare("UPDATE targets SET connection_requested_at = ? WHERE id = ?").run(nowIso(), target.id);
+        } else {
+           throw e;
+        }
+      } finally {
+        try { await page.close(); } catch {}
+        await saveSessionState(accountId);
+      }
       return { status: "SUCCESS" };
+
+    } else if (step.step_type === "message") {
+      log(db, runId, target.id, "info", `Messaging ${name}`);
+      const linkedinUrl = await getLinkedinUrl(db, target, accountId);
+      const messageText = step.message_body ? renderTemplate(step.message_body, target) : "Hello";
+      const page = await getSessionPage(accountId);
+      try {
+        const { messagingUrn } = await sendMessage(page, name, messageText, linkedinUrl, target.messaging_urn);
+        if (messagingUrn && messagingUrn !== target.messaging_urn) {
+           db.prepare("UPDATE targets SET messaging_urn = ? WHERE id = ?").run(messagingUrn, target.id);
+        }
+        recordSuccess('message');
+      } catch (e: any) {
+        recordFailure('message', e.message);
+        if (e instanceof NotConnectedError) {
+           return { status: "FAILED", error: "Not connected" };
+        }
+        throw e;
+      } finally {
+        try { await page.close(); } catch {}
+        await saveSessionState(accountId);
+      }
+      return { status: "SUCCESS", context: { linkedinMessage: messageText } };
+
+    } else if (step.step_type === "email") {
+      if (!emailAccountId || !emailAccountLimits) return { status: "FAILED", error: "No email account" };
+      log(db, runId, target.id, "info", `Emailing ${name}`);
+      
+      const emailText = step.email_body ? renderTemplate(step.email_body, target) : "";
+      const emailSubject = step.email_subject ? renderTemplate(step.email_subject, target) : "";
+      if (!target.email) return { status: "FAILED", error: "No email address" };
+      
+      try {
+        const msgId = await sendEmail(emailAccountLimits as any, target.email, emailSubject, emailText);
+        return { status: "SUCCESS", context: { emailSubject, emailBody: emailText, emailMessageId: msgId } };
+      } catch (e: any) {
+        const msg = e.message || String(e);
+        if (msg.includes("421") || msg.includes("ECONNRESET") || msg.includes("rate limit") || msg.includes("timeout") || msg.includes("busy")) {
+          log(db, runId, target.id, "warn", `Temporary email error: ${msg}. Waiting 1 hour.`);
+          return { status: "WAIT", hours: 1 };
+        }
+        throw e;
+      }
       
     } else {
       return { status: "SUCCESS" };

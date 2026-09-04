@@ -6,17 +6,40 @@ import { encryptSecret, isEncrypted } from "@/lib/crypto";
 
 const DB_PATH = process.env.LINKI_DB_PATH || path.join(process.cwd(), "linki.db");
 
-let db: Database.Database;
+const g = global as typeof global & { __linkiDb?: Database.Database };
 
 export function getDb(): Database.Database {
-  if (!db) {
-    db = new Database(DB_PATH);
-    db.pragma("journal_mode = WAL");
-    db.pragma("foreign_keys = ON");
-    initDb(db);
-    runMigrations(db);
+  if (!g.__linkiDb) {
+    const database = new Database(DB_PATH);
+    database.pragma("journal_mode = WAL");
+    database.pragma("foreign_keys = ON");
+    initDb(database);
+    runMigrations(database);
     scheduleUpdateCheck();
+    g.__linkiDb = database;
   }
+  const db = g.__linkiDb;
+
+  // Ensure these tables are always present even if DB is hot-reloaded
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS run_profile_states (
+      run_profile_id TEXT PRIMARY KEY,
+      current_step_id TEXT,
+      state TEXT,
+      next_eval_at TEXT,
+      waiting_for_condition TEXT
+    );
+    CREATE TABLE IF NOT EXISTS reply_contexts (
+      workflow_id TEXT PRIMARY KEY REFERENCES workflows(id) ON DELETE CASCADE,
+      is_active INTEGER DEFAULT 0,
+      sender_profile TEXT,
+      company_product TEXT,
+      offers_playbook TEXT,
+      voice_rules TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
 
   // Safely migrate track CHECK constraint for run_profile_tracks
   try {
