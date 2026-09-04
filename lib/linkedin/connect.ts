@@ -450,8 +450,25 @@ async function confirmConnectionRequest(page: Page, linkedinUrl: string): Promis
 
     if (await findInvitationModal(page)) {
       modalClosedAt = null;
-    } else if (modalClosedAt === null) {
-      modalClosedAt = Date.now();
+    } else {
+      if (modalClosedAt === null) {
+        modalClosedAt = Date.now();
+      }
+      // If the primary invitation modal is closed, but another modal is visible, it's a blocker.
+      const anyModal = page.locator(MODAL_SELECTOR).first();
+      if (await anyModal.isVisible().catch(() => false)) {
+        const text = await anyModal.innerText().catch(() => "");
+        if (EMAIL_PROMPT_RE.test(normalizeLabel(text)) || await anyModal.locator('input[type="email"], input#email').count() > 0) {
+          throw new Error("LinkedIn requires an email address to connect with this target (secondary prompt)");
+        }
+        if (LIMIT_RE.test(normalizeLabel(text))) {
+          throw new WeeklyLimitError("Weekly connection limit reached (secondary modal)");
+        }
+        // It could be a CAPTCHA or some other arbitrary block. If it persists for 2 seconds, throw it.
+        if (Date.now() - modalClosedAt > 2000) {
+           throw new Error(`LinkedIn opened an unexpected blocking modal: ${text.replace(/\n/g, ' ').substring(0, 150)}`);
+        }
+      }
     }
 
     // Keep the page alive long enough for LinkedIn's create-invitation request
