@@ -454,8 +454,9 @@ async function confirmConnectionRequest(page: Page, linkedinUrl: string): Promis
       if (modalClosedAt === null) {
         modalClosedAt = Date.now();
       }
-      // If the primary invitation modal is closed, but another modal is visible, it's a blocker.
-      const anyModal = page.locator(MODAL_SELECTOR).first();
+      // If the primary invitation modal is closed, but another artdeco-modal is visible, it's a blocker.
+      // We explicitly exclude [role="dialog"] here because it falsely catches the messaging chat bubbles.
+      const anyModal = page.locator('.artdeco-modal:visible').first();
       if (await anyModal.isVisible().catch(() => false)) {
         const text = await anyModal.innerText().catch(() => "");
         if (EMAIL_PROMPT_RE.test(normalizeLabel(text)) || await anyModal.locator('input[type="email"], input#email').count() > 0) {
