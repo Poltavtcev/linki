@@ -349,6 +349,61 @@ function dropDeprecatedRunProfileColumns(db: Database.Database) {
 
 function runMigrations(db: Database.Database) {
 
+  // Migration: Remove CHECK constraint from run_profile_tracks.track
+  try {
+    const tableSql2 = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='run_profile_tracks'").get();
+    if (tableSql2 && tableSql2.sql.includes("CHECK(track IN")) {
+      db.exec(`
+        PRAGMA foreign_keys = OFF;
+        CREATE TABLE run_profile_tracks_new (
+          id TEXT PRIMARY KEY,
+          run_profile_id TEXT NOT NULL REFERENCES run_profiles(id) ON DELETE CASCADE,
+          track TEXT NOT NULL,
+          state TEXT NOT NULL DEFAULT 'pending',
+          current_step INTEGER NOT NULL DEFAULT 0,
+          last_step_at TEXT,
+          next_step_at TEXT,
+          error_message TEXT,
+          last_email_subject TEXT,
+          last_email_body TEXT, last_email_message_id TEXT, last_linkedin_message TEXT, created_at TEXT, pending_reply_context TEXT
+        );
+        INSERT INTO run_profile_tracks_new SELECT * FROM run_profile_tracks;
+        DROP TABLE run_profile_tracks;
+        ALTER TABLE run_profile_tracks_new RENAME TO run_profile_tracks;
+        CREATE INDEX idx_run_profile_tracks_run_profile_id ON run_profile_tracks(run_profile_id);
+        CREATE INDEX idx_run_profile_tracks_state_next ON run_profile_tracks(state, next_step_at);
+        PRAGMA foreign_keys = ON;
+      `);
+    }
+  } catch (e) { console.error("Migration error (run_profile_tracks check):", e); }
+
+  // Migration: Remove CHECK constraint from workflow_steps.step_type
+  try {
+    const tableSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='workflow_steps'").get();
+    if (tableSql && tableSql.sql.includes("CHECK(step_type IN")) {
+      db.exec(`
+        PRAGMA foreign_keys = OFF;
+        CREATE TABLE workflow_steps_new (
+          id TEXT PRIMARY KEY,
+          workflow_id TEXT REFERENCES workflows(id) ON DELETE CASCADE,
+          step_order INTEGER NOT NULL,
+          step_type TEXT NOT NULL,
+          template_id TEXT REFERENCES templates(id),
+          delay_seconds INTEGER DEFAULT 0,
+          connect_note TEXT,
+          message_body TEXT,
+          enabled INTEGER DEFAULT 1,
+          config TEXT, track TEXT, email_subject TEXT, email_body TEXT, ai_enabled INTEGER, ai_model TEXT, ai_prompt TEXT, ai_max_words INTEGER, email_position INTEGER, message_position INTEGER, ai_language TEXT, email_signature TEXT, edges_json TEXT, ai_qualification_rules TEXT, ai_comment_prompt TEXT
+        );
+        INSERT INTO workflow_steps_new SELECT * FROM workflow_steps;
+        DROP TABLE workflow_steps;
+        ALTER TABLE workflow_steps_new RENAME TO workflow_steps;
+        PRAGMA foreign_keys = ON;
+      `);
+    }
+  } catch (e) { console.error("Migration error (workflow_steps check):", e); }
+
+
   // Migration: Add ON DELETE CASCADE to target references
   try {
     const tableInfo = db.prepare("PRAGMA foreign_key_list(run_profiles)").all() as { table: string; on_delete: string }[];

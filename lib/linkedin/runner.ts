@@ -513,6 +513,12 @@ async function executeStep(
       }
       return { status: "SUCCESS" };
 
+
+    } else if (step.step_type === "integration") {
+      log(db, runId, target.id, "info", `Executing integration step`);
+      const { executeIntegrationStep } = (await import("@/lib/integrations/runner"));
+      await executeIntegrationStep(db, runId, null, target, step, []);
+      return { status: "SUCCESS" };
     } else if (step.step_type === "ai_comment" || step.step_type === "linkedin_comment") {
       log(db, runId, target.id, "info", `Commenting on recent post for ${name}`);
       const openaiInt = db.prepare("SELECT api_key FROM integrations WHERE key = 'openai'").get() as { api_key: string } | undefined;
@@ -820,7 +826,7 @@ async function tickSync(db: ReturnType<typeof getDb>): Promise<void> {
 }
 
 // DAG State Machine execution loop (Global Runner)
-async function tickActions(db: ReturnType<typeof getDb>): Promise<void> {
+export async function tickActions(db: ReturnType<typeof getDb>): Promise<void> {
   if (isBreakerTripped()) return;
   
   const dueStates = db.prepare(`
@@ -843,7 +849,7 @@ async function tickActions(db: ReturnType<typeof getDb>): Promise<void> {
     const step = db.prepare("SELECT * FROM workflow_steps WHERE id = ?").get(state.current_step_id) as any;
     if (!step) {
       // Missing step implies terminal state or error
-      db.prepare("UPDATE run_profile_states SET state = 'completed' WHERE id = ?").run(state.id);
+      db.prepare("UPDATE run_profile_states SET state = 'completed' WHERE run_profile_id = ?").run(state.run_profile_id);
       continue;
     }
     
@@ -854,18 +860,18 @@ async function tickActions(db: ReturnType<typeof getDb>): Promise<void> {
        emailLimits = db.prepare("SELECT * FROM email_accounts WHERE id = ?").get(state.email_account_id) as any;
     }
     const rp = db.prepare("SELECT workflow_id FROM runs WHERE id = ?").get(state.run_id) as { workflow_id: string };
-    const promptQ = db.prepare("SELECT campaign_prompt FROM workflows WHERE id = ?").get(rp.workflow_id) as { campaign_prompt: string | null } | undefined;
+    const promptQ = db.prepare("SELECT prompt FROM workflows WHERE id = ?").get(rp.workflow_id) as { prompt: string | null } | undefined;
 
-    const result = await executeStep(db, state.run_id, state.run_profile_id, state.id, target, step, state.account_id, limits, state.email_account_id, emailLimits, promptQ?.campaign_prompt);
+    const result = await executeStep(db, state.run_id, state.run_profile_id, state.id, target, step, state.account_id, limits, state.email_account_id, emailLimits, promptQ?.prompt);
 
     if (result.status === "LIMIT_REACHED" || result.status === "WAIT_UNTIL") {
-       db.prepare("UPDATE run_profile_states SET next_eval_at = ? WHERE id = ?").run(result.next_eval_at, state.id);
+       db.prepare("UPDATE run_profile_states SET next_eval_at = ? WHERE run_profile_id = ?").run(result.next_eval_at, state.run_profile_id);
        continue;
     } else if (result.status === "WAIT") {
-       db.prepare(`UPDATE run_profile_states SET next_eval_at = datetime('now', '+${result.hours} hours') WHERE id = ?`).run(state.id);
+       db.prepare(`UPDATE run_profile_states SET next_eval_at = datetime('now', '+${result.hours} hours') WHERE run_profile_id = ?`).run(state.run_profile_id);
        continue;
     } else if (result.status === "FAILED") {
-       db.prepare("UPDATE run_profile_states SET state = 'failed' WHERE id = ?").run(state.id);
+       db.prepare("UPDATE run_profile_states SET state = 'failed' WHERE run_profile_id = ?").run(state.run_profile_id);
        continue;
     } else if (result.status === "SKIPPED") {
        // On skipped, we act as success to pass through
@@ -875,10 +881,8 @@ async function tickActions(db: ReturnType<typeof getDb>): Promise<void> {
     // Check if it's a delay waiter node
     if (step.delay_seconds && step.delay_seconds > 0 && state.state === 'pending') {
       db.prepare(`
-        UPDATE run_profile_states 
-        SET state = 'running', next_eval_at = datetime('now', '+${step.delay_seconds} seconds') 
-        WHERE id = ?
-      `).run(state.id);
+        UPDATE run_profile_states SET state = 'running', next_eval_at = datetime('now', '+${step.delay_seconds} seconds') WHERE run_profile_id = ?
+      `).run(state.run_profile_id);
       continue;
     }
 
@@ -886,11 +890,11 @@ async function tickActions(db: ReturnType<typeof getDb>): Promise<void> {
     try { edges = JSON.parse(step.edges_json || "{}"); } catch (e) {}
     
     if (step.step_type === 'connect' && returnState === 'SUCCESS') {
-       db.prepare("UPDATE run_profile_states SET waiting_for_condition = 'accept', state = 'running' WHERE id = ?").run(state.id);
+       db.prepare("UPDATE run_profile_states SET waiting_for_condition = 'accept', state = 'running' WHERE run_profile_id = ?").run(state.run_profile_id);
        continue;
     }
     if ((step.step_type === 'email' || step.step_type === 'message') && returnState === 'SUCCESS') {
-       db.prepare("UPDATE run_profile_states SET waiting_for_condition = 'reply', state = 'running' WHERE id = ?").run(state.id);
+       db.prepare("UPDATE run_profile_states SET waiting_for_condition = 'reply', state = 'running' WHERE run_profile_id = ?").run(state.run_profile_id);
        continue;
     }
 
@@ -898,13 +902,13 @@ async function tickActions(db: ReturnType<typeof getDb>): Promise<void> {
     if (returnState === "FIT" || returnState === "MAYBE" || returnState === "NOT_FIT") {
        nextStepId = edges[`on_${returnState.toLowerCase()}`];
     } else {
-       nextStepId = edges['on_success'];
+       nextStepId = edges['on_success'] || edges['next'];
     }
 
     if (nextStepId) {
-      db.prepare("UPDATE run_profile_states SET current_step_id = ?, state = 'pending', next_eval_at = datetime('now') WHERE id = ?").run(nextStepId, state.id);
+      db.prepare("UPDATE run_profile_states SET current_step_id = ?, state = 'pending', next_eval_at = datetime('now') WHERE run_profile_id = ?").run(nextStepId, state.run_profile_id);
     } else {
-      db.prepare("UPDATE run_profile_states SET state = 'completed' WHERE id = ?").run(state.id);
+      db.prepare("UPDATE run_profile_states SET state = 'completed' WHERE run_profile_id = ?").run(state.run_profile_id);
     }
   }
 }
