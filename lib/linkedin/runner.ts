@@ -574,19 +574,37 @@ async function executeStep(
                ]
             });
             const commentText = chat.choices[0].message.content || "Great insights!";
-            const commentBtn = post.locator('button[aria-label*="Comment"]').first();
+            
+            // Structural selector for the comment trigger
+            const commentBtn = post.locator('button[aria-label*="Comment"], button.comment-button, button:has-text("Comment"), button:has-text("Коментувати")').first();
+            
             if (await commentBtn.count() > 0) {
-              await commentBtn.click();
+              await commentBtn.click({ timeout: 5000 });
               await page.waitForTimeout(1000);
               await post.locator('.ql-editor').fill(commentText);
-              await post.locator('button.comments-comment-box__submit-button').click();
+              await page.waitForTimeout(500);
+              
+              // Structural locator for the submit button (look for primary button or specific class)
+              const submitBtn = post.locator('button.artdeco-button--primary').filter({ hasText: /Post|Comment|Опублікувати|Коментувати/i })
+                .or(post.locator('button[class*="comments-comment-box__submit-button"]'))
+                .first();
+                
+              await submitBtn.click({ timeout: 5000 });
+              
+              // Wait for it to actually post before claiming success
+              await page.waitForTimeout(2500);
               log(db, runId, target.id, "info", `Commented on post for ${name}`);
+            } else {
+              log(db, runId, target.id, "warn", `Comment button not found on post for ${name}`);
+              return { status: "FAILED", error: "Comment button not found on the post" };
             }
           } else {
             log(db, runId, target.id, "warn", `Skipped comment: latest post is ${ageDays} days old (max ${maxAgeDays})`);
           }
         } else {
+           // We explicitly checked and found no posts
            log(db, runId, target.id, "warn", `No posts found for ${name} to comment on`);
+           return { status: "SKIPPED", error: "No posts found on target profile" };
         }
       } catch (e) {
         log(db, runId, target.id, "error", `Failed to comment on post: ${(e as Error).message}`);
@@ -681,21 +699,33 @@ async function executeStep(
 
 // ─── global loop ─────────────────────────────────────────────────────────────
 
-const g = global as typeof global & { __linkiGlobalRunnerStarted?: boolean };
+const g = global as typeof global & { 
+  __linkiGlobalRunnerStarted?: boolean;
+  __linkiRunnerVersion?: number;
+};
 
 export function ensureGlobalRunnerStarted(): void {
-  if (g.__linkiGlobalRunnerStarted) return;
+  // Increment version on every module load (HMR) to kill old detached loops
+  g.__linkiRunnerVersion = (g.__linkiRunnerVersion || 0) + 1;
+  const currentVersion = g.__linkiRunnerVersion;
+  const instanceId = `worker-${currentVersion}-${Date.now()}`;
+
+  if (g.__linkiGlobalRunnerStarted && process.env.NODE_ENV !== "development") return;
   g.__linkiGlobalRunnerStarted = true;
-  globalLoop().catch(err => console.error("[runner] Global loop crashed:", err));
+  globalLoop(currentVersion, instanceId).catch(err => console.error(`[runner:${instanceId}] Global loop crashed:`, err));
 }
 
-async function globalLoop(): Promise<void> {
-  console.log("[runner] Global loop started");
+async function globalLoop(version: number, instanceId: string): Promise<void> {
+  console.log(`\n[runner:${instanceId}] 🚀 Global loop started. Version: ${version}`);
   const db = getDb();
 
   // Run the inbox sync logic in a separate parallel loop so it's not starved by action delays
   const syncLoop = async () => {
     while (true) {
+      if (g.__linkiRunnerVersion !== version) {
+        console.log(`[runner:${instanceId}] 🛑 Stopping obsolete sync loop (superceded by version ${g.__linkiRunnerVersion})`);
+        return;
+      }
       try {
         await tickSync(db);
       } catch (err) {
@@ -708,6 +738,10 @@ async function globalLoop(): Promise<void> {
 
   const actionLoop = async () => {
     while (true) {
+      if (g.__linkiRunnerVersion !== version) {
+        console.log(`[runner:${instanceId}] 🛑 Stopping obsolete action loop (superceded by version ${g.__linkiRunnerVersion})`);
+        return;
+      }
       try {
         await tickManualReplies(db);
       } catch (err) {
