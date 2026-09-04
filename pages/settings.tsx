@@ -1407,6 +1407,7 @@ interface IntegrationDef {
   badgeColor: string;
   accentColor: string;
   placeholder: string;
+  link?: string;
 }
 
 const INTEGRATIONS: IntegrationDef[] = [
@@ -1418,6 +1419,7 @@ const INTEGRATIONS: IntegrationDef[] = [
     badgeColor: "#ff7a59",
     accentColor: "#ff7a59",
     placeholder: "HubSpot Private App Token",
+    link: "https://app.hubspot.com/private-apps",
   },
   {
     key: "prospeo",
@@ -1427,6 +1429,7 @@ const INTEGRATIONS: IntegrationDef[] = [
     badgeColor: "#3b82f6",
     accentColor: "#3b82f6",
     placeholder: "Prospeo API key",
+    link: "https://prospeo.io/api",
   },
   {
     key: "apollo",
@@ -1436,6 +1439,7 @@ const INTEGRATIONS: IntegrationDef[] = [
     badgeColor: "#4f46e5",
     accentColor: "#4f46e5",
     placeholder: "Apollo API key",
+    link: "https://app.apollo.io/#/settings/api-keys",
   },
   {
     key: "hunter",
@@ -1445,6 +1449,7 @@ const INTEGRATIONS: IntegrationDef[] = [
     badgeColor: "#ff5252",
     accentColor: "#ff5252",
     placeholder: "Hunter API key",
+    link: "https://hunter.io/api_keys",
   },
   {
     key: "skrapp",
@@ -1454,6 +1459,7 @@ const INTEGRATIONS: IntegrationDef[] = [
     badgeColor: "#20c997",
     accentColor: "#20c997",
     placeholder: "Skrapp API key",
+    link: "https://skrapp.io/dashboard/api",
   },
   {
     key: "snov",
@@ -1463,6 +1469,7 @@ const INTEGRATIONS: IntegrationDef[] = [
     badgeColor: "#a855f7",
     accentColor: "#a855f7",
     placeholder: "Client ID : Client Secret (separated by colon)",
+    link: "https://app.snov.io/account/api",
   },
   {
     key: "lusha",
@@ -1472,6 +1479,7 @@ const INTEGRATIONS: IntegrationDef[] = [
     badgeColor: "#eab308",
     accentColor: "#eab308",
     placeholder: "Lusha API key",
+    link: "https://auth.lusha.com/settings/api",
   },
   {
     key: "contactout",
@@ -1481,6 +1489,7 @@ const INTEGRATIONS: IntegrationDef[] = [
     badgeColor: "#14b8a6",
     accentColor: "#14b8a6",
     placeholder: "ContactOut API key",
+    link: "https://contactout.com/dashboard/api",
   },
   {
     key: "openai",
@@ -1490,6 +1499,7 @@ const INTEGRATIONS: IntegrationDef[] = [
     badgeColor: "#10a37f",
     accentColor: "#10a37f",
     placeholder: "sk-proj-...",
+    link: "https://platform.openai.com/api-keys",
   },
   {
     key: "openrouter",
@@ -1583,7 +1593,14 @@ function IntegrationsTab({ hasPremium }: { hasPremium: boolean }) {
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-base-content/40">{intg.description}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-xs text-base-content/40">{intg.description}</p>
+                  {intg.link && (
+                    <a href={intg.link} target="_blank" rel="noreferrer" className="text-[10px] text-primary hover:underline inline-flex items-center gap-0.5">
+                      Get key <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                    </a>
+                  )}
+                </div>
               </div>
               {/* Actions */}
               <div className="flex items-center gap-2 shrink-0">
