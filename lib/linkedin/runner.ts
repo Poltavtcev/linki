@@ -648,7 +648,6 @@ async function executeStep(
         await sendConnectionRequest(page, linkedinUrl);
         recordSuccess('connect');
       } catch (e: any) {
-        recordFailure('connect', e.message);
         if (e instanceof WeeklyLimitError) {
            return { status: "LIMIT_REACHED", next_eval_at: rescheduleToNextMonday(accountLimits) };
         } else if (e instanceof AlreadyConnectedError) {
@@ -656,6 +655,7 @@ async function executeStep(
         } else if (e instanceof PendingInviteError) {
            db.prepare("UPDATE targets SET connection_requested_at = ? WHERE id = ?").run(nowIso(), target.id);
         } else {
+           recordFailure('connect', e.message);
            throw e;
         }
       } finally {
