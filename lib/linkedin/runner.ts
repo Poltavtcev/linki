@@ -614,6 +614,32 @@ async function executeStep(
       }
       return { status: "SUCCESS" };
 
+    } else if (step.step_type === "visit") {
+      log(db, runId, target.id, "info", `Visiting ${name}`);
+      const linkedinUrl = await getLinkedinUrl(db, target, accountId);
+      const page = await getSessionPage(accountId);
+      try {
+        const { visitProfile } = await import("./visit");
+        const visitResult = await visitProfile(page, linkedinUrl);
+        if (visitResult.isFirstDegree && target.degree !== 1) {
+          db.prepare("UPDATE targets SET degree = 1, connected_at = COALESCE(connected_at, ?) WHERE id = ?").run(nowIso(), target.id);
+          log(db, runId, target.id, "info", `${name} already 1st-degree — backfilled connection status`);
+        }
+        if (visitResult.messagingUrn && visitResult.messagingUrn !== target.messaging_urn) {
+          db.prepare("UPDATE targets SET messaging_urn = ? WHERE id = ?").run(visitResult.messagingUrn, target.id);
+        }
+        recordSuccess('visit');
+        log(db, runId, target.id, "info", `Visited ${name}`);
+      } catch (e: any) {
+        recordFailure('visit', e.message);
+        log(db, runId, target.id, "error", `Visit failed: ${e.message}`);
+        return { status: "FAILED", error: e.message };
+      } finally {
+        try { await page.close(); } catch {}
+        await saveSessionState(accountId);
+      }
+      return { status: "SUCCESS" };
+
     } else if (step.step_type === "connect") {
       log(db, runId, target.id, "info", `Connecting to ${name}`);
       const linkedinUrl = await getLinkedinUrl(db, target, accountId);
