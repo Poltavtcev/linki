@@ -15,10 +15,10 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
                 a.name as account_name,
                 COUNT(DISTINCT rp.id) as total_profiles,
                 COUNT(DISTINCT CASE WHEN NOT EXISTS (
-                  SELECT 1 FROM run_profile_tracks rt2
+                  SELECT 1 FROM run_profile_states rt2
                   WHERE rt2.run_profile_id = rp.id AND rt2.state NOT IN ('completed', 'failed', 'skipped')
                 ) AND EXISTS (
-                  SELECT 1 FROM run_profile_tracks rt3
+                  SELECT 1 FROM run_profile_states rt3
                   WHERE rt3.run_profile_id = rp.id AND rt3.state = 'completed'
                 ) THEN rp.id END) as completed_profiles
          FROM runs r
@@ -81,8 +81,8 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
          JOIN runs r ON r.id = rp.run_id
          WHERE r.status IN ('running', 'paused')
          AND EXISTS (
-           SELECT 1 FROM run_profile_tracks rt
-           WHERE rt.run_profile_id = rp.id AND rt.state NOT IN ('completed', 'failed', 'skipped')
+           SELECT 1 FROM run_profile_states rt
+           WHERE rt.run_profile_id = rp.id AND rt.state IN ('pending', 'running')
          )`
       ).all() as { target_id: string }[]).map((r) => r.target_id)
     );
@@ -108,7 +108,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
         (db.prepare(
           `SELECT DISTINCT rp.target_id FROM run_profiles rp
            JOIN runs r ON r.id = rp.run_id
-           WHERE r.workflow_id != ?`
+           WHERE r.workflow_id != ? AND r.status IN ('running', 'paused')`
         ).all(workflow_id) as { target_id: string }[]).map((r) => r.target_id)
       );
     }
@@ -170,7 +170,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
       "INSERT INTO run_profile_states (run_profile_id, current_step_id, state) VALUES (?, ?, 'pending')"
     );
     
-    // Also insert into run_profile_tracks for backwards compatibility in UI until UI is fully migrated
+    // Also insert into run_profile_states for backwards compatibility in UI until UI is fully migrated
     const insertTrack = db.prepare(
       "INSERT INTO run_profile_tracks (id, run_profile_id, track, state, current_step) VALUES (?, ?, 'linkedin', 'pending', 0)"
     );
