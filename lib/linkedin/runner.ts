@@ -537,9 +537,15 @@ async function executeStep(
       const linkedinUrl = await getLinkedinUrl(db, target, accountId);
       const page = await getSessionPage(accountId);
       try {
-        await page.goto(linkedinUrl.replace(/\/$/, "") + "/recent-activity/all/", { waitUntil: "domcontentloaded" });
-        await page.waitForTimeout(3000);
-        const posts = page.locator('.feed-shared-update-v2');
+        await page.goto(linkedinUrl.replace(/\/$/, "") + "/recent-activity/all/", { waitUntil: "domcontentloaded", timeout: 30000 });
+        
+        // Wait for posts to load or explicitly detect empty state
+        await Promise.race([
+          page.waitForSelector('.feed-shared-update-v2, .profile-creator-shared-feed-update__container', { timeout: 15000 }).catch(() => {}),
+          page.waitForSelector('main:has-text("No recent activity"), main:has-text("Немає недавніх дій"), [class*="no-content"]', { timeout: 15000 }).catch(() => {})
+        ]);
+
+        const posts = page.locator('.feed-shared-update-v2, .profile-creator-shared-feed-update__container');
         const count = await posts.count();
         if (count > 0) {
           // Process liking N posts
