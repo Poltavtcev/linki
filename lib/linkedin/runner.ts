@@ -999,7 +999,15 @@ export async function tickActions(db: ReturnType<typeof getDb>, workerId: string
   }
 
   for (const state of selectedStatesToProcess) {
+    let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
     try {
+      // Start heartbeat to renew lock TTL every 1 minute while executeStep is running
+      heartbeatInterval = setInterval(() => {
+        try {
+          db.prepare(`UPDATE account_locks SET locked_at = datetime('now') WHERE account_id = ? AND worker_id = ?`).run(state.account_id, workerId);
+        } catch (e) {}
+      }, 60 * 1000);
+
       
           const step = db.prepare("SELECT * FROM workflow_steps WHERE id = ?").get(state.current_step_id) as any;
           if (!step) {
@@ -1065,7 +1073,10 @@ export async function tickActions(db: ReturnType<typeof getDb>, workerId: string
           }
         }
     } finally {
-      db.prepare(`DELETE FROM account_locks WHERE account_id = ? AND worker_id = ?`).run(state.account_id, workerId);
+      if (heartbeatInterval) clearInterval(heartbeatInterval);
+      try {
+        db.prepare(`DELETE FROM account_locks WHERE account_id = ? AND worker_id = ?`).run(state.account_id, workerId);
+      } catch (e) {}
     }
   }
 }
