@@ -1,9 +1,9 @@
 {
-  "taskId": "C3-Core-TypeScript",
-  "status": "PLANNING",
+  "taskId": "C1-Automated-Test-Foundation",
+  "status": "IMPLEMENTING",
   "riskLevel": "HIGH",
-  "scope": "Diagnose and fix 13 core TypeScript errors to unblock Next.js build. No suppressions or tsconfig weakening allowed. Preserve behavioral invariants. Do not refactor unrelated architecture.",
-  "checkpointCommit": "4b403ed44932029bf3b12f220638fc17df9a9506",
+  "scope": "Phase 3 - Implement minimal vitest foundation, migrate regression scripts, write crypto unit test, integrate with validate.sh.",
+  "checkpointCommit": "711cf1e3081252d2ba78376e3c0899326d82c897",
   "titanConversationId": "",
   "gates": {
     "typecheck": "PENDING",
