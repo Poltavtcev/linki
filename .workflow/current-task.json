@@ -1,0 +1,18 @@
+{
+  "taskId": "C4-Secret-Exposure",
+  "status": "PLANNING",
+  "riskLevel": "HIGH",
+  "scope": "Remove INTERNAL_API_SECRET from getServerSideProps in pages/settings.tsx. Create pages/api/mcp/secret.ts with getServerSession protection to serve the secret. Fetch it asynchronously in the McpCard component so it never enters __NEXT_DATA__ payload.",
+  "checkpointCommit": "",
+  "titanConversationId": "",
+  "gates": {
+    "typecheck": "PENDING",
+    "unitTest": "PENDING",
+    "integrationTest": "PENDING",
+    "regressionTest": "PENDING",
+    "build": "PENDING",
+    "diffReview": "PENDING",
+    "invariantCheck": "PENDING",
+    "supervisorPass": "PENDING"
+  }
+}
