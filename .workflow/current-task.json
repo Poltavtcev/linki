@@ -1,9 +1,9 @@
 {
-  "taskId": "C4-Secret-Exposure",
+  "taskId": "C5-Debug-Routes",
   "status": "PLANNING",
   "riskLevel": "HIGH",
-  "scope": "Remove INTERNAL_API_SECRET from getServerSideProps in pages/settings.tsx. Create pages/api/mcp/secret.ts with getServerSession protection to serve the secret. Fetch it asynchronously in the McpCard component so it never enters __NEXT_DATA__ payload.",
-  "checkpointCommit": "",
+  "scope": "Investigate and secure pages/api/debug-feed.ts and pages/api/test-tick.ts. Determine necessity, secure from unauthenticated access, sanitize error handling, and remove hardcoded sensitive identifiers without breaking legitimate production use cases.",
+  "checkpointCommit": "6de477d3fea7b1f768bd4cb43dd900cb2d6da5dc",
   "titanConversationId": "",
   "gates": {
     "typecheck": "PENDING",
