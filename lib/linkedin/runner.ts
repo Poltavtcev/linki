@@ -3,7 +3,7 @@ import { syncLinkedInInboxReadOnly } from "./inbox-sync";
 import { getDb } from "@/lib/db";
 import { executeIntegrationStep } from "@/lib/integrations/runner";
 import { randomUUID } from "crypto";
-import { getSessionPage, saveSessionState, getSessionContext } from "@/lib/linkedin/session";
+import { getSessionPage, saveSessionState, getSessionContext, killAccountContext } from "@/lib/linkedin/session";
 import { isBreakerTripped, recordSuccess, recordFailure } from "./circuit-breaker";
 import { visitProfile } from "@/lib/linkedin/visit";
 import { sendConnectionRequest, WeeklyLimitError, AlreadyConnectedError, PendingInviteError } from "@/lib/linkedin/connect";
@@ -1004,7 +1004,13 @@ export async function tickActions(db: ReturnType<typeof getDb>, workerId: string
       // Start heartbeat to renew lock TTL every 1 minute while executeStep is running
       heartbeatInterval = setInterval(() => {
         try {
-          db.prepare(`UPDATE account_locks SET locked_at = datetime('now') WHERE account_id = ? AND worker_id = ?`).run(state.account_id, workerId);
+          const result = db.prepare(`UPDATE account_locks SET locked_at = datetime('now') WHERE account_id = ? AND worker_id = ?`).run(state.account_id, workerId);
+          if (result.changes === 0) {
+            console.warn(`[runner] FENCING TRIGGERED: Worker ${workerId} lost lock for account ${state.account_id}. Aborting Playwright context!`);
+            // Kill the context out from under the running executeStep to instantly throw TargetClosedError
+            killAccountContext(state.account_id).catch(() => {});
+            if (heartbeatInterval) clearInterval(heartbeatInterval);
+          }
         } catch (e) {}
       }, 60 * 1000);
 

@@ -165,6 +165,13 @@ export async function saveSessionState(accountId: string): Promise<void> {
   if (!ctx) return;
   const db = getDb();
   const state = await ctx.storageState();
+
+  const hasLiAt = state.cookies.some(c => c.name === 'li_at' && c.value.trim() !== '');
+  if (!hasLiAt) {
+    console.warn(`[session] Attempted to save session state without li_at for account ${accountId}. Aborting overwrite to protect valid DB cookies.`);
+    return;
+  }
+
   db.prepare("UPDATE accounts SET cookies_json = ?, is_authenticated = 1 WHERE id = ?").run(
     encryptSecret(JSON.stringify(state)),
     accountId
@@ -515,5 +522,14 @@ export async function awaitLoginApproval(accountId: string): Promise<LoginResult
   } catch (e) {
     await clearPendingLogin(accountId);
     return { status: "error", message: (e as Error).message };
+  }
+}
+
+export async function killAccountContext(accountId: string): Promise<void> {
+  const ctx = contexts.get(accountId);
+  if (ctx) {
+    console.log(`[session] Killing context for account ${accountId} (Fencing Triggered)`);
+    try { await ctx.close(); } catch (e) {}
+    contexts.delete(accountId);
   }
 }
