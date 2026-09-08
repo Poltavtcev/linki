@@ -1,9 +1,9 @@
 {
-  "taskId": "C5-Debug-Routes",
+  "taskId": "C3-Core-TypeScript",
   "status": "PLANNING",
   "riskLevel": "HIGH",
-  "scope": "Investigate and secure pages/api/debug-feed.ts and pages/api/test-tick.ts. Determine necessity, secure from unauthenticated access, sanitize error handling, and remove hardcoded sensitive identifiers without breaking legitimate production use cases.",
-  "checkpointCommit": "6de477d3fea7b1f768bd4cb43dd900cb2d6da5dc",
+  "scope": "Diagnose and fix 13 core TypeScript errors to unblock Next.js build. No suppressions or tsconfig weakening allowed. Preserve behavioral invariants. Do not refactor unrelated architecture.",
+  "checkpointCommit": "4b403ed44932029bf3b12f220638fc17df9a9506",
   "titanConversationId": "",
   "gates": {
     "typecheck": "PENDING",
