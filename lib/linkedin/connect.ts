@@ -501,7 +501,7 @@ async function confirmConnectionRequest(page: Page, linkedinUrl: string): Promis
  * Handles all UI languages (Portuguese, Spanish, English, etc.) and both
  * direct Connect actions and Creator-mode More/Mais dropdown menus.
  */
-export async function sendConnectionRequest(page: Page, linkedinUrl: string): Promise<void> {
+export async function sendConnectionRequest(page: Page, linkedinUrl: string, assertLock: () => void = () => {}): Promise<void> {
   await page.goto(linkedinUrl, { waitUntil: "domcontentloaded", timeout: 35000 });
   await page.waitForTimeout(3000 + Math.random() * 1500);
 
@@ -563,6 +563,7 @@ export async function sendConnectionRequest(page: Page, linkedinUrl: string): Pr
   }
 
   try {
+    assertLock();
     await sendButton.click({ force: true, timeout: 10000 });
   } catch (error) {
     throw new Error(`Could not click LinkedIn's send-without-note button: ${error instanceof Error ? error.message : String(error)}`);

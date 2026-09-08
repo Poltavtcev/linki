@@ -122,7 +122,7 @@ async function openComposeByIdentifier(page: Page, urnId: string | null, vanityI
   }
 }
 
-async function sendFromComposeBox(page: Page, urnId: string | null, vanityId: string | null, text: string): Promise<void> {
+async function sendFromComposeBox(page: Page, urnId: string | null, vanityId: string | null, text: string, assertLock: () => void): Promise<void> {
   const container = await getConversationContainer(page, urnId, vanityId);
 
   const msgInput = container.locator("div.msg-form__contenteditable, div[role='textbox'][aria-label*='Message'], div[role='textbox'][aria-label*='Mensaje'], div[role='textbox'][aria-label*='Mensagem'], div[role='textbox'][aria-label*='Повідомлення']").first();
@@ -136,6 +136,7 @@ async function sendFromComposeBox(page: Page, urnId: string | null, vanityId: st
 
   const sendBtn = container.locator("button.msg-form__send-button:visible, button[type='submit'].msg-form__send-button:visible, button.msg-form__send-btn:visible").first();
   await sendBtn.waitFor({ timeout: 5000 });
+  assertLock();
   await sendBtn.click({ delay: 100 });
   
   const start = Date.now();
@@ -217,7 +218,8 @@ export async function sendMessage(
   fullName: string,
   text: string,
   linkedinUrl: string,
-  messagingUrn?: string | null
+  messagingUrn?: string | null,
+  assertLock: () => void = () => {}
 ): Promise<SendMessageResult> {
   let urnId = null;
   const urnMatch = messagingUrn?.match(/ACo[A-Za-z0-9_-]+/);
@@ -231,7 +233,7 @@ export async function sendMessage(
   if (messagingUrn) {
     const opened = await openComposeByIdentifier(page, urnId, vanityId);
     if (opened) {
-      await sendFromComposeBox(page, urnId, vanityId, text);
+      await sendFromComposeBox(page, urnId, vanityId, text, assertLock);
       return { messagingUrn, isFirstDegree: true };
     }
   }
@@ -256,11 +258,11 @@ export async function sendMessage(
     throw new Error(`Failed to open compose box for URN ${resolved.messagingUrn}`);
   }
 
-  await sendFromComposeBox(page, newUrnId, vanityId, text);
+  await sendFromComposeBox(page, newUrnId, vanityId, text, assertLock);
   return resolved;
 }
 
-export async function replyToThread(page: Page, threadId: string, text: string, profileUrl?: string): Promise<void> {
+export async function replyToThread(page: Page, threadId: string, text: string, profileUrl?: string, assertLock: () => void = () => {}): Promise<void> {
   const cleanThreadId = threadId.includes(",") ? threadId.split(",")[1].replace(")", "") : threadId;
   const url = `https://www.linkedin.com/messaging/thread/${cleanThreadId}/`;
   console.log("[replyToThread] Navigating to", url);
@@ -274,7 +276,7 @@ export async function replyToThread(page: Page, threadId: string, text: string, 
   }
 
   try {
-    await sendFromComposeBox(page, null, threadVanityId, text);
+    await sendFromComposeBox(page, null, threadVanityId, text, assertLock);
     return;
   } catch (err) {
     console.error("[replyToThread] Failed in thread view, attempting profile fallback...", err);
@@ -288,5 +290,5 @@ export async function replyToThread(page: Page, threadId: string, text: string, 
   const opened3 = await openComposeByIdentifier(page, null, threadVanityId);
   if (!opened3) throw new Error(`Failed to open compose box for profile ${profileUrl}`);
   
-  await sendFromComposeBox(page, null, threadVanityId, text);
+  await sendFromComposeBox(page, null, threadVanityId, text, assertLock);
 }

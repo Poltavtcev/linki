@@ -503,6 +503,7 @@ async function executeStep(
         await page.waitForTimeout(3000);
         const likeBtn = page.locator('button[aria-label*="Like"]').first();
         if (await likeBtn.count() > 0) {
+           assertLock();
            await likeBtn.click();
            log(db, runId, target.id, "info", `Liked post for ${name}`);
         } else {
@@ -648,7 +649,7 @@ async function executeStep(
       const linkedinUrl = await getLinkedinUrl(db, target, accountId);
       const page = await getSessionPage(accountId);
       try {
-        await sendConnectionRequest(page, linkedinUrl);
+        await sendConnectionRequest(page, linkedinUrl, assertLock);
         recordSuccess('connect');
       } catch (e: any) {
         if (e instanceof WeeklyLimitError) {
@@ -1002,13 +1003,18 @@ export async function tickActions(db: ReturnType<typeof getDb>, workerId: string
     let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
     try {
       // Start heartbeat to renew lock TTL every 1 minute while executeStep is running
+      const assertLock = () => {
+        const result = db.prepare(`UPDATE account_locks SET locked_at = datetime('now') WHERE account_id = ? AND worker_id = ?`).run(state.account_id, workerId);
+        if (result.changes === 0) {
+          throw new Error("FENCING ABORT: Lost lock ownership before side effect");
+        }
+      };
+
       heartbeatInterval = setInterval(() => {
         try {
           const result = db.prepare(`UPDATE account_locks SET locked_at = datetime('now') WHERE account_id = ? AND worker_id = ?`).run(state.account_id, workerId);
           if (result.changes === 0) {
             console.warn(`[runner] FENCING TRIGGERED: Worker ${workerId} lost lock for account ${state.account_id}. Aborting Playwright context!`);
-            // Kill the context out from under the running executeStep to instantly throw TargetClosedError
-            killAccountContext(state.account_id).catch(() => {});
             if (heartbeatInterval) clearInterval(heartbeatInterval);
           }
         } catch (e) {}

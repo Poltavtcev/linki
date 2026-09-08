@@ -525,11 +525,4 @@ export async function awaitLoginApproval(accountId: string): Promise<LoginResult
   }
 }
 
-export async function killAccountContext(accountId: string): Promise<void> {
-  const ctx = contexts.get(accountId);
-  if (ctx) {
-    console.log(`[session] Killing context for account ${accountId} (Fencing Triggered)`);
-    try { await ctx.close(); } catch (e) {}
-    contexts.delete(accountId);
-  }
-}
+
