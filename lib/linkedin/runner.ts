@@ -21,8 +21,10 @@ import { decryptSecret } from "@/lib/crypto";
 const SALES_NAV_ENRICH_MIN_GAP_MS = 5 * 60 * 1000;
 // Per-account timestamp of last ensureSalesNavEnriched execution
 const lastSalesNavEnrichAt: Record<string, number> = {};
-const lastLinkedinSync = new Map<string, number>();
-const activeLinkedinSyncs = new Set<string>();
+export const lastLinkedinSync = new Map<string, number>();
+export const activeLinkedinSyncs = new Set<string>();
+export const syncBackoffs = new Map<string, number>();
+export const syncStrikes = new Map<string, number>();
 const withdrawSyncs = new Map<string, number>();
 
 // Accounts that reported "No InMail credits left" today (Jul 2026 incident — LinkedIn's
@@ -87,6 +89,7 @@ function getLocalParts(tz: string, date = new Date()): { hour: number; minute: n
 
 export type StepExecutionResult =
   | { status: "SUCCESS"; context?: any }
+  | { status: "PAUSED"; context?: any }
   | { status: "LIMIT_REACHED"; next_eval_at: string }
   | { status: "WAIT"; hours: number }
   | { status: "WAIT_UNTIL"; next_eval_at: string }
@@ -604,7 +607,7 @@ async function executeStep(
         } else {
            // We explicitly checked and found no posts
            log(db, runId, target.id, "warn", `No posts found for ${name} to comment on`);
-           return { status: "SKIPPED", error: "No posts found on target profile" };
+           return { status: "SKIPPED", reason: "No posts found on target profile" };
         }
       } catch (e) {
         log(db, runId, target.id, "error", `Failed to comment on post: ${(e as Error).message}`);
@@ -667,12 +670,31 @@ async function executeStep(
     } else if (step.step_type === "message") {
       log(db, runId, target.id, "info", `Messaging ${name}`);
       const linkedinUrl = await getLinkedinUrl(db, target, accountId);
-      const messageText = step.message_body ? renderTemplate(step.message_body, target) : "Hello";
+      let messageText = step.message_body ? renderTemplate(step.message_body, target) : "Hello";
+
+      let aiDraftId: string | undefined;
+      if (step.ai_enabled === 1) {
+        const aiDraft = await handleAiDraft(db, runId, runProfileId, target, step, 'linkedin', campaignPrompt, accountId);
+        if (aiDraft.status === 'PAUSED') {
+          return { status: "PAUSED", context: { draftId: aiDraft.draftId } };
+        }
+        messageText = aiDraft.generatedText || messageText;
+        aiDraftId = aiDraft.draftId;
+      }
+
+      if (aiDraftId) {
+        const res = db.prepare("UPDATE ai_drafts SET status = 'sending' WHERE id = ? AND status = 'approved'").run(aiDraftId);
+        if (res.changes === 0) throw new Error("Concurrency lock failure: draft is no longer approved");
+      }
+
       const page = await getSessionPage(accountId);
       try {
         const { messagingUrn } = await sendMessage(page, name, messageText, linkedinUrl, target.messaging_urn);
         if (messagingUrn && messagingUrn !== target.messaging_urn) {
            db.prepare("UPDATE targets SET messaging_urn = ? WHERE id = ?").run(messagingUrn, target.id);
+        }
+        if (aiDraftId) {
+          db.prepare("UPDATE ai_drafts SET status = 'sent' WHERE id = ?").run(aiDraftId);
         }
         recordSuccess('message');
       } catch (e: any) {
@@ -691,12 +713,31 @@ async function executeStep(
       if (!emailAccountId || !emailAccountLimits) return { status: "FAILED", error: "No email account" };
       log(db, runId, target.id, "info", `Emailing ${name}`);
       
-      const emailText = step.email_body ? renderTemplate(step.email_body, target) : "";
+      let emailText = step.email_body ? renderTemplate(step.email_body, target) : "";
       const emailSubject = step.email_subject ? renderTemplate(step.email_subject, target) : "";
+      
+      let aiDraftId: string | undefined;
+      if (step.ai_enabled === 1) {
+        const aiDraft = await handleAiDraft(db, runId, runProfileId, target, step, 'email', campaignPrompt, emailAccountId);
+        if (aiDraft.status === 'PAUSED') {
+          return { status: "PAUSED", context: { draftId: aiDraft.draftId } };
+        }
+        emailText = aiDraft.generatedText || emailText;
+        aiDraftId = aiDraft.draftId;
+      }
+
       if (!target.email) return { status: "FAILED", error: "No email address" };
       
+      if (aiDraftId) {
+        const res = db.prepare("UPDATE ai_drafts SET status = 'sending' WHERE id = ? AND status = 'approved'").run(aiDraftId);
+        if (res.changes === 0) throw new Error("Concurrency lock failure: draft is no longer approved");
+      }
+
       try {
         const msgId = await sendEmail(emailAccountLimits as any, target.email, emailSubject, emailText);
+        if (aiDraftId) {
+          db.prepare("UPDATE ai_drafts SET status = 'sent' WHERE id = ?").run(aiDraftId);
+        }
         return { status: "SUCCESS", context: { emailSubject, emailBody: emailText, emailMessageId: msgId } };
       } catch (e: any) {
         const msg = e.message || String(e);
@@ -758,7 +799,7 @@ async function globalLoop(version: number, instanceId: string): Promise<void> {
         recordFailure('message', (err as Error).message);
         console.error("[runner] Sync tick error:", err instanceof Error ? err.message : err);
       }
-      await sleep(5 * 60 * 1000); // 5 min
+      await sleep(15 * 1000); // 5 min
     }
   };
 
@@ -774,7 +815,7 @@ async function globalLoop(version: number, instanceId: string): Promise<void> {
         console.error("[runner] Manual replies error", err);
       }
       try {
-        await tickActions(db);
+        await tickActions(db, instanceId);
       } catch (err) {
         recordFailure('message', (err as Error).message);
         console.error("[runner] Action tick error:", err instanceof Error ? err.message : err);
@@ -846,15 +887,31 @@ async function tickSync(db: ReturnType<typeof getDb>): Promise<void> {
     const acc = db.prepare("SELECT is_authenticated FROM accounts WHERE id = ?").get(accountId) as { is_authenticated: number } | undefined;
     if (acc && acc.is_authenticated) {
       const lastSync = lastLinkedinSync.get(accountId) || 0;
-      const dueAfterMs = IMAP_POLL_INTERVAL_MS + accountJitterMs(accountId);
+      const backoff = syncBackoffs.get(accountId) || 0;
+      const dueAfterMs = (IMAP_POLL_INTERVAL_MS + accountJitterMs(accountId)) + backoff;
       const isDue = Date.now() - lastSync >= dueAfterMs;
 
       if (isDue && !activeLinkedinSyncs.has(accountId)) {
         activeLinkedinSyncs.add(accountId);
         try {
           const syncResult = await syncLinkedInInboxReadOnly({ accountId, source: new LinkedInNetworkObserver() });
+          syncStrikes.delete(accountId);
+          syncBackoffs.delete(accountId);
         } catch (e) {
-          console.warn("[runner] LinkedIn inbox sync error:", e instanceof Error ? e.message : e);
+          const msg = e instanceof Error ? e.message : String(e);
+          console.warn("[runner] LinkedIn inbox sync error:", msg);
+          
+          let strikes = (syncStrikes.get(accountId) || 0) + 1;
+          syncStrikes.set(accountId, strikes);
+          
+          if (msg.includes("429") || msg.includes("Too Many Requests")) {
+             const newBackoff = Math.min(1000 * 60 * 60 * 24, Math.pow(2, strikes) * 1000 * 60 * 15); // Exponental starting at 30m up to 24h
+             syncBackoffs.set(accountId, newBackoff);
+             console.warn(`[runner] 429 Rate Limit for ${accountId}. Backing off for ${newBackoff}ms`);
+          } else {
+             // General transient error backoff (5 mins per strike)
+             syncBackoffs.set(accountId, Math.min(1000 * 60 * 60, strikes * 1000 * 60 * 5)); 
+          }
         } finally {
           lastLinkedinSync.set(accountId, Date.now());
           activeLinkedinSyncs.delete(accountId);
@@ -892,9 +949,20 @@ async function tickSync(db: ReturnType<typeof getDb>): Promise<void> {
 }
 
 // DAG State Machine execution loop (Global Runner)
-export async function tickActions(db: ReturnType<typeof getDb>): Promise<void> {
+export async function tickActions(db: ReturnType<typeof getDb>, workerId: string = "default-worker"): Promise<void> {
   if (isBreakerTripped()) return;
   
+  
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS account_locks (
+      account_id TEXT PRIMARY KEY,
+      worker_id TEXT NOT NULL,
+      locked_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `).run();
+
+  db.prepare(`DELETE FROM account_locks WHERE datetime(locked_at, '+5 minutes') < datetime('now')`).run();
+
   const dueStates = db.prepare(`
     SELECT rps.*, rp.run_id, rp.target_id, rp.email_account_id,
            r.account_id, r.workflow_id
@@ -907,74 +975,97 @@ export async function tickActions(db: ReturnType<typeof getDb>): Promise<void> {
       AND rps.waiting_for_condition IS NULL
   `).all() as any[];
 
-  if (dueStates.length > 0) {
-    console.log(`[dag-runner] Tick — ${dueStates.length} actionable state(s)`);
+  const statesByAccount: Record<string, any[]> = {};
+  for (const s of dueStates) {
+    if (!statesByAccount[s.account_id]) statesByAccount[s.account_id] = [];
+    statesByAccount[s.account_id].push(s);
   }
 
-  for (const state of dueStates) {
-    const step = db.prepare("SELECT * FROM workflow_steps WHERE id = ?").get(state.current_step_id) as any;
-    if (!step) {
-      // Missing step implies terminal state or error
-      db.prepare("UPDATE run_profile_states SET state = 'completed' WHERE run_profile_id = ?").run(state.run_profile_id);
-      continue;
+  const selectedStatesToProcess = [];
+  for (const [accountId, states] of Object.entries(statesByAccount)) {
+    try {
+      db.prepare(`INSERT INTO account_locks (account_id, worker_id, locked_at) VALUES (?, ?, datetime('now'))`).run(accountId, workerId);
+      selectedStatesToProcess.push(states[0]);
+    } catch (e: any) {
+      if (e.code === 'SQLITE_CONSTRAINT_PRIMARYKEY') {
+        continue; // Account locked by another worker
+      }
+      throw e;
     }
-    
-    const target = db.prepare("SELECT * FROM targets WHERE id = ?").get(state.target_id) as Target;
-    const limits = db.prepare("SELECT * FROM accounts WHERE id = ?").get(state.account_id) as any;
-    let emailLimits = null;
-    if (state.email_account_id) {
-       emailLimits = db.prepare("SELECT * FROM email_accounts WHERE id = ?").get(state.email_account_id) as any;
-    }
-    const rp = db.prepare("SELECT workflow_id FROM runs WHERE id = ?").get(state.run_id) as { workflow_id: string };
-    const promptQ = db.prepare("SELECT prompt FROM workflows WHERE id = ?").get(rp.workflow_id) as { prompt: string | null } | undefined;
+  }
 
-    const result = await executeStep(db, state.run_id, state.run_profile_id, state.id, target, step, state.account_id, limits, state.email_account_id, emailLimits, promptQ?.prompt);
+  if (selectedStatesToProcess.length > 0) {
+    console.log(`[dag-runner] Tick — ${dueStates.length} actionable run(s) found, acquired lock for ${selectedStatesToProcess.length} account(s)`);
+  }
 
-    if (result.status === "LIMIT_REACHED" || result.status === "WAIT_UNTIL") {
-       db.prepare("UPDATE run_profile_states SET next_eval_at = ? WHERE run_profile_id = ?").run(result.next_eval_at, state.run_profile_id);
-       continue;
-    } else if (result.status === "WAIT") {
-       db.prepare(`UPDATE run_profile_states SET next_eval_at = datetime('now', '+${result.hours} hours') WHERE run_profile_id = ?`).run(state.run_profile_id);
-       continue;
-    } else if (result.status === "FAILED") {
-       db.prepare("UPDATE run_profile_states SET state = 'failed' WHERE run_profile_id = ?").run(state.run_profile_id);
-       continue;
-    } else if (result.status === "SKIPPED") {
-       // On skipped, we act as success to pass through
-    }
-    const returnState = result.status;
-    
-    // Check if it's a delay waiter node
-    if (step.delay_seconds && step.delay_seconds > 0 && state.state === 'pending') {
-      db.prepare(`
-        UPDATE run_profile_states SET state = 'running', next_eval_at = datetime('now', '+${step.delay_seconds} seconds') WHERE run_profile_id = ?
-      `).run(state.run_profile_id);
-      continue;
-    }
-
-    let edges: Record<string, string> = {};
-    try { edges = JSON.parse(step.edges_json || "{}"); } catch (e) {}
-    
-    if (step.step_type === 'connect' && returnState === 'SUCCESS') {
-       db.prepare("UPDATE run_profile_states SET waiting_for_condition = 'accept', state = 'running' WHERE run_profile_id = ?").run(state.run_profile_id);
-       continue;
-    }
-    if ((step.step_type === 'email' || step.step_type === 'message') && returnState === 'SUCCESS') {
-       db.prepare("UPDATE run_profile_states SET waiting_for_condition = 'reply', state = 'running' WHERE run_profile_id = ?").run(state.run_profile_id);
-       continue;
-    }
-
-    let nextStepId = null;
-    if (returnState === "FIT" || returnState === "MAYBE" || returnState === "NOT_FIT") {
-       nextStepId = edges[`on_${returnState.toLowerCase()}`];
-    } else {
-       nextStepId = edges['on_success'] || edges['next'];
-    }
-
-    if (nextStepId) {
-      db.prepare("UPDATE run_profile_states SET current_step_id = ?, state = 'pending', next_eval_at = datetime('now') WHERE run_profile_id = ?").run(nextStepId, state.run_profile_id);
-    } else {
-      db.prepare("UPDATE run_profile_states SET state = 'completed' WHERE run_profile_id = ?").run(state.run_profile_id);
+  for (const state of selectedStatesToProcess) {
+    try {
+      
+          const step = db.prepare("SELECT * FROM workflow_steps WHERE id = ?").get(state.current_step_id) as any;
+          if (!step) {
+            // Missing step implies terminal state or error
+            db.prepare("UPDATE run_profile_states SET state = 'completed' WHERE run_profile_id = ?").run(state.run_profile_id);
+            continue;
+          }
+          
+          const target = db.prepare("SELECT * FROM targets WHERE id = ?").get(state.target_id) as Target;
+          const limits = db.prepare("SELECT * FROM accounts WHERE id = ?").get(state.account_id) as any;
+          let emailLimits = null;
+          if (state.email_account_id) {
+             emailLimits = db.prepare("SELECT * FROM email_accounts WHERE id = ?").get(state.email_account_id) as any;
+          }
+          const rp = db.prepare("SELECT workflow_id FROM runs WHERE id = ?").get(state.run_id) as { workflow_id: string };
+          const promptQ = db.prepare("SELECT prompt FROM workflows WHERE id = ?").get(rp.workflow_id) as { prompt: string | null } | undefined;
+      
+          const result = await executeStep(db, state.run_id, state.run_profile_id, state.id, target, step, state.account_id, limits, state.email_account_id, emailLimits, promptQ?.prompt);
+      
+          if (result.status === "LIMIT_REACHED" || result.status === "WAIT_UNTIL") {
+             db.prepare("UPDATE run_profile_states SET next_eval_at = ? WHERE run_profile_id = ?").run(result.next_eval_at, state.run_profile_id);
+             continue;
+          } else if (result.status === "WAIT") {
+             db.prepare(`UPDATE run_profile_states SET next_eval_at = datetime('now', '+${result.hours} hours') WHERE run_profile_id = ?`).run(state.run_profile_id);
+             continue;
+          } else if (result.status === "FAILED") {
+             db.prepare("UPDATE run_profile_states SET state = 'failed' WHERE run_profile_id = ?").run(state.run_profile_id);
+             continue;
+          } else if (result.status === "PAUSED") {
+             // state and waiting_for_condition are already updated in handleAiDraft
+             continue;
+          } else if (result.status === "SKIPPED") {
+             // On skipped, we act as success to pass through
+          }
+          const returnState = result.status;
+          
+          // Check if it's a delay waiter node
+          if (step.delay_seconds && step.delay_seconds > 0 && state.state === 'pending') {
+            db.prepare(`
+              UPDATE run_profile_states SET state = 'running', next_eval_at = datetime('now', '+${step.delay_seconds} seconds') WHERE run_profile_id = ?
+            `).run(state.run_profile_id);
+            continue;
+          }
+      
+          let edges: Record<string, string> = {};
+          try { edges = JSON.parse(step.edges_json || "{}"); } catch (e) {}
+          
+          if (step.step_type === 'connect' && returnState === 'SUCCESS') {
+             db.prepare("UPDATE run_profile_states SET waiting_for_condition = 'accept', state = 'running' WHERE run_profile_id = ?").run(state.run_profile_id);
+             continue;
+          }
+          let nextStepId = null;
+          if (returnState === "FIT" || returnState === "MAYBE" || returnState === "NOT_FIT") {
+             nextStepId = edges[`on_${returnState.toLowerCase()}`];
+          } else {
+             nextStepId = edges['on_success'] || edges['next'];
+          }
+      
+          if (nextStepId) {
+            db.prepare("UPDATE run_profile_states SET current_step_id = ?, state = 'pending', next_eval_at = datetime('now') WHERE run_profile_id = ?").run(nextStepId, state.run_profile_id);
+          } else {
+            db.prepare("UPDATE run_profile_states SET state = 'completed' WHERE run_profile_id = ?").run(state.run_profile_id);
+          }
+        }
+    } finally {
+      db.prepare(`DELETE FROM account_locks WHERE account_id = ? AND worker_id = ?`).run(state.account_id, workerId);
     }
   }
 }
@@ -982,7 +1073,11 @@ export async function tickActions(db: ReturnType<typeof getDb>): Promise<void> {
 export async function tickManualReplies(db: ReturnType<typeof import("@/lib/db").getDb>): Promise<void> {
   const pending = db.prepare("SELECT q.*, t.linkedin_url FROM linkedin_reply_queue q JOIN targets t ON t.id = q.target_id WHERE q.status = 'pending'").all() as Array<{ id: string, account_id: string, thread_id: string, body: string, linkedin_url: string }>;
   for (const row of pending) {
-    db.prepare("UPDATE linkedin_reply_queue SET status = 'processing' WHERE id = ?").run(row.id);
+    const claimResult = db.prepare("UPDATE linkedin_reply_queue SET status = 'processing' WHERE id = ? AND status = 'pending'").run(row.id);
+    if (claimResult.changes !== 1) {
+      console.log(`[runner] Queue item ${row.id} already claimed or invalid. Skipping.`);
+      continue;
+    }
     try {
       const { replyToThread } = await import("./message");
       const page = await getSessionPage(row.account_id);
@@ -996,5 +1091,48 @@ export async function tickManualReplies(db: ReturnType<typeof import("@/lib/db")
       console.error("[runner] manual reply error", e);
       db.prepare("UPDATE linkedin_reply_queue SET status = 'failed', error_message = ? WHERE id = ?").run(e instanceof Error ? e.message : String(e), row.id);
     }
+  }
+}
+
+async function handleAiDraft(
+  db: ReturnType<typeof getDb>,
+  runId: string,
+  runProfileId: string,
+  target: Target,
+  step: any,
+  channel: 'linkedin' | 'email',
+  campaignPrompt?: string | null,
+  accountId?: string | null
+): Promise<{ status: 'PAUSED' | 'READY'; generatedText?: string; draftId?: string }> {
+  const existingDraft = db.prepare(`SELECT id, generated_text FROM ai_drafts WHERE run_profile_id = ? AND step_id = ? AND status = 'approved' ORDER BY created_at DESC LIMIT 1`).get(runProfileId, step.id) as { id: string, generated_text: string } | undefined;
+  if (existingDraft) {
+    return { status: 'READY', generatedText: existingDraft.generated_text, draftId: existingDraft.id };
+  }
+
+  let lastReply: { body_text: string } | undefined;
+  if (accountId) {
+    lastReply = db.prepare(`SELECT body_text FROM email_replies WHERE target_id = ? AND account_id = ? ORDER BY received_at DESC LIMIT 1`).get(target.id, accountId) as { body_text: string } | undefined;
+  } else {
+    lastReply = db.prepare(`SELECT body_text FROM email_replies WHERE target_id = ? ORDER BY received_at DESC LIMIT 1`).get(target.id) as { body_text: string } | undefined;
+  }
+
+  const { generateAiReply } = require("../ai-generator");
+  const { generatedText, draftId, status, contextJson } = await generateAiReply(db, {
+    target,
+    channel,
+    workflowPrompt: campaignPrompt,
+    stepPrompt: step.ai_prompt,
+    lastInboundMessage: lastReply?.body_text,
+    model: step.ai_model,
+    auto_send: step.auto_send === 1
+  });
+
+  if (status === 'READY') {
+    db.prepare(`INSERT INTO ai_drafts (id, run_profile_id, step_id, channel, status, generated_text, context_used_json) VALUES (?, ?, ?, ?, 'approved', ?, ?)`).run(draftId, runProfileId, step.id, channel, generatedText, JSON.stringify(contextJson));
+    return { status: 'READY', generatedText, draftId };
+  } else {
+    db.prepare(`INSERT INTO ai_drafts (id, run_profile_id, step_id, channel, status, generated_text, context_used_json) VALUES (?, ?, ?, ?, 'pending', ?, ?)`).run(draftId, runProfileId, step.id, channel, generatedText, JSON.stringify(contextJson));
+    db.prepare(`UPDATE run_profile_states SET state = 'paused', waiting_for_condition = 'human_approval' WHERE run_profile_id = ?`).run(runProfileId);
+    return { status: 'PAUSED', draftId };
   }
 }
