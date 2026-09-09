@@ -1,3 +1,4 @@
+import { captureForensicFixture } from "./forensics";
 import { LinkedInNetworkObserver } from "./inbox-observer";
 import { syncLinkedInInboxReadOnly } from "./inbox-sync";
 import { getDb } from "@/lib/db";
@@ -510,7 +511,8 @@ async function executeStep(
         } else {
            log(db, runId, target.id, "warn", `No post found to like for ${name}`);
         }
-      } catch (e) {
+      } catch (e: any) {
+        await captureForensicFixture(page, e, { actionName: "linkedin_like", targetId: target.id, accountId });
         log(db, runId, target.id, "error", `Failed to like post: ${(e as Error).message}`);
         return { status: "FAILED", error: (e as Error).message };
       } finally {
@@ -611,7 +613,8 @@ async function executeStep(
            log(db, runId, target.id, "warn", `No posts found for ${name} to comment on`);
            return { status: "SKIPPED", reason: "No posts found on target profile" };
         }
-      } catch (e) {
+      } catch (e: any) {
+        await captureForensicFixture(page, e, { actionName: "linkedin_comment", targetId: target.id, accountId });
         log(db, runId, target.id, "error", `Failed to comment on post: ${(e as Error).message}`);
         return { status: "FAILED", error: (e as Error).message };
       } finally {
@@ -636,6 +639,7 @@ async function executeStep(
         recordSuccess('visit');
         log(db, runId, target.id, "info", `Visited ${name}`);
       } catch (e: any) {
+        await captureForensicFixture(page, e, { actionName: "visit", targetId: target.id, accountId });
         recordFailure('visit', e.message);
         log(db, runId, target.id, "error", `Visit failed: ${e.message}`);
         return { status: "FAILED", error: e.message };
@@ -646,20 +650,38 @@ async function executeStep(
       return { status: "SUCCESS" };
 
     } else if (step.step_type === "connect") {
+      const freshTarget = db.prepare("SELECT * FROM targets WHERE id = ?").get(target.id) as Target;
+      if (freshTarget.degree === 1) {
+        if (!freshTarget.connected_at) db.prepare("UPDATE targets SET connected_at = ? WHERE id = ?").run(new Date().toISOString(), target.id);
+        log(db, runId, target.id, "info", `${name} already connected — skipping connect step`);
+        return { status: "SKIPPED", reason: "Already connected" };
+      }
+      if (freshTarget.connection_requested_at) {
+        log(db, runId, target.id, "info", `${name} invite already pending — moving to wait state`);
+        return { status: "SUCCESS" };
+      }
+
       log(db, runId, target.id, "info", `Connecting to ${name}`);
       const linkedinUrl = await getLinkedinUrl(db, target, accountId);
       const page = await getSessionPage(accountId);
       try {
         await sendConnectionRequest(page, linkedinUrl, assertLock);
         recordSuccess('connect');
+        db.prepare("UPDATE targets SET connection_requested_at = ? WHERE id = ?").run(new Date().toISOString(), target.id);
+        log(db, runId, target.id, "info", `Connection request sent to ${name}`);
       } catch (e: any) {
         if (e instanceof WeeklyLimitError) {
            return { status: "LIMIT_REACHED", next_eval_at: rescheduleToNextMonday(accountLimits) };
         } else if (e instanceof AlreadyConnectedError) {
-           db.prepare("UPDATE targets SET degree = 1, connected_at = ? WHERE id = ?").run(nowIso(), target.id);
+           db.prepare("UPDATE targets SET degree = 1, connected_at = ? WHERE id = ?").run(new Date().toISOString(), target.id);
+           log(db, runId, target.id, "info", `${name} already connected — skipping connect step`);
+           return { status: "SKIPPED", reason: "Already connected" };
         } else if (e instanceof PendingInviteError) {
-           db.prepare("UPDATE targets SET connection_requested_at = ? WHERE id = ?").run(nowIso(), target.id);
+           db.prepare("UPDATE targets SET connection_requested_at = ? WHERE id = ?").run(new Date().toISOString(), target.id);
+           log(db, runId, target.id, "info", `${name} invite already pending — moving to wait state`);
+           return { status: "SUCCESS" };
         } else {
+           await captureForensicFixture(page, e, { actionName: "connect", targetId: target.id, accountId });
            recordFailure('connect', e.message);
            throw e;
         }
@@ -705,6 +727,9 @@ async function executeStep(
         }
         recordSuccess('message');
       } catch (e: any) {
+        if (!(e instanceof NotConnectedError)) {
+           await captureForensicFixture(page, e, { actionName: "message", targetId: target.id, accountId });
+        }
         recordFailure('message', e.message);
         if (e instanceof NotConnectedError) {
            return { status: "FAILED", error: "Not connected" };
@@ -884,12 +909,18 @@ async function tickSync(db: ReturnType<typeof getDb>): Promise<void> {
         withdrawSyncs.set(accountId, Date.now());
         try {
           const page = await getSessionPage(accountId);
-          await withdrawOldInvitations(page, accountId, account.withdraw_invites_after_days, null);
-          recordSuccess('withdraw');
-          await page.close();
+          try {
+            await withdrawOldInvitations(page, accountId, account.withdraw_invites_after_days, null);
+            recordSuccess('withdraw');
+          } catch (e: any) {
+            await captureForensicFixture(page, e, { actionName: "withdraw", accountId });
+            console.warn("[runner] Withdraw old invites error:", e instanceof Error ? e.message : e);
+            recordFailure('withdraw', e instanceof Error ? e.message : String(e));
+          } finally {
+            await page.close();
+          }
         } catch (e) {
-          console.warn("[runner] Withdraw old invites error:", e instanceof Error ? e.message : e);
-          recordFailure('withdraw', e instanceof Error ? e.message : String(e));
+          // getSessionPage failure
         }
       }
     }
@@ -921,7 +952,7 @@ async function tickSync(db: ReturnType<typeof getDb>): Promise<void> {
           const msg = e instanceof Error ? e.message : String(e);
           console.warn("[runner] LinkedIn inbox sync error:", msg);
           
-          let strikes = (syncStrikes.get(accountId) || 0) + 1;
+          const strikes = (syncStrikes.get(accountId) || 0) + 1;
           syncStrikes.set(accountId, strikes);
           
           if (msg.includes("429") || msg.includes("Too Many Requests")) {

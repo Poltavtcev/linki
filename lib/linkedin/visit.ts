@@ -23,7 +23,7 @@ export async function visitProfile(
   const mainArea = page.locator("main").first();
   const messageLink = mainArea.locator('a[href*="/messaging/compose"]').first();
   const messageHref = (await messageLink.count()) > 0 ? await messageLink.getAttribute("href").catch(() => null) : null;
-  let urnMatch = messageHref?.match(/profileUrn=([^&]+)/);
+  const urnMatch = messageHref?.match(/profileUrn=([^&]+)/);
   
   if (!messagingUrn && urnMatch) {
     messagingUrn = decodeURIComponent(urnMatch[1]);

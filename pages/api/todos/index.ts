@@ -10,8 +10,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const limitNum = parseInt(limit as string) || 50;
     const offsetNum = (parseInt(page as string) || 0) * limitNum;
 
-    let where = [];
-    let params: any[] = [];
+    const where = [];
+    const params: any[] = [];
 
     if (status && status !== "all") {
       where.push("todos.status = ?");

@@ -211,7 +211,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
        LEFT JOIN run_profile_tracks rt_li ON rt_li.run_profile_id = rp.id AND rt_li.track = 'linkedin'
        LEFT JOIN run_profile_tracks rt_em ON rt_em.run_profile_id = rp.id AND rt_em.track = 'email'
        LEFT JOIN run_profile_tracks rt_in ON rt_in.run_profile_id = rp.id AND rt_in.track = 'integration'
-       LEFT JOIN workflow_steps ws_li ON ws_li.workflow_id = r.workflow_id AND ws_li.track = 'linkedin' AND ws_li.step_order = COALESCE(rt_li.current_step, 0) + 1
+       LEFT JOIN workflow_steps ws_li ON ws_li.workflow_id = r.workflow_id AND ws_li.track IN ('linkedin', 'playbook') AND ws_li.step_order = COALESCE(rt_li.current_step, 0) + 1
        LEFT JOIN workflow_steps ws_em ON ws_em.workflow_id = r.workflow_id AND ws_em.track = 'email' AND ws_em.step_order = COALESCE(rt_em.current_step, 0) + 1
        LEFT JOIN workflow_steps ws_in ON ws_in.workflow_id = r.workflow_id AND ws_in.track = 'integration' AND ws_in.step_order = COALESCE(rt_in.current_step, 0) + 1
        WHERE ${where}

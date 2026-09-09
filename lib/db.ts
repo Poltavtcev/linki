@@ -49,6 +49,7 @@ export function getDb(): Database.Database {
     CREATE TABLE IF NOT EXISTS reply_contexts (
       workflow_id TEXT PRIMARY KEY REFERENCES workflows(id) ON DELETE CASCADE,
       is_active INTEGER DEFAULT 0,
+      auto_send INTEGER DEFAULT 0,
       sender_profile TEXT,
       company_product TEXT,
       offers_playbook TEXT,
@@ -97,6 +98,9 @@ export function getDb(): Database.Database {
       db.exec("PRAGMA foreign_keys = ON;");
     }
   } catch (err) { console.error("Migration error run_profile_tracks:", err); }
+
+  // Drop trigger before renaming workflow_steps because SQLite will throw an error if a trigger references a table being renamed/dropped
+  db.exec(`DROP TRIGGER IF EXISTS sync_run_profile_tracks_state`);
 
   // Safely migrate track CHECK constraint for workflow_steps
   try {
@@ -170,6 +174,28 @@ export function getDb(): Database.Database {
       db.exec("PRAGMA foreign_keys = ON;");
     }
   } catch (err) { console.error("Migration error workflow_steps track:", err); }
+
+  db.exec(`DROP TRIGGER IF EXISTS sync_run_profile_tracks_state`);
+  db.exec(`
+    CREATE TRIGGER sync_run_profile_tracks_state
+    AFTER UPDATE OF state, current_step_id, next_eval_at ON run_profile_states
+    BEGIN
+      UPDATE run_profile_tracks
+      SET state = CASE 
+        WHEN NEW.state = 'paused' THEN 'paused'
+        WHEN NEW.state IN ('pending', 'running') THEN 'in_progress'
+        WHEN NEW.state = 'completed' THEN 'completed'
+        WHEN NEW.state = 'failed' THEN 'failed'
+        ELSE 'in_progress'
+      END,
+      current_step = COALESCE(
+        (SELECT step_order - 1 FROM workflow_steps WHERE id = NEW.current_step_id),
+        current_step
+      ),
+      next_step_at = NEW.next_eval_at
+      WHERE run_profile_id = NEW.run_profile_id;
+    END;
+  `);
 
   return db;
 }
@@ -818,6 +844,7 @@ function runMigrations(db: Database.Database) {
     "ALTER TABLE workflows ADD COLUMN allow_cross_campaign_overlap INTEGER DEFAULT 0",
     // Phase C & D: AI auto-reply drafts and auto-send flag
     "ALTER TABLE workflow_steps ADD COLUMN auto_send INTEGER DEFAULT 0",
+    "ALTER TABLE reply_contexts ADD COLUMN auto_send INTEGER DEFAULT 0",
     "DROP TABLE IF EXISTS ai_drafts",
     `CREATE TABLE IF NOT EXISTS ai_drafts (
       id TEXT PRIMARY KEY,
@@ -830,25 +857,14 @@ function runMigrations(db: Database.Database) {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )`
-    ,
-    `DROP TRIGGER IF EXISTS sync_run_profile_tracks_state;`,
-    `CREATE TRIGGER sync_run_profile_tracks_state
-    AFTER UPDATE OF state ON run_profile_states
-    BEGIN
-      UPDATE run_profile_tracks
-      SET state = CASE 
-        WHEN NEW.state = 'paused' THEN 'paused'
-        WHEN NEW.state IN ('pending', 'running') THEN 'in_progress'
-        WHEN NEW.state = 'completed' THEN 'completed'
-        WHEN NEW.state = 'failed' THEN 'failed'
-        ELSE 'in_progress'
-      END
-      WHERE run_profile_id = NEW.run_profile_id;
-    END;`
   ];
 
   for (const sql of migrations) {
-    try { db.exec(sql); } catch (e) { if (sql.includes("sync_run_profile_tracks_state")) console.error("TRIGGER ERROR: ", e); }
+    try { 
+      db.exec(sql); 
+    } catch (e) { 
+      // Silently swallow schema errors like 'column already exists'
+    }
   }
 
   // Parallel tracks: assign email steps to email track, re-number step_order, backfill run_profile_tracks
@@ -1166,6 +1182,7 @@ function initDb(db: Database.Database) {
     CREATE TABLE IF NOT EXISTS reply_contexts (
       workflow_id TEXT PRIMARY KEY REFERENCES workflows(id) ON DELETE CASCADE,
       is_active INTEGER DEFAULT 0,
+      auto_send INTEGER DEFAULT 0,
       sender_profile TEXT,
       company_product TEXT,
       offers_playbook TEXT,

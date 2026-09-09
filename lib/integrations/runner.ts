@@ -110,7 +110,7 @@ export async function executeIntegrationStep(
 export async function executeEnrichmentWaterfall(db: ReturnType<typeof getDb>, target: any, chain: string[], runId: string = "manual"): Promise<{ email: string | null; providerUsed: string | null }> {
     let foundEmail = false;
     let providerUsed = null;
-    let email = null;
+    const email = null;
     
     // Convert target to format expected by the logic (making sure it works whether called from UI or Runner)
     if (!target.first_name && target.full_name) {
@@ -207,7 +207,7 @@ export async function executeEnrichmentWaterfall(db: ReturnType<typeof getDb>, t
             body: new URLSearchParams({ grant_type: "client_credentials", client_id: clientId.trim(), client_secret: clientSecret.trim() })
           });
           if (!tokenResObj.ok) throw new Error(`Snov auth failed: ${tokenResObj.status} ${tokenResObj.statusText}`);
-          let tokenText = await tokenResObj.text();
+          const tokenText = await tokenResObj.text();
           let tokenData; try { tokenData = JSON.parse(tokenText); } catch(e) { tokenData = {}; }
           const token = tokenData.access_token;
           if (!token) throw new Error("Snov.io did not return access_token");

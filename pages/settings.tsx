@@ -2271,7 +2271,7 @@ const INTEGRATIONS: IntegrationDef[] = [
     badge: "HS",
     badgeColor: "#ff7a59",
     accentColor: "#ff7a59",
-    placeholder: "HubSpot Private App Token",
+    placeholder: "HubSpot Legacy App Access Token",
   },
   {
     key: "prospeo",

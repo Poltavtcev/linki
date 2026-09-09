@@ -283,7 +283,7 @@ export async function scrapeNavigatorList(
   let lastPage = startPage;
   let totalPages = startPage;
   try {
-    let intercepted: FlatResponse | null = null;
+    const intercepted: FlatResponse | null = null;
 
   const waitForIntercept = async (url: string, waitMs: number): Promise<FlatResponse | null> => {
     let timeout: NodeJS.Timeout;

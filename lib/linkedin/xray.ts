@@ -251,7 +251,7 @@ export function parseXRaySnippet(
   email: string | null;
   phone: string | null;
 } {
-  let clean = rawTitle.replace(/\s*\|\s*LinkedIn.*$/i, "").replace(/\s*-\s*LinkedIn.*$/i, "").trim();
+  const clean = rawTitle.replace(/\s*\|\s*LinkedIn.*$/i, "").replace(/\s*-\s*LinkedIn.*$/i, "").trim();
   const parts = clean.split(/\s+[-–—]\s+/);
 
   let fullName = "Prospecto de LinkedIn";

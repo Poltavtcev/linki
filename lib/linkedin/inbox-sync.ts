@@ -1,3 +1,4 @@
+import { captureForensicFixture } from "./forensics";
 import type Database from "better-sqlite3";
 import { captureSdrInboundMessage, type CapturedInboundMessage, type SdrInboundMessage } from "./sdr-shim";
 import type { Page } from "playwright";
@@ -567,6 +568,9 @@ export async function syncLinkedInInboxReadOnly(
     const result = captureLinkedInInboxObservations(db, options.accountId, observations);
     await persistState(options.accountId);
     return result;
+  } catch (e: any) {
+    if (page) await captureForensicFixture(page, e, { actionName: "inbox_sync", accountId: options.accountId });
+    throw e;
   } finally {
     try {
       await page.close();

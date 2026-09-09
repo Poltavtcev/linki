@@ -459,6 +459,13 @@ function buildWizardSteps(steps: Step[]): WizardStep[] {
     
     for (const [key, targetId] of Object.entries(edges)) {
       if (!standardEdges.has(key)) {
+        // R4-B Rule: If a conditional edge points to the exact same target as 'next',
+        // it is a duplicated fallback edge from the legacy serializer, not a true branch.
+        // We skip traversing it here so that it gets correctly projected into the main sequence via 'next'.
+        if (edges["next"] && targetId === edges["next"]) {
+          continue;
+        }
+
         let uiName = key;
         if (key === "on_accepted") uiName = "IF ACCEPTED";
         else if (key === "on_replied") uiName = "IF REPLIED";
@@ -1170,7 +1177,7 @@ function Wizard({
       let currentNextId = nextId;
       for (let i = steps.length - 1; i >= 0; i--) {
         const ws = steps[i];
-        let edges: Record<string, string> = {};
+        const edges: Record<string, string> = {};
         if (currentNextId) edges["next"] = currentNextId;
 
         if (ws.branches) {
@@ -3889,7 +3896,7 @@ export default function WorkflowDetailPage({
               <p className="text-xs text-base-content/30 uppercase tracking-widest px-1 mb-3">Pipeline</p>
 
               {/* Render each track independently, delays shown inline before their step */}
-              {(["linkedin", "email", "integration"] as Track[]).map((track) => {
+              {(["playbook", "linkedin", "email", "integration"] as Track[]).map((track) => {
                 const trackSteps = steps.filter((s) => (s.track ?? (s.step_type === "email" ? "email" : "linkedin")) === track);
                 if (trackSteps.length === 0) return null;
                 const trackActionSteps = trackSteps.filter((s) => s.step_type !== "delay");
@@ -3947,9 +3954,6 @@ export default function WorkflowDetailPage({
 
                 return (
                   <div key={track} className="mb-4">
-                    {trackSteps.some(s => s.track) && (
-                      <p className="text-xs text-base-content/20 uppercase tracking-widest px-1 mb-2">{track}</p>
-                    )}
                     <div className="flex flex-col">{rendered}</div>
                   </div>
                 );

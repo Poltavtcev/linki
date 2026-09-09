@@ -174,10 +174,10 @@ test('E. Legacy Action Step (Message + delay_seconds > 0) does not duplicate', a
   ]);
 
   await tickActions(db);
-  let state = db.prepare("SELECT * FROM run_profile_states WHERE run_profile_id = ?").get(runProfileId) as any;
+  const state = db.prepare("SELECT * FROM run_profile_states WHERE run_profile_id = ?").get(runProfileId) as any;
   
     expect(state.state).toBe('running');
   
-  let events = db.prepare("SELECT * FROM outbound_events WHERE run_profile_id = ?").all(runProfileId) as any[];
+  const events = db.prepare("SELECT * FROM outbound_events WHERE run_profile_id = ?").all(runProfileId) as any[];
   expect(events.length).toBe(1);
 });

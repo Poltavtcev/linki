@@ -231,7 +231,7 @@ export function createMcpServer() {
       }
 
       if (name === "sql_read_only") {
-        let sql = (args?.sql as string) || "";
+        const sql = (args?.sql as string) || "";
         if (!sql.trim().toUpperCase().startsWith("SELECT")) {
            throw new Error("Only SELECT statements are permitted.");
         }

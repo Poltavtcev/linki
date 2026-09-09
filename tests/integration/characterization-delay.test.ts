@@ -49,9 +49,9 @@ test('Characterization: Legacy Delay node does not duplicate execution (Regressi
   // It routes to the next edge. Since edges_json is empty, it completes immediately.
   await tickActions(db);
 
-  let state = db.prepare("SELECT * FROM run_profile_states WHERE run_profile_id = ?").get(runProfileId) as any;
+  const state = db.prepare("SELECT * FROM run_profile_states WHERE run_profile_id = ?").get(runProfileId) as any;
   expect(state.state).toBe('running');
   
-  let events = db.prepare("SELECT * FROM outbound_events WHERE run_profile_id = ?").all(runProfileId) as any[];
+  const events = db.prepare("SELECT * FROM outbound_events WHERE run_profile_id = ?").all(runProfileId) as any[];
   expect(events.length).toBe(1); // Executed exactly once
 });

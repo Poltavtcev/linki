@@ -456,7 +456,7 @@ export function cleanProfileCardText(
 } {
   let rawName = (rawNameInput || "").trim();
   let title = (rawHeadlineInput || "").trim() || null;
-  let location = (rawLocationInput || "").trim() || null;
+  const location = (rawLocationInput || "").trim() || null;
   let company: string | null = null;
 
   if (!rawName) {

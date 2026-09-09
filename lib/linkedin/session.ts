@@ -1,3 +1,5 @@
+import { captureForensicFixture } from "./forensics";
+
 import { chromium } from "playwright-extra";
 import type { Browser, BrowserContext, Page } from "playwright";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
@@ -256,6 +258,8 @@ export async function authenticateAccount(accountId: string): Promise<void> {
     );
 
     await ctx.close();
+    // Drop any stale runtime context so the runner reloads the fresh cookies.
+    await closeSession(accountId);
   } finally {
     await visibleBrowser.close();
   }
@@ -377,12 +381,18 @@ async function classifyLoginState(page: Page): Promise<LoginResult> {
       }
     }
 
-    // Wrong credentials
-    const wrongPw = await page
-      .getByText(/that.?s not the right password|please enter a valid|couldn.?t find a linkedin account/i)
+    // Wrong credentials (structural + text fallbacks for multi-language)
+    const wrongPwLoc = page.locator("svg#signal-error-small, #error-for-password, .form__label--error").first();
+    const isStructuralError = (await wrongPwLoc.count().catch(() => 0)) > 0 && await wrongPwLoc.isVisible().catch(() => false);
+    
+    const wrongPwText = await page
+      .getByText(/that.?s not the right password|please enter a valid|couldn.?t find a linkedin account|nieprawidłowy/i)
       .count()
       .catch(() => 0);
-    if (wrongPw > 0) return { status: "error", message: "Wrong email or password." };
+
+    if (isStructuralError || wrongPwText > 0) {
+      return { status: "error", message: "Невірний email або пароль LinkedIn." };
+    }
 
     await page.waitForTimeout(800);
   }
@@ -394,6 +404,11 @@ async function classifyLoginState(page: Page): Promise<LoginResult> {
       message: "LinkedIn presented a security checkpoint. If you got a code enter it; if it's an app request, approve it and click Continue.",
     };
   }
+  
+  if (/login/i.test(page.url())) {
+    return { status: "error", message: "Невірний email або пароль LinkedIn." };
+  }
+
   return { status: "error", message: `Login did not complete. Current page: ${page.url()}` };
 }
 
@@ -429,6 +444,9 @@ export async function startHeadlessLogin(
       await ctx.close();
       return result;
     }
+    if (result.status === "error" || (result.status === "challenge" && result.kind === "captcha")) {
+      await captureForensicFixture(page, new Error(result.message || "Login challenge failed"), { actionName: "server_login", accountId });
+    }
     if (result.status === "challenge" && result.kind !== "captcha") {
       pendingLogins.set(accountId, { ctx, page, createdAt: Date.now() });
       return result;
@@ -437,6 +455,7 @@ export async function startHeadlessLogin(
     return result;
   } catch (e) {
     console.log(`[login] start account=${accountId} ERROR ${(e as Error).message} url=${page.url()}`);
+    await captureForensicFixture(page, e, { actionName: "server_login", accountId });
     try { await ctx.close(); } catch { /* ignore */ }
     return { status: "error", message: (e as Error).message };
   }

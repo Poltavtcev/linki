@@ -261,7 +261,7 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
         }
 
         let lastUid = account.inbox_last_uid || 0;
-        let newUidValidity = box.uidvalidity;
+        const newUidValidity = box.uidvalidity;
         if (account.inbox_uidvalidity && account.inbox_uidvalidity !== box.uidvalidity) {
           console.log(`[email-inbox] UIDVALIDITY changed from ${account.inbox_uidvalidity} to ${box.uidvalidity}. Resetting checkpoint.`);
           lastUid = 0;
