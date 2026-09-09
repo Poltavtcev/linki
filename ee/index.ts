@@ -186,6 +186,37 @@ export async function processReply(targetId: string, channel: "email" | "linkedi
   const db = getDb();
   const now = new Date().toISOString();
 
+  // F-01: Check if deterministic correlation already routed this profile to an on_replied edge.
+  const activeCheckRuns = db.prepare(`
+    SELECT rps.current_step_id, r.workflow_id
+    FROM run_profile_states rps
+    JOIN run_profiles rp ON rps.run_profile_id = rp.id
+    JOIN runs r ON rp.run_id = r.id
+    WHERE rp.target_id = ? AND rps.state IN ('pending', 'running', 'paused')
+  `).all(targetId) as { current_step_id: string | null, workflow_id: string }[];
+  
+  let alreadyCorrelated = false;
+  for (const run of activeCheckRuns) {
+    if (run.current_step_id) {
+      const steps = db.prepare("SELECT edges_json FROM workflow_steps WHERE workflow_id = ?").all(run.workflow_id) as { edges_json: string | null }[];
+      for (const step of steps) {
+        if (step.edges_json) {
+          try {
+            const edges = JSON.parse(step.edges_json);
+            if (edges['on_replied'] === run.current_step_id) {
+              alreadyCorrelated = true;
+              break;
+            }
+          } catch (e) {}
+        }
+      }
+    }
+  }
+
+  if (alreadyCorrelated) {
+    return;
+  }
+
   const stopBasic = () => {
     if (channel === "email") {
       db.prepare("UPDATE targets SET email_replied_at = COALESCE(email_replied_at, ?) WHERE id = ?").run(now, targetId);
@@ -209,7 +240,7 @@ export async function processReply(targetId: string, channel: "email" | "linkedi
       FROM run_profile_states rps
       JOIN run_profiles rp ON rps.run_profile_id = rp.id
       JOIN runs r ON rp.run_id = r.id
-      WHERE rp.target_id = ? AND rps.state IN ('pending', 'running', 'PAUSED')
+      WHERE rp.target_id = ? AND rps.state IN ('pending', 'running', 'paused')
     `).all(targetId) as { run_profile_id: string, current_step_id: string | null, state: string, workflow_id: string }[];
 
     for (const run of activeRuns) {

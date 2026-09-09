@@ -72,7 +72,7 @@ export function getDb(): Database.Database {
       id TEXT PRIMARY KEY,
       run_profile_id TEXT NOT NULL REFERENCES run_profiles(id) ON DELETE CASCADE,
       track TEXT NOT NULL CHECK(track IN ('linkedin', 'email', 'integration', 'main', 'on_replied', 'playbook')),
-      state TEXT NOT NULL DEFAULT 'pending' CHECK(state IN ('pending', 'in_progress', 'completed', 'failed', 'skipped')),
+      state TEXT NOT NULL DEFAULT 'pending' CHECK(state IN ('pending', 'in_progress', 'completed', 'failed', 'skipped', 'paused')),
       current_step INTEGER NOT NULL DEFAULT 0,
       last_step_at TEXT,
       next_step_at TEXT,
@@ -684,7 +684,7 @@ function runMigrations(db: Database.Database) {
       id TEXT PRIMARY KEY,
       run_profile_id TEXT NOT NULL REFERENCES run_profiles(id) ON DELETE CASCADE,
       track TEXT NOT NULL CHECK(track IN ('linkedin', 'email', 'integration', 'main', 'on_replied', 'playbook')),
-      state TEXT NOT NULL DEFAULT 'pending' CHECK(state IN ('pending', 'in_progress', 'completed', 'failed', 'skipped')),
+      state TEXT NOT NULL DEFAULT 'pending' CHECK(state IN ('pending', 'in_progress', 'completed', 'failed', 'skipped', 'paused')),
       current_step INTEGER NOT NULL DEFAULT 0,
       last_step_at TEXT,
       next_step_at TEXT,
@@ -837,7 +837,8 @@ function runMigrations(db: Database.Database) {
     BEGIN
       UPDATE run_profile_tracks
       SET state = CASE 
-        WHEN NEW.state IN ('pending', 'running', 'paused') THEN 'in_progress'
+        WHEN NEW.state = 'paused' THEN 'paused'
+        WHEN NEW.state IN ('pending', 'running') THEN 'in_progress'
         WHEN NEW.state = 'completed' THEN 'completed'
         WHEN NEW.state = 'failed' THEN 'failed'
         ELSE 'in_progress'

@@ -696,7 +696,7 @@ async function executeStep(
 
       const page = await getSessionPage(accountId);
       try {
-        const { messagingUrn } = await sendMessage(page, name, messageText, linkedinUrl, target.messaging_urn);
+        const { messagingUrn } = await sendMessage(page, name, messageText, linkedinUrl, target.messaging_urn, assertLock);
         if (messagingUrn && messagingUrn !== target.messaging_urn) {
            db.prepare("UPDATE targets SET messaging_urn = ? WHERE id = ?").run(messagingUrn, target.id);
         }
@@ -1059,13 +1059,13 @@ export async function tickActions(db: ReturnType<typeof getDb>, workerId: string
           const result = await executeStep(db, state.run_id, state.run_profile_id, state.id, target, step, state.account_id, limits, state.email_account_id, emailLimits, promptQ?.prompt, assertLock);
       
           if (result.status === "LIMIT_REACHED" || result.status === "WAIT_UNTIL") {
-             db.prepare("UPDATE run_profile_states SET next_eval_at = ? WHERE run_profile_id = ?").run(result.next_eval_at, state.run_profile_id);
+             db.prepare("UPDATE run_profile_states SET next_eval_at = ? WHERE run_profile_id = ? AND state NOT IN ('completed', 'failed')").run(result.next_eval_at, state.run_profile_id);
              continue;
           } else if (result.status === "WAIT") {
-             db.prepare(`UPDATE run_profile_states SET next_eval_at = datetime('now', '+${result.hours} hours') WHERE run_profile_id = ?`).run(state.run_profile_id);
+             db.prepare(`UPDATE run_profile_states SET next_eval_at = datetime('now', '+${result.hours} hours') WHERE run_profile_id = ? AND state NOT IN ('completed', 'failed')`).run(state.run_profile_id);
              continue;
           } else if (result.status === "FAILED") {
-             db.prepare("UPDATE run_profile_states SET state = 'failed' WHERE run_profile_id = ?").run(state.run_profile_id);
+             db.prepare("UPDATE run_profile_states SET state = 'failed' WHERE run_profile_id = ? AND state NOT IN ('completed', 'failed')").run(state.run_profile_id);
              continue;
           } else if (result.status === "PAUSED") {
              // state and waiting_for_condition are already updated in handleAiDraft
@@ -1078,7 +1078,7 @@ export async function tickActions(db: ReturnType<typeof getDb>, workerId: string
           // Check if it's a delay waiter node
           if (step.delay_seconds && step.delay_seconds > 0 && state.state === 'pending') {
             db.prepare(`
-              UPDATE run_profile_states SET state = 'running', next_eval_at = datetime('now', '+${step.delay_seconds} seconds') WHERE run_profile_id = ?
+              UPDATE run_profile_states SET state = 'running', next_eval_at = datetime('now', '+${step.delay_seconds} seconds') WHERE run_profile_id = ? AND state NOT IN ('completed', 'failed')
             `).run(state.run_profile_id);
             continue;
           }
@@ -1087,7 +1087,7 @@ export async function tickActions(db: ReturnType<typeof getDb>, workerId: string
           try { edges = JSON.parse(step.edges_json || "{}"); } catch (e) {}
           
           if (step.step_type === 'connect' && returnState === 'SUCCESS') {
-             db.prepare("UPDATE run_profile_states SET waiting_for_condition = 'accept', state = 'running' WHERE run_profile_id = ?").run(state.run_profile_id);
+             db.prepare("UPDATE run_profile_states SET waiting_for_condition = 'accept', state = 'running' WHERE run_profile_id = ? AND state NOT IN ('completed', 'failed')").run(state.run_profile_id);
              continue;
           }
           let nextStepId = null;
@@ -1098,9 +1098,9 @@ export async function tickActions(db: ReturnType<typeof getDb>, workerId: string
           }
       
           if (nextStepId) {
-            db.prepare("UPDATE run_profile_states SET current_step_id = ?, state = 'pending', next_eval_at = datetime('now') WHERE run_profile_id = ?").run(nextStepId, state.run_profile_id);
+            db.prepare("UPDATE run_profile_states SET current_step_id = ?, state = 'pending', next_eval_at = datetime('now') WHERE run_profile_id = ? AND state NOT IN ('completed', 'failed')").run(nextStepId, state.run_profile_id);
           } else {
-            db.prepare("UPDATE run_profile_states SET state = 'completed' WHERE run_profile_id = ?").run(state.run_profile_id);
+            db.prepare("UPDATE run_profile_states SET state = 'completed' WHERE run_profile_id = ? AND state NOT IN ('completed', 'failed')").run(state.run_profile_id);
           }
     } finally {
       if (heartbeatInterval) clearInterval(heartbeatInterval);
