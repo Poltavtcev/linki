@@ -75,3 +75,5 @@ database.sqlite
 patch_*.js
 .sessions/
 dist/
+_archive/
+.tmp/

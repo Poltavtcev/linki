@@ -3,7 +3,7 @@ import { syncLinkedInInboxReadOnly } from "./inbox-sync";
 import { getDb } from "@/lib/db";
 import { executeIntegrationStep } from "@/lib/integrations/runner";
 import { randomUUID } from "crypto";
-import { getSessionPage, saveSessionState, getSessionContext, killAccountContext } from "@/lib/linkedin/session";
+import { getSessionPage, saveSessionState, getSessionContext } from "@/lib/linkedin/session";
 import { isBreakerTripped, recordSuccess, recordFailure } from "./circuit-breaker";
 import { visitProfile } from "@/lib/linkedin/visit";
 import { sendConnectionRequest, WeeklyLimitError, AlreadyConnectedError, PendingInviteError } from "@/lib/linkedin/connect";
@@ -208,7 +208,7 @@ interface TrackRun {
   connection_requested_at: string | null;
 }
 
-interface Target {
+export interface Target {
   id: string;
   linkedin_url: string;
   sales_nav_url: string | null;
@@ -466,7 +466,8 @@ async function executeStep(
   accountLimits: AccountLimits,
   emailAccountId?: string | null,
   emailAccountLimits?: EmailAccountLimits | null,
-  campaignPrompt?: string | null
+  campaignPrompt?: string | null,
+  assertLock: () => void = () => {}
 ): Promise<StepExecutionResult> {
   if (!step) return { status: "FAILED", error: "Missing step configuration" };
   const name = target.full_name || target.linkedin_url || target.id;
@@ -669,6 +670,11 @@ async function executeStep(
       return { status: "SUCCESS" };
 
     } else if (step.step_type === "message") {
+      const existingMessage = db.prepare("SELECT body FROM outbound_events WHERE run_profile_id = ? AND step_id = ? AND channel = 'linkedin'").get(runProfileId, step.id) as any;
+      if (existingMessage) {
+        log(db, runId, target.id, "info", `Idempotency: message already sent for step ${step.id}, skipping network call`);
+        return { status: "SUCCESS", context: { linkedinMessage: existingMessage.body } };
+      }
       log(db, runId, target.id, "info", `Messaging ${name}`);
       const linkedinUrl = await getLinkedinUrl(db, target, accountId);
       let messageText = step.message_body ? renderTemplate(step.message_body, target) : "Hello";
@@ -708,9 +714,18 @@ async function executeStep(
         try { await page.close(); } catch {}
         await saveSessionState(accountId);
       }
+      db.prepare(`
+        INSERT INTO outbound_events (id, run_id, run_profile_id, target_id, step_id, channel, sent_at, status, body)
+        VALUES (?, ?, ?, ?, ?, 'linkedin', datetime('now'), 'sent', ?)
+      `).run(require("crypto").randomUUID(), runId, runProfileId, target.id, step.id, messageText);
       return { status: "SUCCESS", context: { linkedinMessage: messageText } };
 
     } else if (step.step_type === "email") {
+      const existingEmail = db.prepare("SELECT message_id, body FROM outbound_events WHERE run_profile_id = ? AND step_id = ? AND channel = 'email'").get(runProfileId, step.id) as any;
+      if (existingEmail) {
+        log(db, runId, target.id, "info", `Idempotency: email already sent for step ${step.id}, skipping network call`);
+        return { status: "SUCCESS", context: { emailSubject: step.email_subject || "", emailBody: existingEmail.body, emailMessageId: existingEmail.message_id } };
+      }
       if (!emailAccountId || !emailAccountLimits) return { status: "FAILED", error: "No email account" };
       log(db, runId, target.id, "info", `Emailing ${name}`);
       
@@ -739,6 +754,10 @@ async function executeStep(
         if (aiDraftId) {
           db.prepare("UPDATE ai_drafts SET status = 'sent' WHERE id = ?").run(aiDraftId);
         }
+        db.prepare(`
+          INSERT INTO outbound_events (id, run_id, run_profile_id, target_id, step_id, channel, sent_at, message_id, status, body)
+          VALUES (?, ?, ?, ?, ?, 'email', datetime('now'), ?, 'sent', ?)
+        `).run(require("crypto").randomUUID(), runId, runProfileId, target.id, step.id, msgId, emailText);
         return { status: "SUCCESS", context: { emailSubject, emailBody: emailText, emailMessageId: msgId } };
       } catch (e: any) {
         const msg = e.message || String(e);
@@ -1037,7 +1056,7 @@ export async function tickActions(db: ReturnType<typeof getDb>, workerId: string
           const rp = db.prepare("SELECT workflow_id FROM runs WHERE id = ?").get(state.run_id) as { workflow_id: string };
           const promptQ = db.prepare("SELECT prompt FROM workflows WHERE id = ?").get(rp.workflow_id) as { prompt: string | null } | undefined;
       
-          const result = await executeStep(db, state.run_id, state.run_profile_id, state.id, target, step, state.account_id, limits, state.email_account_id, emailLimits, promptQ?.prompt);
+          const result = await executeStep(db, state.run_id, state.run_profile_id, state.id, target, step, state.account_id, limits, state.email_account_id, emailLimits, promptQ?.prompt, assertLock);
       
           if (result.status === "LIMIT_REACHED" || result.status === "WAIT_UNTIL") {
              db.prepare("UPDATE run_profile_states SET next_eval_at = ? WHERE run_profile_id = ?").run(result.next_eval_at, state.run_profile_id);
@@ -1083,7 +1102,6 @@ export async function tickActions(db: ReturnType<typeof getDb>, workerId: string
           } else {
             db.prepare("UPDATE run_profile_states SET state = 'completed' WHERE run_profile_id = ?").run(state.run_profile_id);
           }
-        }
     } finally {
       if (heartbeatInterval) clearInterval(heartbeatInterval);
       try {

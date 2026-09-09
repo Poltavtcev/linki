@@ -392,40 +392,111 @@ interface WizardStep {
 }
 
 function buildWizardSteps(steps: Step[]): WizardStep[] {
-  const result: WizardStep[] = [];
-  // Track pending delays per track independently
-  const pendingDelay: Record<string, number> = { linkedin: 0, email: 0 };
+  const stepMap = new Map<string, any>();
+  const incomingEdges = new Set<string>();
+  const parsedSteps: Record<string, WizardStep> = {};
+  
+  // 1. First pass: parse nodes
   for (const s of steps) {
+    const raw = s as unknown as Record<string, unknown>;
     const track: Track = s.track ?? (s.step_type === "email" ? "email" : "linkedin");
-    if (s.step_type === "delay") {
-      pendingDelay[track] = Math.round(s.delay_seconds / 86400);
-    } else {
-      const raw = s as unknown as Record<string, unknown>;
-      result.push({
-        track,
-        type: s.step_type as "visit" | "connect" | "message" | "sales_inmail" | "email" | "integration" | "change_status" | "linkedin_enrich",
-        delayDaysBefore: pendingDelay[track] ?? 0,
-        connectNote: s.connect_note ?? "",
-        messageBody: s.message_body ?? "",
-        templateId: s.template_id ?? null,
-        templateIds: s.template_ids ?? [],
-        emailSubject: s.email_subject ?? "",
-        emailBody: s.email_body ?? "",
-        emailSignature: raw.email_signature != null ? (raw.email_signature as string) : null,
-        aiEnabled: raw.ai_enabled === 1,
-        aiModel: raw.ai_model != null ? String(raw.ai_model) : "gpt-4o",
-        aiPrompt: raw.ai_prompt != null ? String(raw.ai_prompt) : "",
-        aiMaxWordsEnabled: raw.ai_max_words != null,
-        aiMaxWords: raw.ai_max_words != null ? Number(raw.ai_max_words) : 100,
-        aiLanguage: raw.ai_language != null ? String(raw.ai_language) : "English",
-        config: raw.config != null ? String(raw.config) : null,
-      });
-      pendingDelay[track] = 0;
+    
+    parsedSteps[s.id] = {
+      track,
+      type: s.step_type as any,
+      delayDaysBefore: s.step_type === "delay" ? Math.round(s.delay_seconds / 86400) : 0,
+      connectNote: s.connect_note ?? "",
+      messageBody: s.message_body ?? "",
+      templateId: s.template_id ?? null,
+      templateIds: s.template_ids ?? [],
+      emailSubject: s.email_subject ?? "",
+      emailBody: s.email_body ?? "",
+      emailSignature: raw.email_signature != null ? (raw.email_signature as string) : null,
+      aiEnabled: raw.ai_enabled === 1,
+      aiModel: raw.ai_model != null ? String(raw.ai_model) : "gpt-4o",
+      aiPrompt: raw.ai_prompt != null ? String(raw.ai_prompt) : "",
+      aiMaxWordsEnabled: raw.ai_max_words != null,
+      aiMaxWords: raw.ai_max_words != null ? Number(raw.ai_max_words) : 100,
+      aiLanguage: raw.ai_language != null ? String(raw.ai_language) : "English",
+      config: raw.config != null ? String(raw.config) : null,
+      branches: undefined,
+      _edges: s.edges_json ? JSON.parse(s.edges_json) : {},
+      _id: s.id,
+      _step_order: s.step_order
+    } as any;
+    
+    const edges = (parsedSteps[s.id] as any)._edges;
+    for (const [key, targetId] of Object.entries(edges)) {
+      incomingEdges.add(targetId as string);
+    }
+  }
+
+  // Find roots (no incoming edges)
+  let rootCandidates = steps.filter(s => !incomingEdges.has(s.id));
+  if (rootCandidates.length === 0 && steps.length > 0) rootCandidates = [steps[0]];
+  
+  const visited = new Set<string>();
+
+  function traverse(nodeId: string | null): WizardStep[] {
+    if (!nodeId || !parsedSteps[nodeId]) return [];
+    if (visited.has(nodeId)) return []; // Prevents infinite loops if graph is cyclical somehow
+    visited.add(nodeId);
+    
+    const node = parsedSteps[nodeId] as any;
+    const edges = node._edges;
+    
+    if (node.type === "delay") {
+      const nextSeq = traverse(edges["next"]);
+      if (nextSeq.length > 0) {
+        nextSeq[0].delayDaysBefore = (nextSeq[0].delayDaysBefore || 0) + node.delayDaysBefore;
+      }
+      return nextSeq;
+    }
+    
+    const standardEdges = new Set(["next"]);
+    const branches: Record<string, WizardStep[]> = {};
+    let hasBranches = false;
+    
+    for (const [key, targetId] of Object.entries(edges)) {
+      if (!standardEdges.has(key)) {
+        let uiName = key;
+        if (key === "on_accepted") uiName = "IF ACCEPTED";
+        else if (key === "on_replied") uiName = "IF REPLIED";
+        else if (key === "on_fit") uiName = "FIT";
+        else if (key === "on_maybe") uiName = "MAYBE";
+        else if (key === "on_not_fit") uiName = "NOT_FIT";
+        else if (key === "on_timeout") uiName = "IF NOT ACCEPTED (Timeout)";
+        
+        branches[uiName] = traverse(targetId as string);
+        hasBranches = true;
+      }
+    }
+    
+    if (node.type === "ai_qualify") { branches["FIT"] = branches["FIT"] || []; branches["MAYBE"] = branches["MAYBE"] || []; branches["NOT_FIT"] = branches["NOT_FIT"] || []; hasBranches = true; }
+    if (node.type === "connect") { branches["IF ACCEPTED"] = branches["IF ACCEPTED"] || []; branches["IF NOT ACCEPTED (Timeout)"] = branches["IF NOT ACCEPTED (Timeout)"] || []; hasBranches = true; }
+    if (node.type === "message" || node.type === "sales_inmail" || node.type === "email") { branches["IF REPLIED"] = branches["IF REPLIED"] || []; hasBranches = true; }
+    
+    if (hasBranches) {
+      node.branches = branches;
+    }
+    
+    const nextSeq = traverse(edges["next"]);
+    const resultNode = { ...node };
+    delete resultNode._edges;
+    delete resultNode._id;
+    delete resultNode._step_order;
+    return [resultNode, ...nextSeq];
+  }
+  
+  rootCandidates.sort((a, b) => a.step_order - b.step_order);
+  const result: WizardStep[] = [];
+  for (const root of rootCandidates) {
+    if (!visited.has(root.id)) {
+      result.push(...traverse(root.id));
     }
   }
   return result;
 }
-
 interface ListTarget {
   id: string;
   full_name: string | null;
@@ -632,6 +703,7 @@ function Wizard({
   const [page, setPage] = useState<WizardPage>(isEditMode ? "sequence" : "prospects");
   const [campaignPrompt, setCampaignPrompt] = useState(initialPrompt);
   const [arActive, setArActive] = useState(!!initialReplyContext?.is_active);
+  const [arAutoSend, setArAutoSend] = useState(!!initialReplyContext?.auto_send);
   const [arSender, setArSender] = useState(initialReplyContext?.sender_profile || "");
   const [arCompany, setArCompany] = useState(initialReplyContext?.company_product || "");
   const [arOffers, setArOffers] = useState(initialReplyContext?.offers_playbook || "");
@@ -1093,6 +1165,7 @@ function Wizard({
     }
     assignPositions(wizardSteps);
 
+    let currentStepOrder = 10000;
     async function saveSequenceBackward(steps: WizardStep[], nextId: string | null) {
       let currentNextId = nextId;
       for (let i = steps.length - 1; i >= 0; i--) {
@@ -1102,7 +1175,7 @@ function Wizard({
 
         if (ws.branches) {
           for (const [bName, bSteps] of Object.entries(ws.branches)) {
-            const bFirstId = await saveSequenceBackward(bSteps, currentNextId);
+            const bFirstId = await saveSequenceBackward(bSteps, null);
             if (bFirstId) {
                // map internal branch names to edge names
                if (bName === "IF ACCEPTED" || bName === "ACCEPTED") edges["on_accepted"] = bFirstId;
@@ -1131,6 +1204,7 @@ function Wizard({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             step_type: ws.type,
+            step_order: currentStepOrder--,
             track: "playbook",
             connect_note: ws.type === "connect" ? (ws.connectNote || null) : null,
             message_body: isMessage ? (ws.messageBody || null) : null,
@@ -1159,6 +1233,7 @@ function Wizard({
              headers: { "Content-Type": "application/json" },
              body: JSON.stringify({
                step_type: "delay",
+               step_order: currentStepOrder--,
                track: "playbook",
                delay_seconds: ws.delayDaysBefore * 86400,
                edges_json: JSON.stringify({ next: currentNextId })
@@ -1180,6 +1255,7 @@ function Wizard({
          headers: { "Content-Type": "application/json" },
          body: JSON.stringify({
             is_active: arActive,
+            auto_send: arAutoSend,
             sender_profile: arSender,
             company_product: arCompany,
             offers_playbook: arOffers,
@@ -1717,9 +1793,20 @@ function Wizard({
                     </div>
                     <div>
                       <p className="font-bold text-base text-base-content/90 mb-0.5">Enable AI Auto-Replies</p>
-                      <p className="text-sm text-base-content/50">GPT-4o will automatically draft and handle incoming LinkedIn and Email messages.</p>
+                      <p className="text-sm text-base-content/50">GPT-4o will automatically draft incoming LinkedIn and Email messages.</p>
                     </div>
                   </div>
+                  {arActive && (
+                    <div onClick={() => setArAutoSend(!arAutoSend)} className="flex items-center gap-4 p-5 rounded-2xl bg-base-200 border border-base-300 cursor-pointer hover:border-primary/40 transition-colors select-none mt-4">
+                      <div className={`w-11 h-6 flex items-center rounded-full p-0.5 transition-colors duration-300 ease-in-out cursor-pointer shrink-0 ${arAutoSend ? 'bg-primary' : 'bg-base-300'}`}>
+                        <div className={`bg-white w-5 h-5 rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${arAutoSend ? 'translate-x-5' : 'translate-x-0'}`} />
+                      </div>
+                      <div>
+                        <p className="font-bold text-base text-base-content/90 mb-0.5">Send Replies Automatically</p>
+                        <p className="text-sm text-base-content/50">If disabled, AI drafts will require manual approval before sending.</p>
+                      </div>
+                    </div>
+                  )}
                   {arActive && (
                     <div className="space-y-4">
                       <div>

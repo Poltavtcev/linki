@@ -17,9 +17,16 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
 
   if (!rp) return res.status(404).json({ error: "Profile not found" });
 
+  // 1. IMPORTANT: Update the canonical state machine first so the DAG runner actually stops!
+  db.prepare(
+    `UPDATE run_profile_states SET state = 'completed'
+     WHERE run_profile_id = ? AND state IN ('pending', 'running', 'paused', 'failed')`
+  ).run(rp.id);
+
+  // 2. Update the UI projection AFTER, so the database trigger doesn't overwrite 'skipped' with 'completed'
   const result = db.prepare(
     `UPDATE run_profile_tracks SET state = 'skipped', error_message = 'Manually unenrolled'
-     WHERE run_profile_id = ? AND state IN ('pending', 'in_progress')`
+     WHERE run_profile_id = ? AND state IN ('pending', 'in_progress', 'completed', 'failed')`
   ).run(rp.id);
 
   if (result.changes === 0) {

@@ -1,0 +1,6 @@
+{
+  "timestamp": "2026-09-08T19:28:10Z",
+  "mode": "quick",
+  "failures": 0,
+  "results": ["PASS:Governance File Integrity","PASS:Suppression Check (no @ts-ignore)","PASS:TypeScript Typecheck (core)","PASS:Unit Tests"]
+}

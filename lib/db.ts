@@ -22,6 +22,23 @@ export function getDb(): Database.Database {
 
   // Ensure these tables are always present even if DB is hot-reloaded
   db.exec(`
+    
+    CREATE TABLE IF NOT EXISTS outbound_events (
+      id TEXT PRIMARY KEY,
+      run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+      run_profile_id TEXT NOT NULL REFERENCES run_profiles(id) ON DELETE CASCADE,
+      target_id TEXT NOT NULL REFERENCES targets(id) ON DELETE CASCADE,
+      step_id TEXT NOT NULL,
+      channel TEXT NOT NULL CHECK(channel IN ('linkedin', 'email', 'inmail')),
+      sent_at TEXT NOT NULL DEFAULT (datetime('now')),
+      message_id TEXT,
+      status TEXT NOT NULL DEFAULT 'sent' CHECK(status IN ('sent', 'failed')),
+      body TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_outbound_events_target_channel ON outbound_events(target_id, channel, sent_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_outbound_events_run_profile ON outbound_events(run_profile_id);
+    CREATE INDEX IF NOT EXISTS idx_outbound_events_target ON outbound_events(target_id);
+
     CREATE TABLE IF NOT EXISTS run_profile_states (
       run_profile_id TEXT PRIMARY KEY,
       current_step_id TEXT,
@@ -50,10 +67,11 @@ export function getDb(): Database.Database {
       const columnsQuery = db.prepare("PRAGMA table_info(run_profile_tracks)").all() as any[];
       const colNames = columnsQuery.map(c => c.name);
       
+      db.exec("DROP TABLE IF EXISTS run_profile_tracks_new;");
       let createSql = `CREATE TABLE run_profile_tracks_new (
       id TEXT PRIMARY KEY,
       run_profile_id TEXT NOT NULL REFERENCES run_profiles(id) ON DELETE CASCADE,
-      track TEXT NOT NULL CHECK(track IN ('linkedin', 'email', 'integration')),
+      track TEXT NOT NULL CHECK(track IN ('linkedin', 'email', 'integration', 'main', 'on_replied', 'playbook')),
       state TEXT NOT NULL DEFAULT 'pending' CHECK(state IN ('pending', 'in_progress', 'completed', 'failed', 'skipped')),
       current_step INTEGER NOT NULL DEFAULT 0,
       last_step_at TEXT,
@@ -73,7 +91,8 @@ export function getDb(): Database.Database {
       
       const colList = colNames.join(', ');
       db.exec(`INSERT INTO run_profile_tracks_new (${colList}) SELECT ${colList} FROM run_profile_tracks;`);
-      db.exec("DROP TABLE run_profile_tracks;");
+      db.exec(`DROP TRIGGER IF EXISTS sync_run_profile_tracks_state;
+        DROP TRIGGER IF EXISTS sync_run_profile_tracks_state; DROP TABLE run_profile_tracks;`);
       db.exec("ALTER TABLE run_profile_tracks_new RENAME TO run_profile_tracks;");
       db.exec("PRAGMA foreign_keys = ON;");
     }
@@ -88,6 +107,7 @@ export function getDb(): Database.Database {
       const columnsQuery = db.prepare("PRAGMA table_info(workflow_steps)").all() as any[];
       const colNames = columnsQuery.map(c => c.name);
       
+      db.exec("DROP TABLE IF EXISTS workflow_steps_new;");
       let createSql = `CREATE TABLE workflow_steps_new (
       id TEXT PRIMARY KEY,
       workflow_id TEXT REFERENCES workflows(id) ON DELETE CASCADE,
@@ -125,13 +145,14 @@ export function getDb(): Database.Database {
       const columnsQuery = db.prepare("PRAGMA table_info(workflow_steps)").all() as any[];
       const colNames = columnsQuery.map(c => c.name);
       
+      db.exec("DROP TABLE IF EXISTS workflow_steps_new;");
       let createSql = `CREATE TABLE workflow_steps_new (
         id TEXT PRIMARY KEY,
         workflow_id TEXT REFERENCES workflows(id) ON DELETE CASCADE,
         step_order INTEGER NOT NULL,
         step_type TEXT NOT NULL ,
         template_id TEXT REFERENCES templates(id),
-        track TEXT NOT NULL DEFAULT 'linkedin' CHECK(track IN ('linkedin', 'email', 'integration'))`;
+        track TEXT NOT NULL DEFAULT 'linkedin' CHECK(track IN ('linkedin', 'email', 'integration', 'main', 'on_replied', 'playbook'))`;
         
       for (const col of columnsQuery) {
         if (!['id', 'workflow_id', 'step_order', 'step_type', 'template_id', 'track'].includes(col.name)) {
@@ -330,6 +351,7 @@ function dropDeprecatedRunProfileColumns(db: Database.Database) {
   try {
     db.exec(`
       PRAGMA foreign_keys = OFF;
+      DROP TABLE IF EXISTS run_profiles_new;
       CREATE TABLE run_profiles_new (
         id TEXT PRIMARY KEY,
         run_id TEXT REFERENCES runs(id) ON DELETE CASCADE,
@@ -349,12 +371,14 @@ function dropDeprecatedRunProfileColumns(db: Database.Database) {
 
 function runMigrations(db: Database.Database) {
 
+
   // Migration: Remove CHECK constraint from run_profile_tracks.track
   try {
-    const tableSql2 = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='run_profile_tracks'").get();
+    const tableSql2 = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='run_profile_tracks'").get() as { sql: string } | undefined;
     if (tableSql2 && tableSql2.sql.includes("CHECK(track IN")) {
       db.exec(`
         PRAGMA foreign_keys = OFF;
+        DROP TABLE IF EXISTS run_profile_tracks_new;
         CREATE TABLE run_profile_tracks_new (
           id TEXT PRIMARY KEY,
           run_profile_id TEXT NOT NULL REFERENCES run_profiles(id) ON DELETE CASCADE,
@@ -368,8 +392,11 @@ function runMigrations(db: Database.Database) {
           last_email_body TEXT, last_email_message_id TEXT, last_linkedin_message TEXT, created_at TEXT, pending_reply_context TEXT
         );
         INSERT INTO run_profile_tracks_new SELECT * FROM run_profile_tracks;
-        DROP TABLE run_profile_tracks;
-        ALTER TABLE run_profile_tracks_new RENAME TO run_profile_tracks;
+        `);
+        db.exec(`DROP TRIGGER IF EXISTS sync_run_profile_tracks_state;`);
+        db.exec(`DROP TABLE run_profile_tracks;`);
+        db.exec(`ALTER TABLE run_profile_tracks_new RENAME TO run_profile_tracks;`);
+        db.exec(`
         CREATE INDEX idx_run_profile_tracks_run_profile_id ON run_profile_tracks(run_profile_id);
         CREATE INDEX idx_run_profile_tracks_state_next ON run_profile_tracks(state, next_step_at);
         PRAGMA foreign_keys = ON;
@@ -379,10 +406,11 @@ function runMigrations(db: Database.Database) {
 
   // Migration: Remove CHECK constraint from workflow_steps.step_type
   try {
-    const tableSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='workflow_steps'").get();
+    const tableSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='workflow_steps'").get() as { sql: string } | undefined;
     if (tableSql && tableSql.sql.includes("CHECK(step_type IN")) {
       db.exec(`
         PRAGMA foreign_keys = OFF;
+        DROP TABLE IF EXISTS workflow_steps_new;
         CREATE TABLE workflow_steps_new (
           id TEXT PRIMARY KEY,
           workflow_id TEXT REFERENCES workflows(id) ON DELETE CASCADE,
@@ -393,7 +421,7 @@ function runMigrations(db: Database.Database) {
           connect_note TEXT,
           message_body TEXT,
           enabled INTEGER DEFAULT 1,
-          config TEXT, track TEXT, email_subject TEXT, email_body TEXT, ai_enabled INTEGER, ai_model TEXT, ai_prompt TEXT, ai_max_words INTEGER, email_position INTEGER, message_position INTEGER, ai_language TEXT, email_signature TEXT, edges_json TEXT, ai_qualification_rules TEXT, ai_comment_prompt TEXT
+          config TEXT, track TEXT, email_subject TEXT, email_body TEXT, ai_enabled INTEGER, ai_model TEXT, ai_prompt TEXT, ai_max_words INTEGER, email_position INTEGER, message_position INTEGER, ai_language TEXT, email_signature TEXT, edges_json TEXT, ai_qualification_rules TEXT, ai_comment_prompt TEXT, auto_send INTEGER DEFAULT 0
         );
         INSERT INTO workflow_steps_new SELECT * FROM workflow_steps;
         DROP TABLE workflow_steps;
@@ -412,6 +440,7 @@ function runMigrations(db: Database.Database) {
       db.exec(`
         PRAGMA foreign_keys = OFF;
         
+        DROP TABLE IF EXISTS run_profiles_new;
         CREATE TABLE run_profiles_new (
           id TEXT PRIMARY KEY,
           run_id TEXT REFERENCES runs(id) ON DELETE CASCADE,
@@ -425,6 +454,7 @@ function runMigrations(db: Database.Database) {
         DROP TABLE run_profiles;
         ALTER TABLE run_profiles_new RENAME TO run_profiles;
         
+        DROP TABLE IF EXISTS logs_new;
         CREATE TABLE logs_new (
           id TEXT PRIMARY KEY,
           run_id TEXT REFERENCES runs(id) ON DELETE CASCADE,
@@ -437,6 +467,7 @@ function runMigrations(db: Database.Database) {
         DROP TABLE logs;
         ALTER TABLE logs_new RENAME TO logs;
         
+        DROP TABLE IF EXISTS agent_sessions_new;
         CREATE TABLE agent_sessions_new (
           id TEXT PRIMARY KEY,
           run_id TEXT REFERENCES runs(id) ON DELETE SET NULL,
@@ -454,6 +485,7 @@ function runMigrations(db: Database.Database) {
         DROP TABLE agent_sessions;
         ALTER TABLE agent_sessions_new RENAME TO agent_sessions;
 
+        DROP TABLE IF EXISTS email_replies_new;
         CREATE TABLE email_replies_new (
           id TEXT PRIMARY KEY,
           target_id TEXT NOT NULL REFERENCES targets(id) ON DELETE CASCADE,
@@ -492,8 +524,7 @@ function runMigrations(db: Database.Database) {
     }
   } catch (e) { console.error("Migration error (cascade):", e); }
   // Add columns introduced after initial schema — safe to run on existing DBs
-  const migrations = [
-    "ALTER TABLE workflow_steps ADD COLUMN config TEXT",
+  const migrations = ["ALTER TABLE workflow_steps ADD COLUMN config TEXT",
 
     "ALTER TABLE integrations ADD COLUMN is_active INTEGER DEFAULT 1",
     "ALTER TABLE integrations ADD COLUMN credits_remaining INTEGER",
@@ -647,12 +678,12 @@ function runMigrations(db: Database.Database) {
       finished_at TEXT
     )`,
     // Parallel tracks: add track column to workflow_steps
-    "ALTER TABLE workflow_steps ADD COLUMN track TEXT NOT NULL DEFAULT 'linkedin' CHECK(track IN ('linkedin', 'email'))",
+    "ALTER TABLE workflow_steps ADD COLUMN track TEXT NOT NULL DEFAULT 'linkedin' CHECK(track IN ('linkedin', 'email', 'integration', 'main', 'on_replied', 'playbook'))",
     // Parallel tracks: create run_profile_tracks table
     `CREATE TABLE IF NOT EXISTS run_profile_tracks (
       id TEXT PRIMARY KEY,
       run_profile_id TEXT NOT NULL REFERENCES run_profiles(id) ON DELETE CASCADE,
-      track TEXT NOT NULL CHECK(track IN ('linkedin', 'email', 'integration')),
+      track TEXT NOT NULL CHECK(track IN ('linkedin', 'email', 'integration', 'main', 'on_replied', 'playbook')),
       state TEXT NOT NULL DEFAULT 'pending' CHECK(state IN ('pending', 'in_progress', 'completed', 'failed', 'skipped')),
       current_step INTEGER NOT NULL DEFAULT 0,
       last_step_at TEXT,
@@ -785,14 +816,45 @@ function runMigrations(db: Database.Database) {
     "ALTER TABLE targets ADD COLUMN phone TEXT",
     "ALTER TABLE targets ADD COLUMN lead_status TEXT DEFAULT 'lead'",
     "ALTER TABLE workflows ADD COLUMN allow_cross_campaign_overlap INTEGER DEFAULT 0",
+    // Phase C & D: AI auto-reply drafts and auto-send flag
+    "ALTER TABLE workflow_steps ADD COLUMN auto_send INTEGER DEFAULT 0",
+    "DROP TABLE IF EXISTS ai_drafts",
+    `CREATE TABLE IF NOT EXISTS ai_drafts (
+      id TEXT PRIMARY KEY,
+      run_profile_id TEXT NOT NULL REFERENCES run_profiles(id) ON DELETE CASCADE,
+      step_id TEXT REFERENCES workflow_steps(id) ON DELETE CASCADE,
+      channel TEXT NOT NULL CHECK(channel IN ('linkedin', 'email')),
+      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'approved', 'sending', 'sent')),
+      generated_text TEXT NOT NULL,
+      context_used_json TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`
+    ,
+    `DROP TRIGGER IF EXISTS sync_run_profile_tracks_state;`,
+    `CREATE TRIGGER sync_run_profile_tracks_state
+    AFTER UPDATE OF state ON run_profile_states
+    BEGIN
+      UPDATE run_profile_tracks
+      SET state = CASE 
+        WHEN NEW.state IN ('pending', 'running', 'paused') THEN 'in_progress'
+        WHEN NEW.state = 'completed' THEN 'completed'
+        WHEN NEW.state = 'failed' THEN 'failed'
+        ELSE 'in_progress'
+      END
+      WHERE run_profile_id = NEW.run_profile_id;
+    END;`
   ];
+
   for (const sql of migrations) {
-    try { db.exec(sql); } catch { /* column already exists */ }
+    try { db.exec(sql); } catch (e) { if (sql.includes("sync_run_profile_tracks_state")) console.error("TRIGGER ERROR: ", e); }
   }
 
   // Parallel tracks: assign email steps to email track, re-number step_order, backfill run_profile_tracks
   runParallelTracksMigration(db);
-  // Drop deprecated run_profiles columns (state, current_step, etc.) — consumers now read track-runs
+
+  
+    // Drop deprecated run_profiles columns (state, current_step, etc.) — consumers now read track-runs
   dropDeprecatedRunProfileColumns(db);
 
   
@@ -806,6 +868,7 @@ function runMigrations(db: Database.Database) {
       const colNames = columnsQuery.map(c => c.name);
       
       // We will recreate it dynamically
+      db.exec("DROP TABLE IF EXISTS workflow_steps_new;");
       let createSql = `CREATE TABLE workflow_steps_new (
         id TEXT PRIMARY KEY,
         workflow_id TEXT REFERENCES workflows(id) ON DELETE CASCADE,
@@ -842,6 +905,7 @@ function runMigrations(db: Database.Database) {
       const colList = cols.join(", ");
       db.exec(`
         PRAGMA foreign_keys = OFF;
+        DROP TABLE IF EXISTS workflow_steps_new;
         CREATE TABLE workflow_steps_new (
           id TEXT PRIMARY KEY,
           workflow_id TEXT REFERENCES workflows(id) ON DELETE CASCADE,
@@ -861,8 +925,13 @@ function runMigrations(db: Database.Database) {
           email_position INTEGER DEFAULT 1,
           message_position INTEGER DEFAULT 1,
           ai_language TEXT DEFAULT 'English',
-          track TEXT NOT NULL DEFAULT 'linkedin' CHECK(track IN ('linkedin', 'email')),
-          email_signature TEXT
+          track TEXT NOT NULL DEFAULT 'linkedin' CHECK(track IN ('linkedin', 'email', 'integration', 'main', 'on_replied', 'playbook')),
+          email_signature TEXT,
+          config TEXT,
+          edges_json TEXT,
+          ai_qualification_rules TEXT,
+          ai_comment_prompt TEXT,
+          auto_send INTEGER DEFAULT 0
         );
         INSERT INTO workflow_steps_new (${colList}) SELECT ${colList} FROM workflow_steps;
         DROP TABLE workflow_steps;
@@ -893,6 +962,7 @@ function runMigrations(db: Database.Database) {
       const colList = cols.map((c) => c.name).join(", ");
       db.exec(`
         PRAGMA foreign_keys = OFF;
+        DROP TABLE IF EXISTS targets_new;
         CREATE TABLE targets_new (
           ${colDefs.join(",\n          ")}
         );
@@ -945,6 +1015,7 @@ function runMigrations(db: Database.Database) {
       const colList = cols.map(c => c.name).join(", ");
       db.exec(`
         PRAGMA foreign_keys = OFF;
+        DROP TABLE IF EXISTS workflow_steps_new;
         CREATE TABLE workflow_steps_new (
           id TEXT PRIMARY KEY,
           workflow_id TEXT REFERENCES workflows(id) ON DELETE CASCADE,
@@ -969,7 +1040,8 @@ function runMigrations(db: Database.Database) {
           config TEXT,
           edges_json TEXT,
           ai_qualification_rules TEXT,
-          ai_comment_prompt TEXT
+          ai_comment_prompt TEXT,
+          auto_send INTEGER DEFAULT 0
         );
         INSERT INTO workflow_steps_new (${colList}) SELECT ${colList} FROM workflow_steps;
         DROP TABLE workflow_steps;
@@ -1118,7 +1190,8 @@ function initDb(db: Database.Database) {
       connect_note TEXT,
       message_body TEXT,
       enabled INTEGER DEFAULT 1,
-      config TEXT
+      config TEXT,
+      auto_send INTEGER DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS workflow_step_templates (
@@ -1263,6 +1336,18 @@ function initDb(db: Database.Database) {
       inbox_last_uid INTEGER,
       inbox_uidvalidity INTEGER,
       created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS ai_drafts (
+      id TEXT PRIMARY KEY,
+      run_profile_id TEXT NOT NULL REFERENCES run_profiles(id) ON DELETE CASCADE,
+      step_id TEXT REFERENCES workflow_steps(id) ON DELETE CASCADE,
+      channel TEXT NOT NULL CHECK(channel IN ('linkedin', 'email')),
+      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'approved', 'sent')),
+      generated_text TEXT NOT NULL,
+      context_used_json TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
   `);
 }

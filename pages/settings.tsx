@@ -121,14 +121,12 @@ export const getServerSideProps: GetServerSideProps = async ({ query }) => {
   const tab: Tab = validTabs.includes(query.tab as Tab)
     ? (query.tab as Tab)
     : "linkedin";
-  const internalSecret = process.env.INTERNAL_API_SECRET || "";
   return {
     props: {
       liAccounts,
       emailAccounts,
       templates,
       initialTab: tab,
-      internalSecret,
     },
   };
 };
@@ -263,13 +261,11 @@ export default function SettingsPage({
   emailAccounts: initialEmail,
   templates: initialTemplates,
   initialTab,
-  internalSecret,
 }: {
   liAccounts: LiAccount[];
   emailAccounts: EmailAccount[];
   templates: Template[];
   initialTab: Tab;
-  internalSecret?: string;
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>(initialTab);
@@ -336,10 +332,7 @@ export default function SettingsPage({
         )}
         {tab === "integrations" && <IntegrationsTab hasPremium={hasPremium} />}
         {tab === "general" && (
-          <GeneralTab
-            hasPremium={hasPremium}
-            internalSecret={internalSecret || ""}
-          />
+          <GeneralTab hasPremium={hasPremium} />
         )}
         {tab === "crm" && <CrmTab />}
       </div>
@@ -2605,15 +2598,26 @@ function IntegrationsTab({ hasPremium }: { hasPremium: boolean }) {
 // it's built from the browser's own origin) and copy the one-liner to connect an
 // AI agent. Premium-only (ee/mcp) — hidden entirely when hasPremium is false.
 
-function McpCard({ internalSecret }: { internalSecret: string }) {
+function McpCard() {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
   const [mcpUrl, setMcpUrl] = useState("");
+  const [internalSecret, setInternalSecret] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
       setMcpUrl(`${window.location.origin}/api/mcp`);
     }
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/mcp/secret")
+      .then((res) => {
+        if (res.ok) return res.json();
+        throw new Error("Unauthorized");
+      })
+      .then((data) => setInternalSecret(data.secret))
+      .catch(() => setInternalSecret("")); // Fallback to empty string if failed
   }, []);
 
   async function copy(text: string) {
@@ -2626,7 +2630,7 @@ function McpCard({ internalSecret }: { internalSecret: string }) {
     }
   }
 
-  if (!mcpUrl) return null;
+  if (!mcpUrl || internalSecret === null) return <div className="text-sm">Loading...</div>;
 
   const cliCommand = `claude mcp add --transport sse --header "Authorization: Bearer ${internalSecret}" linki ${mcpUrl}`;
 
@@ -2722,10 +2726,8 @@ function McpCard({ internalSecret }: { internalSecret: string }) {
 
 function GeneralTab({
   hasPremium,
-  internalSecret,
 }: {
   hasPremium: boolean;
-  internalSecret: string;
 }) {
   const router = useRouter();
   const { data: session } = useSession();
@@ -2844,7 +2846,7 @@ function GeneralTab({
       </div>
 
       {/* MCP — premium (ee/mcp); hidden in the public build */}
-      {hasPremium && <McpCard internalSecret={internalSecret || ""} />}
+      {hasPremium && <McpCard />}
 
       {/* Product tour */}
       <div className="bg-base-200 border border-base-300/50 rounded-xl p-4">

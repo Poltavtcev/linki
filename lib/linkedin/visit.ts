@@ -17,8 +17,8 @@ export async function visitProfile(
   const topCard = page.locator("main section").filter({ has: page.locator("h1") }).first();
   const pageText = await topCard.innerText().catch(() => "");
 
-  const isExplicit2ndOr3rd = /\b(?:2nd|3rd|2º|3º|2ª|3ª)\b/i.test(pageText) || /•\s*(?:2|3)º/i.test(pageText);
-  const isExplicit1st = /\b(?:1st|1º|1ª)\b/i.test(pageText) || /•\s*1º/i.test(pageText);
+  const isExplicit2ndOr3rd = /\b(?:2nd|3rd|2º|3º|2ª|3ª)\b/i.test(pageText) || /•\s*(?:2|3)/i.test(pageText);
+  const isExplicit1st = /\b(?:1st|1º|1ª)\b/i.test(pageText) || /•\s*1/i.test(pageText);
 
   const mainArea = page.locator("main").first();
   const messageLink = mainArea.locator('a[href*="/messaging/compose"]').first();
@@ -59,7 +59,7 @@ export async function visitProfile(
   }
 
   // Ambiguous: LinkedIn UI might be slow or changed. 
-  // Return true so message.ts falls back to Typeahead search, 
-  // which has its own strict validation (will throw generic Error, not NotConnectedError).
-  return { isFirstDegree: true, messagingUrn };
+  // Fail-closed to prevent attempting to send a 1st-degree message to a 2nd/3rd-degree target.
+  // This correctly triggers the NotConnectedError fallback in message.ts.
+  return { isFirstDegree: false, messagingUrn: null };
 }

@@ -15,6 +15,7 @@ export interface EmailMessage {
   messageId: string | null;
   inReplyTo: string | null;
   references: string[];
+  draftId?: string;
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -65,6 +66,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     const dbMessagesRows = db.prepare("SELECT * FROM email_replies WHERE target_id = ? AND from_email LIKE 'urn:li:%'").all(targetId) as any[];
     const manualQueueRows = db.prepare("SELECT * FROM linkedin_reply_queue WHERE target_id = ?").all(targetId) as any[];
+    const outboundRows = db.prepare("SELECT * FROM outbound_events WHERE target_id = ? AND channel = 'linkedin'").all(targetId) as any[];
+    const draftRows = db.prepare("SELECT d.* FROM ai_drafts d JOIN run_profiles rp ON d.run_profile_id = rp.id WHERE rp.target_id = ? AND d.status = 'pending' AND d.channel = 'linkedin'").all(targetId) as any[];
     
     let uidCounter = -1;
     const linkedinMessages: EmailMessage[] = dbMessagesRows.map(r => ({
@@ -86,12 +89,43 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         from: "You (LinkedIn)",
         to: "Target",
         subject: "LinkedIn Message (Manual)",
-        date: new Date(q.created_at + 'Z').toISOString(),
+        date: new Date(((q.created_at || '').replace(' ', 'T') + 'Z')).getTime() ? new Date(((q.created_at || '').replace(' ', 'T') + 'Z')).toISOString() : new Date().toISOString(),
         text: q.body + (q.status === 'pending' || q.status === 'processing' ? ' [⏳ Queued]' : (q.status === 'failed' ? ' [❌ Failed]' : '')),
         html: null,
         messageId: q.id,
         inReplyTo: q.thread_id,
         references: []
+      });
+    }
+
+    for (const ob of outboundRows) {
+      linkedinMessages.push({
+        uid: uidCounter--,
+        from: "You (LinkedIn)",
+        to: "Target",
+        subject: "LinkedIn Message (Campaign)",
+        date: new Date(((ob.sent_at || ob.created_at || '').replace(' ', 'T') + 'Z')).getTime() ? new Date(((ob.sent_at || ob.created_at || '').replace(' ', 'T') + 'Z')).toISOString() : new Date().toISOString(),
+        text: ob.body,
+        html: null,
+        messageId: ob.id,
+        inReplyTo: null,
+        references: []
+      });
+    }
+
+    for (const d of draftRows) {
+      linkedinMessages.push({
+        uid: uidCounter--,
+        from: "AI Auto-Responder (Draft)",
+        to: "Target",
+        subject: "Draft AI Reply",
+        date: new Date(((d.created_at || '').replace(' ', 'T') + 'Z')).getTime() ? new Date(((d.created_at || '').replace(' ', 'T') + 'Z')).toISOString() : new Date().toISOString(),
+        text: d.generated_text,
+        html: null,
+        messageId: d.id,
+        inReplyTo: null,
+        references: [],
+        draftId: d.id
       });
     }
     

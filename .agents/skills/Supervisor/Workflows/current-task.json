@@ -1,0 +1,18 @@
+{
+  "taskId": "Test-Archaeology-Discovery",
+  "status": "PLANNING",
+  "riskLevel": "LOW",
+  "scope": "Discovery and classification of historical test/debug/forensic scripts in _archive/ directory. Read-only operation.",
+  "checkpointCommit": "19bafad6897685dd59a29bd56d7ed7d65255a3e9",
+  "titanConversationId": "",
+  "gates": {
+    "typecheck": "PENDING",
+    "unitTest": "PENDING",
+    "integrationTest": "PENDING",
+    "regressionTest": "PENDING",
+    "build": "PENDING",
+    "diffReview": "PENDING",
+    "invariantCheck": "PENDING",
+    "supervisorPass": "PENDING"
+  }
+}

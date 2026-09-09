@@ -195,14 +195,17 @@ export function createMcpServer() {
         const rpId = require("crypto").randomUUID();
         db.prepare("INSERT INTO run_profiles (id, run_id, target_id) VALUES (?, ?, ?)").run(rpId, run_id, target_id);
         
-        const tracks = db.prepare("SELECT DISTINCT track FROM workflow_steps WHERE workflow_id = ?").all(run.workflow_id) as any[];
-        if (tracks.length === 0) tracks.push({ track: "linkedin" });
+        const rootStepRow = db.prepare("SELECT id FROM workflow_steps WHERE workflow_id = ? ORDER BY step_order ASC LIMIT 1").get(run.workflow_id) as any;
+        const rootStepId = rootStepRow ? rootStepRow.id : null;
         
-        const insertTrack = db.prepare("INSERT INTO run_profile_tracks (id, run_profile_id, track, state, current_step) VALUES (?, ?, ?, 'pending', 0)");
+        const insertState = db.prepare("INSERT INTO run_profile_states (run_profile_id, current_step_id, state) VALUES (?, ?, 'pending')");
+        const insertTrack = db.prepare("INSERT INTO run_profile_tracks (id, run_profile_id, track, state, current_step) VALUES (?, ?, 'linkedin', 'pending', 0)");
+        
         db.transaction(() => {
-          for (const tr of tracks) {
-            insertTrack.run(require("crypto").randomUUID(), rpId, tr.track);
+          if (rootStepId) {
+            insertState.run(rpId, rootStepId);
           }
+          insertTrack.run(require("crypto").randomUUID(), rpId);
         })();
         
         return { content: [{ type: "text", text: "Successfully enrolled contact in campaign" }] };
@@ -215,7 +218,8 @@ export function createMcpServer() {
         const rp = db.prepare("SELECT id FROM run_profiles WHERE run_id = ? AND target_id = ?").get(run_id, target_id) as any;
         if (!rp) throw new Error("Contact is not enrolled in this campaign");
         
-        const res = db.prepare(`UPDATE run_profile_tracks SET state = 'skipped', error_message = 'Manually unenrolled by AI' WHERE run_profile_id = ? AND state IN ('pending', 'in_progress')`).run(rp.id);
+        db.prepare(`UPDATE run_profile_states SET state = 'completed' WHERE run_profile_id = ? AND state IN ('pending', 'running', 'paused', 'failed')`).run(rp.id);
+        const res = db.prepare(`UPDATE run_profile_tracks SET state = 'skipped', error_message = 'Manually unenrolled by AI' WHERE run_profile_id = ? AND state IN ('pending', 'in_progress', 'completed', 'failed')`).run(rp.id);
         
         return { content: [{ type: "text", text: `Unenrolled. ${res.changes} tracks stopped.` }] };
       }

@@ -193,12 +193,70 @@ export async function processReply(targetId: string, channel: "email" | "linkedi
       db.prepare("UPDATE targets SET last_replied_at = COALESCE(last_replied_at, ?) WHERE id = ?").run(now, targetId);
     }
 
+    if (replyId) {
+      db.prepare("UPDATE email_replies SET classified_at = ?, classification_json = ? WHERE id = ? AND classified_at IS NULL").run(now, '{"kind":"human_reply","fallback":true}', replyId);
+    }
+
     db.prepare(`
       UPDATE run_profile_tracks 
       SET state = 'skipped', error_message = 'Lead replied'
       WHERE run_profile_id IN (SELECT id FROM run_profiles WHERE target_id = ?)
         AND state NOT IN ('completed', 'failed', 'skipped')
     `).run(targetId);
+
+    const activeRuns = db.prepare(`
+      SELECT rps.run_profile_id, rps.current_step_id, rps.state, r.workflow_id
+      FROM run_profile_states rps
+      JOIN run_profiles rp ON rps.run_profile_id = rp.id
+      JOIN runs r ON rp.run_id = r.id
+      WHERE rp.target_id = ? AND rps.state IN ('pending', 'running', 'PAUSED')
+    `).all(targetId) as { run_profile_id: string, current_step_id: string | null, state: string, workflow_id: string }[];
+
+    for (const run of activeRuns) {
+      let onRepliedEdge: string | null = null;
+      let currentOrder = 999999;
+      
+      if (run.current_step_id) {
+        const stepRow = db.prepare("SELECT step_order FROM workflow_steps WHERE id = ?").get(run.current_step_id) as { step_order: number } | undefined;
+        if (stepRow) {
+          currentOrder = stepRow.step_order;
+        }
+      }
+
+      const lastMessageStep = db.prepare(`
+        SELECT id, edges_json FROM workflow_steps
+        WHERE workflow_id = ?
+          AND step_order <= ?
+          AND step_type IN ('message', 'email', 'sales_inmail')
+        ORDER BY step_order DESC
+        LIMIT 1
+      `).get(run.workflow_id, currentOrder) as { id: string, edges_json: string | null } | undefined;
+
+      if (lastMessageStep && lastMessageStep.edges_json) {
+        try {
+          const edges = JSON.parse(lastMessageStep.edges_json);
+          if (edges['on_replied']) {
+            onRepliedEdge = String(edges['on_replied']);
+          }
+        } catch (e) {
+          // ignore parsing error
+        }
+      }
+
+      if (onRepliedEdge) {
+        db.prepare(`
+          UPDATE run_profile_states
+          SET current_step_id = ?, state = 'pending', next_eval_at = NULL
+          WHERE run_profile_id = ?
+        `).run(onRepliedEdge, run.run_profile_id);
+      } else {
+        db.prepare(`
+          UPDATE run_profile_states
+          SET state = 'skipped', error_message = 'Lead replied'
+          WHERE run_profile_id = ?
+        `).run(run.run_profile_id);
+      }
+    }
   };
 
   if (process.env.AI_REPLY_INTELLIGENCE !== "true") {
@@ -215,7 +273,13 @@ export async function processReply(targetId: string, channel: "email" | "linkedi
 
   // AI is ON -> classification
   try {
-    const apiKey = process.env.OPENAI_API_KEY;
+    let apiKey = process.env.OPENAI_API_KEY;
+    const openaiInt = db.prepare("SELECT api_key FROM integrations WHERE key = 'openai'").get() as { api_key: string } | undefined;
+    if (openaiInt?.api_key) {
+      const { decryptSecret } = require("@/lib/crypto");
+      apiKey = decryptSecret(openaiInt.api_key);
+    }
+
     if (!apiKey) {
       // Fallback to basic stop if no API key
       stopBasic();

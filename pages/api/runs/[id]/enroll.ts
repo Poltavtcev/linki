@@ -21,6 +21,10 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     .get(runId) as { id: string; workflow_id: string } | undefined;
   if (!run) return res.status(404).json({ error: "run_not_found" });
 
+  // DAG ENGINE INIT
+  const rootStepRow = db.prepare("SELECT id FROM workflow_steps WHERE workflow_id = ? ORDER BY step_order ASC LIMIT 1").get(run.workflow_id) as { id: string } | undefined;
+  const rootStepId = rootStepRow ? rootStepRow.id : null;
+
   // Tracks defined on this workflow
   const workflowTracks = [...new Set(
     (db.prepare("SELECT DISTINCT track FROM workflow_steps WHERE workflow_id = ?").all(run.workflow_id) as { track: string }[]).map((r) => r.track)
@@ -100,18 +104,22 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
   const insertProfile = db.prepare(
     "INSERT INTO run_profiles (id, run_id, target_id, email_account_id) VALUES (?, ?, ?, ?)"
   );
+  const insertState = db.prepare(
+    "INSERT INTO run_profile_states (run_profile_id, current_step_id, state) VALUES (?, ?, 'pending')"
+  );
+  // Also insert into run_profile_tracks for backwards compatibility in UI until UI is fully migrated
   const insertTrack = db.prepare(
-    "INSERT INTO run_profile_tracks (id, run_profile_id, track, state, current_step) VALUES (?, ?, ?, 'pending', 0)"
+    "INSERT INTO run_profile_tracks (id, run_profile_id, track, state, current_step) VALUES (?, ?, 'linkedin', 'pending', 0)"
   );
   const insertMany = db.transaction((ids: string[]) => {
     for (const tid of ids) {
       const assignedEmailAccountId = emailAssignment.get(tid) ?? null;
       const rpId = randomUUID();
       insertProfile.run(rpId, runId, tid, assignedEmailAccountId);
-      for (const track of workflowTracks) {
-        if (track === "email" && !assignedEmailAccountId) continue;
-        insertTrack.run(randomUUID(), rpId, track);
+      if (rootStepId) {
+        insertState.run(rpId, rootStepId);
       }
+      insertTrack.run(randomUUID(), rpId);
     }
   });
   insertMany(eligible);

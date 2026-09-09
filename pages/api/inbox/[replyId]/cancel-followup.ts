@@ -23,10 +23,20 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
   if (!reply) return res.status(404).json({ error: "reply_not_found" });
 
   if (reply.run_id) {
+    // 1. IMPORTANT: Update the canonical state machine first so the DAG runner actually stops!
+    db.prepare(
+      `UPDATE run_profile_states SET state = 'completed'
+       WHERE state IN ('pending', 'running', 'paused', 'failed')
+         AND run_profile_id IN (
+           SELECT id FROM run_profiles WHERE run_id = ? AND target_id = ?
+         )`
+    ).run(reply.run_id, reply.target_id);
+
+    // 2. Update UI projection AFTER so trigger doesn't overwrite it
     db.prepare(
       `UPDATE run_profile_tracks SET state = 'skipped', next_step_at = NULL, pending_reply_context = NULL,
          error_message = 'Follow-up cancelled from inbox'
-       WHERE track = 'email' AND state IN ('pending', 'in_progress')
+       WHERE track = 'email' AND state IN ('pending', 'in_progress', 'completed', 'failed')
          AND run_profile_id IN (
            SELECT id FROM run_profiles WHERE run_id = ? AND target_id = ?
          )`,

@@ -146,7 +146,10 @@ export async function syncAcceptedConnections(accountId: string): Promise<number
             db.prepare(`
               UPDATE run_profile_states
               SET waiting_for_condition = NULL,
-                  current_step_id = json_extract((SELECT edges_json FROM workflow_steps WHERE id = run_profile_states.current_step_id), '$.on_accepted'),
+                  current_step_id = COALESCE(
+                    json_extract((SELECT edges_json FROM workflow_steps WHERE id = run_profile_states.current_step_id), '$.on_accepted'),
+                    json_extract((SELECT edges_json FROM workflow_steps WHERE id = run_profile_states.current_step_id), '$.next')
+                  ),
                   next_eval_at = datetime('now')
               WHERE run_profile_id IN (SELECT id FROM run_profiles WHERE target_id = ?)
                 AND waiting_for_condition = 'accept'

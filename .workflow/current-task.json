@@ -1,9 +1,9 @@
 {
-  "taskId": "C1-Automated-Test-Foundation",
-  "status": "IMPLEMENTING",
-  "riskLevel": "HIGH",
-  "scope": "Phase 3 - Implement minimal vitest foundation, migrate regression scripts, write crypto unit test, integrate with validate.sh.",
-  "checkpointCommit": "711cf1e3081252d2ba78376e3c0899326d82c897",
+  "taskId": "R2-Connect-Recovery",
+  "status": "DONE",
+  "riskLevel": "LOW",
+  "scope": "Fix connect routing to fallback to next edge if on_accepted is missing. Write regression test tests/integration/connect-routing.test.ts.",
+  "checkpointCommit": "HEAD",
   "titanConversationId": "",
   "gates": {
     "typecheck": "PENDING",

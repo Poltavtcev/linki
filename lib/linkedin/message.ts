@@ -1,274 +1,338 @@
-import { Page } from "playwright";
-import { getDb } from "../../lib/db";
-export class NotConnectedError extends Error {}
+import type { Page } from "playwright";
 import { visitProfile } from "./visit";
 
-export type SendMessageResult = {
+export class NotConnectedError extends Error {}
+
+export interface SendMessageResult {
   messagingUrn: string | null;
   isFirstDegree: boolean;
-};
-
-function getTargetIdentifier(messagingUrn?: string | null, linkedinUrl?: string): string {
-  if (messagingUrn) {
-    const match = messagingUrn.match(/ACo[A-Za-z0-9_-]+/);
-    if (match) return match[0];
-  }
-  if (linkedinUrl) {
-    const match = linkedinUrl.match(/\/in\/([^\/?]+)/);
-    if (match) return match[1];
-  }
-  throw new Error("UNKNOWN: Could not extract target identifier from URN or URL");
 }
 
-async function getConversationContainer(page: Page, urnId: string | null, vanityId: string | null) {
-  if (!urnId && !vanityId) throw new Error("UNKNOWN: Could not extract target identifier");
-
-  const containers = page.locator('.msg-overlay-conversation-bubble, .msg-thread');
-  const count = await containers.count();
-  if (count === 0) throw new Error(`FAIL CLOSED: Target conversation absent`);
-  
-  let activeContainer = null;
-  for (let i = 0; i < count; i++) {
-    const container = containers.nth(i);
-    const matches = await container.evaluate((el: Element, { urnId, vanityId }: { urnId: string | null, vanityId: string | null }) => {
-       const links = el.querySelectorAll('header a[href*="/in/"], .msg-thread__topcard a[href*="/in/"]');
-       for (const link of Array.from(links)) {
-         const href = link.getAttribute('href') || "";
-         const urlObj = new URL(href, 'https://www.linkedin.com');
-         const pathParts = urlObj.pathname.split('/').filter(Boolean);
-         if (pathParts[0] === 'in' && pathParts[1]) {
-           const id = pathParts[1];
-           if (urnId && id === urnId) return true;
-           if (vanityId && id === vanityId) return true;
-         }
-       }
-       return false;
-    }, { urnId, vanityId });
-    
-    if (matches && await container.isVisible()) {
-      activeContainer = container;
-      break;
-    }
-  }
-  
-  if (!activeContainer) throw new Error(`FAIL CLOSED: Target conversation container found but not visible`);
-
-  // PRE-SEND ASSERTION: Confirm one last time right before returning
-  const isConfirmed = await activeContainer.evaluate((el: Element, { urnId, vanityId }: { urnId: string | null, vanityId: string | null }) => {
-       const links = el.querySelectorAll('header a[href*="/in/"], .msg-thread__topcard a[href*="/in/"]');
-       for (const link of Array.from(links)) {
-         const href = link.getAttribute('href') || "";
-         const urlObj = new URL(href, 'https://www.linkedin.com');
-         const pathParts = urlObj.pathname.split('/').filter(Boolean);
-         if (pathParts[0] === 'in' && pathParts[1]) {
-           const id = pathParts[1];
-           if (urnId && id === urnId) return true;
-           if (vanityId && id === vanityId) return true;
-         }
-       }
-       return false;
-  }, { urnId, vanityId });
-  
-  if (!isConfirmed) throw new Error("FAIL CLOSED: Pre-send assertion failed. Conversation identity mismatch.");
-
-  return activeContainer;
-}
-
-async function openComposeByIdentifier(page: Page, urnId: string | null, vanityId: string | null): Promise<boolean> {
-  try {
-    try {
-      await getConversationContainer(page, urnId, vanityId);
-      return true;
-    } catch (e) {
-      // not open yet
-    }
-
-    if (page.url().includes('/in/')) {
-      const mainArea = page.locator("main").first();
-      
-      let msgBtn = mainArea.locator('button.message-anywhere-button, a[href*="/messaging/compose"], button[aria-label^="Message"], button[aria-label^="Повідомлення"], button[aria-label^="Mensaje"], button[aria-label^="Mensagem"], button:has-text("Message"), button:has-text("Повідомлення"), button:has-text("Mensaje"), button:has-text("Mensagem"), a:has-text("Message"), a:has-text("Повідомлення"), a:has-text("Mensaje"), a:has-text("Mensagem")').filter({ hasNot: page.locator('span:has-text("More")') }).first();
-      
-      if (await msgBtn.count() === 0 || !(await msgBtn.isVisible())) {
-        console.log(`[message] Message button not immediately visible in main. Trying 'More' dropdown.`);
-        const moreBtn = mainArea.locator('button[aria-label^="More"], button[aria-label^="Більше"], button.artdeco-dropdown__trigger').filter({ hasText: /More|Більше|\.\.\./i }).first();
-        if (await moreBtn.count() > 0 && await moreBtn.isVisible()) {
-          await moreBtn.click();
-          await mainArea.locator('div.artdeco-dropdown__content, div[role="menu"]').first().waitFor({ state: "visible", timeout: 5000 }).catch(() => {});
-          msgBtn = mainArea.locator('div.artdeco-dropdown__content button:has-text("Message"), div.artdeco-dropdown__content button:has-text("Повідомлення"), div.artdeco-dropdown__content a:has-text("Message"), div.artdeco-dropdown__content a:has-text("Повідомлення")').first();
-        }
-      }
-      
-      if (await msgBtn.count() > 0) {
-        console.log(`[message] Clicking profile Message button...`);
-        await msgBtn.click({ force: true });
-        
-        const container = await getConversationContainer(page, urnId, vanityId);
-        
-        try {
-          await container.waitFor({ state: 'visible', timeout: 10000 });
-          return true;
-        } catch (timeoutErr) {
-          console.log(`[message] Timeout waiting for specific target compose box to appear after clicking Message button.`);
-          throw timeoutErr;
-        }
-      }
-    }
-    
-    console.log(`[message] Message button completely missing from UI.`);
-    return false;
-  } catch (e) {
-    console.error(`[message] Failed to open compose for:`, e);
-    return false;
-  }
-}
-
-async function sendFromComposeBox(page: Page, urnId: string | null, vanityId: string | null, text: string, assertLock: () => void): Promise<void> {
-  const container = await getConversationContainer(page, urnId, vanityId);
-
-  const msgInput = container.locator("div.msg-form__contenteditable, div[role='textbox'][aria-label*='Message'], div[role='textbox'][aria-label*='Mensaje'], div[role='textbox'][aria-label*='Mensagem'], div[role='textbox'][aria-label*='Повідомлення']").first();
-  await msgInput.waitFor({ timeout: 8000 });
-  await msgInput.click();
-  for (const char of text) {
-    await msgInput.pressSequentially(char, { delay: 15 + Math.random() * 40 });
-    await page.waitForTimeout(30 + Math.random() * 50);
-  }
-  await page.waitForTimeout(500);
-
-  const sendBtn = container.locator("button.msg-form__send-button:visible, button[type='submit'].msg-form__send-button:visible, button.msg-form__send-btn:visible").first();
-  await sendBtn.waitFor({ timeout: 5000 });
-  assertLock();
-  await sendBtn.click({ delay: 100 });
-  
-  const start = Date.now();
-  let inputCleared = false;
-  let bubbleAppeared = false;
-  
-  while (Date.now() - start < 5000) {
-    try {
-      const isVisible = await msgInput.isVisible();
-      if (isVisible) {
-        const currentText = await msgInput.innerText();
-        if (currentText.trim() === "") inputCleared = true;
-      }
-    } catch (e) {
-      // Detached or error
-    }
-    
-    bubbleAppeared = await container.evaluate((root: Element, expectedText: string) => {
-      const normalize = (s: string) => s.replace(/\s+/g, ' ').trim();
-      const target = normalize(expectedText);
-      const targetPrefix = target.length > 100 ? target.substring(0, 100) : target;
-      
-      const getBubbles = (node: Element | Document | ShadowRoot): Element[] => {
-        let results: Element[] = [];
-        const elements = node.querySelectorAll('p, span, div.msg-s-event-listitem__body, div.msg-s-message-group__meta');
-        for (const el of Array.from(elements)) {
-            if (el.closest('[contenteditable="true"], [role="textbox"]')) continue;
-            results.push(el);
-        }
-        const allNodes = node.querySelectorAll('*');
-        for (const n of Array.from(allNodes)) {
-          if (n.shadowRoot) {
-            results.push(...getBubbles(n.shadowRoot));
-          }
-        }
-        return results;
-      };
-      
-      const bubbles = getBubbles((root as any).shadowRoot || root);
-      for (const b of bubbles) {
-        const elText = normalize(b.textContent || "");
-        if (elText && elText.includes(targetPrefix)) {
-          if (elText.length <= target.length + 150) return true;
-        }
-      }
-      return false;
-    }, text).catch(() => false);
-
-    const toastAppeared = await page.evaluate(() => {
-      const toasts = document.querySelectorAll('.artdeco-toast-item:not(.artdeco-toast-item--error)');
-      for (const toast of Array.from(toasts)) {
-        if (window.getComputedStyle(toast).display === 'none') continue;
-        const txt = (toast.textContent || "").toLowerCase();
-        if (txt.includes('sent') || txt.includes('enviad') || txt.includes('wysłan') || txt.includes('відправлен')) {
-          return true;
-        }
-      }
-      return false;
-    }).catch(() => false);
-
-    if (inputCleared && (bubbleAppeared || toastAppeared)) {
-      break;
-    }
-    await page.waitForTimeout(500);
-  }
-  
-  if (!(inputCleared && bubbleAppeared)) {
-    const errorBanner = container.locator(".artdeco-inline-feedback--error, .msg-form__error-message, .artdeco-toast-item--error, .ph1.artdeco-inline-feedback").first();
-    let errorText = "Silent failure";
-    if (await errorBanner.isVisible().catch(() => false)) {
-      errorText = await errorBanner.innerText().catch(() => errorText);
-    }
-    throw new Error(`Message send failed. inputCleared=${inputCleared}, bubbleAppeared=${bubbleAppeared}. Rejection reason: ${errorText}`);
-  }
-}
-
+/**
+ * Sends a message to a LinkedIn 1st-degree connection.
+ *
+ * Self-contained URN resolution — does NOT depend on a prior 'visit' workflow
+ * step. If messagingUrn is already cached, it's used directly (no extra page
+ * load). Otherwise this does its own live profile check to fetch a fresh URN and
+ * verify the target is still actually connected, immediately before sending.
+ */
 export async function sendMessage(
   page: Page,
   fullName: string,
   text: string,
   linkedinUrl: string,
   messagingUrn?: string | null,
-  assertLock: () => void = () => {}
+  assertLock: () => void = () => {},
+  attachmentPath?: string | null,
 ): Promise<SendMessageResult> {
-  let urnId = null;
-  const urnMatch = messagingUrn?.match(/ACo[A-Za-z0-9_-]+/);
-  if (urnMatch) urnId = urnMatch[0];
-  let vanityId = null;
-  if (linkedinUrl) {
-    const urlMatch = linkedinUrl.match(/\/in\/([^\/?]+)/);
-    if (urlMatch) vanityId = urlMatch[1];
-  }
-
+  // 1. If messagingUrn is cached, try direct compose URL
   if (messagingUrn) {
-    const opened = await openComposeByIdentifier(page, urnId, vanityId);
+    const opened = await openComposeByUrn(page, messagingUrn);
     if (opened) {
-      await sendFromComposeBox(page, urnId, vanityId, text, assertLock);
+      await sendFromComposeBox(page, text, assertLock, attachmentPath);
       return { messagingUrn, isFirstDegree: true };
     }
   }
 
+  // 2. Visit profile directly to check connection and find message action
   const resolved = await visitProfile(page, linkedinUrl);
-  console.log(`[message] visitProfile resolved for ${fullName}:`, resolved);
-  
+  if (resolved.messagingUrn) {
+    const opened = await openComposeByUrn(page, resolved.messagingUrn);
+    if (opened) {
+      await sendFromComposeBox(page, text, assertLock, attachmentPath);
+      return resolved;
+    }
+  }
+
+  // 3. If on profile and detected as 1st-degree, open compose box directly from page button
+  if (resolved.isFirstDegree) {
+    const openedOnPage = await openComposeFromProfilePage(page);
+    if (openedOnPage) {
+      await sendFromComposeBox(page, text, assertLock, attachmentPath);
+      return resolved;
+    }
+  }
+
   if (!resolved.isFirstDegree) {
-    throw new NotConnectedError(`${fullName} is not a 1st-degree connection — refusing to message`);
+    throw new NotConnectedError(
+      `${fullName} is not a 1st-degree connection — refusing to message`,
+    );
   }
 
-  if (!resolved.messagingUrn) {
-    throw new Error(`Failed to resolve messaging URN for ${fullName} via profile visit. Refusing to guess via name search.`);
-  }
-
-  let newUrnId = null;
-  const newUrnMatch = resolved.messagingUrn?.match(/ACo[A-Za-z0-9_-]+/);
-  if (newUrnMatch) newUrnId = newUrnMatch[0];
-
-  const opened2 = await openComposeByIdentifier(page, newUrnId, vanityId);
-  if (!opened2) {
-    throw new Error(`Failed to open compose box for URN ${resolved.messagingUrn}`);
-  }
-
-  await sendFromComposeBox(page, newUrnId, vanityId, text, assertLock);
+  // 4. Connected, but compose URN not found — fallback to name search
+  await sendMessageViaTypeahead(
+    page,
+    fullName,
+    text,
+    assertLock,
+    attachmentPath,
+  );
   return resolved;
 }
 
-export async function replyToThread(page: Page, threadId: string, text: string, profileUrl?: string, assertLock: () => void = () => {}): Promise<void> {
-  const cleanThreadId = threadId.includes(",") ? threadId.split(",")[1].replace(")", "") : threadId;
+async function openComposeFromProfilePage(page: Page): Promise<boolean> {
+  try {
+    const msgBtn = page
+      .locator(
+        `
+      main section button:has-text("Mensagem"),
+      main section button:has-text("Message"),
+      main section button:has-text("Enviar mensaje"),
+      main section button[aria-label*="Mensagem"],
+      main section button[aria-label*="Message"],
+      main section button[aria-label*="Enviar mensaje"],
+      main button:has-text("Mensagem"),
+      main button:has-text("Message"),
+      main button:has-text("Enviar mensaje"),
+      button:has-text("Mensagem"),
+      button:has-text("Message"),
+      button:has-text("Enviar mensaje")
+    `,
+      )
+      .first();
+
+    if (await msgBtn.isVisible().catch(() => false)) {
+      await msgBtn.click({ delay: 100 });
+      await page.waitForTimeout(1500 + Math.random() * 1000);
+      const msgInput = page
+        .locator(COMPOSE_INPUT_SELECTOR)
+        .first();
+      await msgInput.waitFor({ timeout: 10000 });
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+async function openComposeByUrn(
+  page: Page,
+  messagingUrn: string,
+): Promise<boolean> {
+  try {
+    const recipientId = messagingUrn.split(":").pop();
+    const composeUrl = `https://www.linkedin.com/messaging/compose/?profileUrn=${encodeURIComponent(messagingUrn)}&recipient=${recipientId}`;
+    await page.goto(composeUrl, {
+      waitUntil: "domcontentloaded",
+      timeout: 30000,
+    });
+    await page.waitForTimeout(1500 + Math.random() * 1000);
+    const msgInput = page
+      .locator(COMPOSE_INPUT_SELECTOR)
+      .first();
+    await msgInput.waitFor({ timeout: 8000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function sendMessageViaTypeahead(
+  page: Page,
+  fullName: string,
+  text: string,
+  assertLock: () => void,
+  attachmentPath?: string | null,
+): Promise<void> {
+  await page.goto("https://www.linkedin.com/messaging/thread/new/", {
+    waitUntil: "domcontentloaded",
+    timeout: 30000,
+  });
+  await page.waitForTimeout(1500 + Math.random() * 1000);
+
+  // Search for recipient by name
+  const searchField = page
+    .locator("input.msg-connections-typeahead__search-field")
+    .first();
+  await searchField.waitFor({ timeout: 10000 });
+  await searchField.click();
+  await searchField.type(fullName, { delay: 60 + Math.random() * 40 });
+  await page.waitForTimeout(1500);
+
+  const firstResult = page
+    .locator('div[class*="msg-connections-typeahead__search-result-row"]')
+    .first();
+  await firstResult.waitFor({ timeout: 8000 });
+  const resultText = (await firstResult.innerText().catch(() => "")).trim();
+  if (!resultNameMatches(resultText, fullName)) {
+    throw new Error(
+      `Typeahead search for "${fullName}" returned a non-matching result ("${resultText.replace(/\s+/g, " ")}") — refusing to send to avoid messaging the wrong person`,
+    );
+  }
+  await firstResult.click({ delay: 100 });
+  await page.waitForTimeout(800);
+
+  await sendFromComposeBox(page, text, assertLock, attachmentPath);
+}
+
+export function resultNameMatches(resultText: string, fullName: string): boolean {
+  const normalize = (s: string) =>
+    s
+      .toLowerCase()
+      .normalize("NFKD")
+      .replace(/[̀-ͯ]/g, "")
+      .replace(/[^a-z\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  const target = normalize(fullName);
+  if (!target) return false;
+  return normalize(resultText).includes(target);
+}
+
+async function attachFileInCompose(
+  page: Page,
+  filePath: string,
+): Promise<boolean> {
+  try {
+    const isDoc = /\.pdf|\.doc|\.docx|\.xls|\.xlsx|\.txt/i.test(filePath);
+    const fileInputs = page.locator("input[type='file']");
+    const count = await fileInputs.count();
+    let uploaded = false;
+
+    if (count > 0) {
+      if (isDoc) {
+        const docBtn = page
+          .locator(
+            "button.msg-form__attachment-btn--doc, button[aria-label*='document'], button[aria-label*='archivo'], button[aria-label*='documento']",
+          )
+          .first();
+        if (await docBtn.isVisible().catch(() => false)) {
+          await docBtn.click().catch(() => {});
+          await page.waitForTimeout(1000);
+        }
+      }
+
+      for (let i = 0; i < count; i++) {
+        try {
+          await fileInputs.nth(i).setInputFiles(filePath);
+          uploaded = true;
+          break;
+        } catch {
+          /* continue */
+        }
+      }
+    }
+
+    if (uploaded) {
+      await page.waitForTimeout(2500);
+
+      // Confirm LinkedIn document upload modal if present
+      const modalPrimaryBtn = page
+        .locator(
+          `
+        .artdeco-modal button.artdeco-button--primary,
+        .share-promoted-document-modal__primary-button,
+        div[role='dialog'] button:has-text('Done'),
+        div[role='dialog'] button:has-text('Listo'),
+        div[role='dialog'] button:has-text('Hecho'),
+        div[role='dialog'] button:has-text('Continuar'),
+        div[role='dialog'] button:has-text('Save'),
+        div[role='dialog'] button:has-text('Guardar')
+      `,
+        )
+        .first();
+
+      if (
+        await modalPrimaryBtn.isVisible({ timeout: 4000 }).catch(() => false)
+      ) {
+        await modalPrimaryBtn.click({ delay: 100 });
+        await page.waitForTimeout(2000);
+      }
+      return true;
+    }
+    return false;
+  } catch (err) {
+    console.warn("[attachFileInCompose] error attaching file:", err);
+    return false;
+  }
+}
+
+export const SEND_BUTTON_SELECTOR = "button.msg-form__send-button:visible, button[type='submit'].msg-form__send-button:visible, button.msg-form__send-btn:visible";
+export const COMPOSE_INPUT_SELECTOR = "div.msg-form__contenteditable, div[role='textbox'].msg-form__message-texteditor";
+
+async function sendFromComposeBox(
+  page: Page,
+  text: string,
+  assertLock: () => void,
+  attachmentPath?: string | null,
+): Promise<void> {
+  // 1. If attachment present, attach it first
+  if (attachmentPath) {
+    await attachFileInCompose(page, attachmentPath);
+  }
+
+  // 2. Paste or type text message into compose area if text provided
+  if (text?.trim()) {
+    const msgInput = page
+      .locator(COMPOSE_INPUT_SELECTOR)
+      .first();
+    if (await msgInput.isVisible({ timeout: 8000 }).catch(() => false)) {
+      await msgInput.click();
+      try {
+        // Safe typing loop that simulates human input
+        for (const char of text) {
+          if (char === '\n') {
+            await msgInput.press("Shift+Enter");
+          } else {
+            await msgInput.pressSequentially(char, { delay: 15 + Math.random() * 40 });
+          }
+          await page.waitForTimeout(10 + Math.random() * 20);
+        }
+      } catch (err) {
+        console.warn(
+          "[sendFromComposeBox] typing failed, trying fallback",
+          err,
+        );
+        await msgInput.fill(text);
+      }
+      await page.waitForTimeout(500);
+    }
+  }
+
+  // 3. Send
+  const sendBtn = page
+    .locator(SEND_BUTTON_SELECTOR)
+    .first();
+  await sendBtn.waitFor({ timeout: 8000 });
+  assertLock();
+  
+  try {
+    // We use a short timeout. If LinkedIn disables the button immediately on mousedown, 
+    // Playwright might retry and hang. We catch the timeout to verify if it actually sent.
+    await sendBtn.click({ delay: 50, timeout: 5000 });
+  } catch (err) {
+    console.warn("[sendFromComposeBox] Click timed out or failed. Checking if message was sent anyway...");
+    if (text?.trim()) {
+      const msgInput = page.locator(COMPOSE_INPUT_SELECTOR).first();
+      const content = await msgInput.innerText().catch(() => "");
+      if (content.trim() === "") {
+        console.log("[sendFromComposeBox] Input box is empty. Message was successfully sent despite click error.");
+      } else {
+        throw err;
+      }
+    } else {
+      throw err;
+    }
+  }
+  await page.waitForTimeout(3000);
+}
+
+export async function replyToThread(
+  page: Page,
+  threadId: string,
+  text: string,
+  profileUrl?: string,
+  assertLock: () => void = () => {},
+): Promise<void> {
+  const cleanThreadId = threadId.includes(",")
+    ? threadId.split(",")[1].replace(")", "")
+    : threadId;
   const url = `https://www.linkedin.com/messaging/thread/${cleanThreadId}/`;
   console.log("[replyToThread] Navigating to", url);
   await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
   await page.waitForTimeout(5000);
-  
+
   let threadVanityId = null;
   if (profileUrl) {
     const urlMatch = profileUrl.match(/\/in\/([^\/?]+)/);
@@ -276,19 +340,29 @@ export async function replyToThread(page: Page, threadId: string, text: string, 
   }
 
   try {
-    await sendFromComposeBox(page, null, threadVanityId, text, assertLock);
+    await sendFromComposeBox(page, text, assertLock);
     return;
   } catch (err) {
-    console.error("[replyToThread] Failed in thread view, attempting profile fallback...", err);
-    if (!profileUrl) throw new Error("Thread view failed and no profile URL provided for fallback.");
+    console.error(
+      "[replyToThread] Failed in thread view, attempting profile fallback...",
+      err,
+    );
+    if (!profileUrl)
+      throw new Error(
+        "Thread view failed and no profile URL provided for fallback.",
+      );
   }
-  
+
   console.log("[replyToThread] Navigating to profile:", profileUrl);
-  await page.goto(profileUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
+  await page.goto(profileUrl, {
+    waitUntil: "domcontentloaded",
+    timeout: 30000,
+  });
   await page.waitForTimeout(4000);
-  
-  const opened3 = await openComposeByIdentifier(page, null, threadVanityId);
-  if (!opened3) throw new Error(`Failed to open compose box for profile ${profileUrl}`);
-  
-  await sendFromComposeBox(page, null, threadVanityId, text, assertLock);
+
+  const opened3 = await openComposeFromProfilePage(page);
+  if (!opened3)
+    throw new Error(`Failed to open compose box for profile ${profileUrl}`);
+
+  await sendFromComposeBox(page, text, assertLock);
 }

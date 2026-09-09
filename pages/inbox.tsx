@@ -314,23 +314,63 @@ function ReplyModal({ reply, onClose, onActionDone, hasPremium }: ReplyModalProp
             </div>
           ) : (
             messages.map((msg, i) => {
-              const isFromContact = msg.from.toLowerCase().includes((reply.email ?? "").toLowerCase());
+              const leadEmail = (reply.email || "").toLowerCase();
+              let isFromContact = true;
+              const fromLower = msg.from.toLowerCase();
+              const toLower = msg.to.toLowerCase();
+              
+              if (fromLower.includes("you (linkedin)") || fromLower.includes("ai auto-responder") || toLower === "target") {
+                isFromContact = false;
+              } else if (leadEmail) {
+                if (fromLower.includes(leadEmail)) isFromContact = true;
+                else if (toLower.includes(leadEmail)) isFromContact = false;
+              }
+
               return (
-                <div
-                  key={i}
-                  className={`rounded-lg p-3.5 ${
-                    isFromContact
-                      ? "bg-base-200 border border-base-300/40"
-                      : "bg-primary/8 border border-primary/20"
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-medium text-base-content/60">{msg.from}</span>
-                    <span className="text-xs text-base-content/30">{formatDate(msg.date)}</span>
+                <div key={i} className={`flex w-full ${isFromContact ? "justify-start" : "justify-end"}`}>
+                  <div
+                    className={`flex flex-col max-w-[85%] ${
+                      isFromContact
+                        ? "bg-base-100 border border-base-300/60 rounded-2xl rounded-tl-sm p-4 shadow-sm"
+                        : "bg-primary/10 border border-primary/20 rounded-2xl rounded-tr-sm p-4 shadow-sm"
+                    }`}
+                  >
+                  <div className="flex items-center justify-between text-xs text-base-content/60 pb-2 border-b border-gray-200 dark:border-gray-800/30">
+                    <span className="font-semibold text-base-content">{isFromContact ? reply.full_name || msg.from : "You"}</span>
+                    <span className="text-xs text-base-content/40">{formatDate(msg.date)}</span>
                   </div>
+                  {msg.subject && !msg.subject.includes("Message") && (
+                    <div className="font-medium text-xs text-base-content/70 mt-2 mb-1">Subject: {msg.subject}</div>
+                  )}
                   <p className="text-sm text-base-content whitespace-pre-wrap leading-relaxed">
                     {msg.text || "(no text content)"}
                   </p>
+                  {msg.draftId && (
+                    <div className="mt-3 flex justify-end">
+                      <button
+                        className="btn btn-sm btn-primary"
+                        onClick={async () => {
+                          try {
+                            const res = await fetch("/api/inbox/draft-approve", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ draftId: msg.draftId })
+                            });
+                            if (res.ok) {
+                              setMessages(prev => prev.map(m => m.draftId === msg.draftId ? { ...m, text: m.text + " [⏳ Queued]", draftId: undefined } : m));
+                            } else {
+                              alert("Failed to approve draft");
+                            }
+                          } catch (e) {
+                            console.error(e);
+                          }
+                        }}
+                      >
+                        Approve & Send
+                      </button>
+                    </div>
+                  )}
+                  </div>
                 </div>
               );
             })

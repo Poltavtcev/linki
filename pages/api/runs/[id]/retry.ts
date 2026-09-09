@@ -18,10 +18,18 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
 
   let retried = 0;
   for (const rp of rpRows) {
-    const r = db.prepare(
+    // 1. Update the UI projection so the UI reflects the change immediately
+    db.prepare(
       `UPDATE run_profile_tracks SET state = 'in_progress', error_message = NULL, next_step_at = NULL
        WHERE run_profile_id = ? AND state = 'failed'`
     ).run(rp.id);
+
+    // 2. IMPORTANT: Update the canonical state machine so the DAG runner actually resumes it!
+    const r = db.prepare(
+      `UPDATE run_profile_states SET state = 'pending', next_eval_at = datetime('now'), waiting_for_condition = NULL
+       WHERE run_profile_id = ? AND state = 'failed'`
+    ).run(rp.id);
+    
     retried += r.changes;
   }
 

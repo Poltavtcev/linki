@@ -2,6 +2,7 @@ import type Database from "better-sqlite3";
 import { captureSdrInboundMessage, type CapturedInboundMessage, type SdrInboundMessage } from "./sdr-shim";
 import type { Page } from "playwright";
 import { createHash } from "node:crypto";
+import { premium } from "@/lib/premium";
 
 
 
@@ -424,31 +425,25 @@ export function captureLinkedInInboxObservations(
         // Execute AI Auto-Responder Before DAG edge traversal
         try {
           const runInfo = db.prepare(`
-            SELECT r.id, r.workflow_id, r.account_id 
+            SELECT r.id AS run_id, rp.id AS run_profile_id, r.workflow_id, r.account_id 
             FROM run_profiles rp 
             JOIN runs r ON rp.run_id = r.id 
-            WHERE rp.target_id = ? AND r.status IN ('running', 'paused')
-          `).get(resolution.targetId) as any;
+            WHERE rp.target_id = ? AND r.account_id = ? AND r.status IN ('running', 'paused')
+            ORDER BY rp.created_at DESC
+            LIMIT 1
+          `).get(resolution.targetId, accountId) as any;
           
           if (runInfo) {
             const replyCtx = db.prepare(`SELECT * FROM reply_contexts WHERE workflow_id = ? AND is_active = 1`).get(runInfo.workflow_id) as any;
             if (replyCtx) {
               console.log(`[inbox-sync] Active Auto-Responder found for target ${resolution.targetId}, workflow ${runInfo.workflow_id}`);
               
-              const history = db.prepare(`SELECT body, direction FROM inbound_messages WHERE target_id = ? ORDER BY created_at ASC`).all(resolution.targetId) as any[];
-              const historyText = history.map(h => h.direction.toUpperCase() + ": " + h.body).join("\n");
+              const history = db.prepare(`SELECT body_text FROM email_replies WHERE target_id = ? AND account_id = ? ORDER BY received_at ASC`).all(resolution.targetId, runInfo.account_id) as any[];
+              const historyText = history.map(h => "INBOUND: " + h.body_text).join("\n");
               
-              const openaiInt = db.prepare("SELECT api_key FROM integrations WHERE key = 'openai'").get() as { api_key: string } | undefined;
-              let apiKey = process.env.OPENAI_API_KEY;
-              if (openaiInt?.api_key) {
-                const { decryptSecret } = require("@/lib/crypto");
-                apiKey = decryptSecret(openaiInt.api_key);
-              }
-              
-              if (apiKey) {
-                (async () => {
-                  const openai = new (require("openai").default)({ apiKey });
-                  const prompt = `
+              (async () => {
+                const { generateAiReply } = require("../ai-generator");
+                const prompt = `
 You are an AI assistant managing LinkedIn replies for a user. 
 Sender Profile: ${replyCtx.sender_profile}
 Company/Product: ${replyCtx.company_product}
@@ -459,24 +454,36 @@ Recent Conversation History:
 ${historyText}
 
 Draft a short, natural LinkedIn reply to the latest message. Do not include subject lines or placeholders. 
-If the conversation is definitively over or they said NO, just output the exact string: "[END_CONVERSATION]"
-                  `;
+If the conversation is definitively over or they said NO, just output the exact string: "[END_CONVERSATION]"`;
 
-                  console.log(`[inbox-sync] Drafting LLM reply...`);
-                  const chat = await openai.chat.completions.create({
-                    model: "gpt-4o",
-                    messages: [ { role: "system", content: prompt } ],
-                    temperature: 0.7,
-                    max_tokens: 300
-                  });
+                console.log(`[inbox-sync] Drafting LLM reply...`);
+                const { generatedText, draftId } = await generateAiReply(db, {
+                  target: { id: resolution.targetId }, // Minimum target obj
+                  channel: "linkedin",
+                  auto_send: replyCtx.auto_send === 1,
+                  systemMessageOverride: prompt
+                });
 
-                  const draft = chat.choices[0].message.content?.trim() || "";
-                  if (draft && draft !== "[END_CONVERSATION]") {
-                     console.log(`[inbox-sync] LLM drafted reply: ${draft}`);
-                     console.log(`[inbox-sync] AI Auto-Responder execution complete for ${resolution.targetId}`);
-                  }
-                })().catch(e => console.error(e));
-              }
+                if (generatedText && generatedText !== "[END_CONVERSATION]") {
+                   console.log(`[inbox-sync] LLM drafted reply: ${generatedText}`);
+                   
+                   // Persist draft with step_id = NULL
+                   const status = replyCtx.auto_send === 1 ? 'approved' : 'pending';
+                   db.prepare(`INSERT INTO ai_drafts (id, run_profile_id, step_id, channel, status, generated_text, context_used_json) VALUES (?, ?, NULL, 'linkedin', ?, ?, ?)`)
+                     .run(draftId, runInfo.run_profile_id, status, generatedText, JSON.stringify({ prompt, historyText }));
+                   
+                   if (replyCtx.auto_send === 1) {
+                     const { randomUUID } = require("crypto");
+                     db.prepare(`INSERT INTO linkedin_reply_queue (id, account_id, target_id, thread_id, body) VALUES (?, ?, ?, ?, ?)`)
+                       .run(randomUUID(), accountId, resolution.targetId, normalized.externalThreadId, generatedText);
+                     console.log(`[inbox-sync] Auto-send enabled, pushed to queue.`);
+                   }
+
+                   console.log(`[inbox-sync] AI Auto-Responder execution complete for ${resolution.targetId}`);
+                } else {
+                   console.log(`[inbox-sync] LLM chose to END_CONVERSATION or returned empty.`);
+                }
+              })().catch(e => console.error(e));
             }
           }
         } catch (e) {
@@ -484,8 +491,6 @@ If the conversation is definitively over or they said NO, just output the exact 
         }
 
         try {
-          // eslint-disable-next-line @typescript-eslint/no-require-imports
-          const premium = require("../../ee").premium;
           if (premium?.replies) {
             // Run in background without blocking the sync loop
             premium.replies.classifyAndDispatch(captured.messageId).catch((err: any) => {
@@ -545,7 +550,7 @@ export async function syncLinkedInInboxReadOnly(
       observations = await options.source.observe(page);
     } catch (error) {
       const url = page.url();
-      if (isLinkedInAuthenticationWall(url)) {
+      if (isLinkedInAuthenticationWall(url) || (error instanceof Error && error.message.includes("AUTH_REQUIRED"))) {
         wallUrl = url;
         throw new LinkedInInboxAuthenticationError(url);
       }

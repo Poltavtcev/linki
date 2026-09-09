@@ -34,7 +34,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 
   if (req.method === "POST") {
-    const { step_type, track: trackIn, template_id, template_ids, delay_seconds, connect_note, message_body, email_subject, email_body, email_signature, email_position, message_position, ai_enabled, ai_model, ai_prompt, ai_max_words, ai_language, config, edges_json, ai_qualification_rules, ai_comment_prompt } = req.body;
+    const { step_type, track: trackIn, step_order, template_id, template_ids, delay_seconds, connect_note, message_body, email_subject, email_body, email_signature, email_position, message_position, ai_enabled, ai_model, ai_prompt, ai_max_words, ai_language, config, edges_json, ai_qualification_rules, ai_comment_prompt } = req.body;
     if (!step_type) return res.status(400).json({ error: "step_type required" });
 
     // Fallback track to playbook if not provided
@@ -44,7 +44,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     const maxRow = db
       .prepare("SELECT MAX(step_order) as max_order FROM workflow_steps WHERE workflow_id = ?")
       .get(workflowId) as { max_order: number | null };
-    const nextOrder = (maxRow.max_order ?? 0) + 1;
+    const nextOrder = step_order !== undefined ? step_order : ((maxRow.max_order ?? 0) + 1);
 
     const id = randomUUID();
     db.prepare(

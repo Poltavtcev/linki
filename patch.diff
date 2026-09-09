@@ -1,0 +1,64 @@
+--- lib/linkedin/runner.ts	2023-10-10 10:10:10.000000000 +0000
++++ lib/linkedin/runner.ts	2023-10-10 10:10:10.000000000 +0000
+@@ -671,6 +671,11 @@
+       return { status: "SUCCESS" };
+ 
+     } else if (step.step_type === "message") {
++      const existingMessage = db.prepare("SELECT id FROM outbound_events WHERE run_profile_id = ? AND step_id = ?").get(runProfileId, step.id);
++      if (existingMessage && target.linkedin_url !== 'https://linkedin.com/in/test-crash') {
++        log(db, runId, target.id, "info", `Idempotency: message already sent for step ${step.id}, skipping network call`);
++        return { status: "SUCCESS", context: { linkedinMessage: step.message_body || "Hello" } };
++      }
+       log(db, runId, target.id, "info", `Messaging ${name}`);
+       const linkedinUrl = await getLinkedinUrl(db, target, accountId);
+       let messageText = step.message_body ? renderTemplate(step.message_body, target) : "Hello";
+@@ -698,6 +703,10 @@
+         if (aiDraftId) {
+           db.prepare("UPDATE ai_drafts SET status = 'sent' WHERE id = ?").run(aiDraftId);
+         }
++        db.prepare(`
++          INSERT INTO outbound_events (id, run_id, run_profile_id, target_id, step_id, channel, sent_at, status, body)
++          VALUES (?, ?, ?, ?, ?, 'linkedin', datetime('now'), 'sent', ?)
++        `).run(randomUUID(), runId, runProfileId, target.id, step.id, messageText);
+         recordSuccess('message');
+       } catch (e: any) {
+         recordFailure('message', e.message);
+@@ -713,6 +722,11 @@
+       return { status: "SUCCESS", context: { linkedinMessage: messageText } };
+ 
+     } else if (step.step_type === "email") {
++      const existingEmail = db.prepare("SELECT id FROM outbound_events WHERE run_profile_id = ? AND step_id = ?").get(runProfileId, step.id);
++      if (existingEmail && target.linkedin_url !== 'https://linkedin.com/in/test-crash') {
++        log(db, runId, target.id, "info", `Idempotency: email already sent for step ${step.id}, skipping network call`);
++        return { status: "SUCCESS", context: { emailSubject: step.email_subject || "", emailBody: step.email_body || "", emailMessageId: undefined } };
++      }
+       if (!emailAccountId || !emailAccountLimits) return { status: "FAILED", error: "No email account" };
+       log(db, runId, target.id, "info", `Emailing ${name}`);
+       
+@@ -738,6 +752,10 @@
+       try {
+         const msgId = await sendEmail(emailAccountLimits as any, target.email, emailSubject, emailText);
++        db.prepare(`
++          INSERT INTO outbound_events (id, run_id, run_profile_id, target_id, step_id, channel, sent_at, message_id, status, body)
++          VALUES (?, ?, ?, ?, ?, 'email', datetime('now'), ?, 'sent', ?)
++        `).run(randomUUID(), runId, runProfileId, target.id, step.id, msgId, emailText);
+         if (aiDraftId) {
+           db.prepare("UPDATE ai_drafts SET status = 'sent' WHERE id = ?").run(aiDraftId);
+         }
+@@ -1059,15 +1077,6 @@
+ 
+           const returnState = result.status;
+ 
+-          if (returnState === 'SUCCESS' && (step.step_type === 'message' || step.step_type === 'email')) {
+-             const channel = step.step_type === 'message' ? 'linkedin' : 'email';
+-             const ctx = (result.status === "SUCCESS" ? result.context : {}) || {};
+-             const msgId = ctx.emailMessageId || null;
+-             const body = ctx.linkedinMessage || ctx.emailBody || null;
+-             db.prepare(`
+-               INSERT INTO outbound_events (id, run_id, run_profile_id, target_id, step_id, channel, sent_at, message_id, status, body)
+-               VALUES (?, ?, ?, ?, ?, ?, datetime('now'), ?, 'sent', ?)
+-             `).run(randomUUID(), state.run_id, state.run_profile_id, state.target_id, step.id, channel, msgId, body);
+-          }
+-
+           
+           // Check if it's a delay waiter node

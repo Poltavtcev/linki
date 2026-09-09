@@ -8,16 +8,16 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
   const db = getDb();
   const sourceId = req.query.id as string;
 
-  const source = db.prepare("SELECT * FROM workflows WHERE id = ?").get(sourceId) as
-    | { id: string; name: string; description: string | null }
-    | undefined;
+  const source = db.prepare("SELECT * FROM workflows WHERE id = ?").get(sourceId) as any;
   if (!source) return res.status(404).json({ error: "Workflow not found" });
 
   const newId = randomUUID();
-  db.prepare("INSERT INTO workflows (id, name, description) VALUES (?, ?, ?)").run(
+  db.prepare("INSERT INTO workflows (id, name, description, prompt, allow_cross_campaign_overlap) VALUES (?, ?, ?, ?, ?)").run(
     newId,
     `${source.name} (copy)`,
-    source.description ?? null
+    source.description ?? null,
+    source.prompt ?? null,
+    source.allow_cross_campaign_overlap ?? 0
   );
 
   const steps = db
@@ -32,15 +32,35 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
        (id, workflow_id, step_order, step_type, template_id, delay_seconds,
         connect_note, message_body, email_subject, email_body,
         email_position, message_position,
-        ai_enabled, ai_model, ai_prompt, ai_max_words, ai_language, track, config, email_signature)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ai_enabled, ai_model, ai_prompt, ai_max_words, ai_language, track, config, email_signature, edges_json)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
   const insertLink = db.prepare(
     "INSERT OR IGNORE INTO workflow_step_templates (step_id, template_id) VALUES (?, ?)"
   );
 
+  const idMap = new Map<string, string>();
   for (const s of steps) {
-    const newStepId = randomUUID();
+    idMap.set(s.id as string, randomUUID());
+  }
+
+  for (const s of steps) {
+    const newStepId = idMap.get(s.id as string)!;
+    let newEdgesJson = null;
+    if (s.edges_json) {
+      try {
+        const edges = JSON.parse(s.edges_json as string);
+        const mappedEdges: Record<string, string> = {};
+        for (const [key, val] of Object.entries(edges)) {
+          if (typeof val === "string" && idMap.has(val)) {
+            mappedEdges[key] = idMap.get(val)!;
+          }
+        }
+        newEdgesJson = JSON.stringify(mappedEdges);
+      } catch (e) {
+        console.error("Failed to parse edges_json", e);
+      }
+    }
     insertStep.run(
       newStepId, newId, s.step_order, s.step_type,
       s.template_id ?? null, s.delay_seconds ?? 0,
@@ -52,11 +72,26 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
       s.ai_language ?? null,
       s.track ?? 'linkedin',
       s.config ?? null,
-      s.email_signature ?? null
+      s.email_signature ?? null,
+      newEdgesJson
     );
     const links = getTemplateIds.all(s.id) as Array<{ template_id: string }>;
     for (const { template_id } of links) {
       insertLink.run(newStepId, template_id);
+    }
+  }
+
+
+  const sourceReplyCtx = db.prepare("SELECT * FROM reply_contexts WHERE workflow_id = ?").get(sourceId) as Record<string, any>;
+  if (sourceReplyCtx) {
+    const { workflow_id, created_at, updated_at, ...rest } = sourceReplyCtx;
+    const columns = Object.keys(rest);
+    if (columns.length > 0) {
+      const placeholders = columns.map(() => "?").join(", ");
+      const colNames = columns.join(", ");
+      db.prepare(`INSERT INTO reply_contexts (workflow_id, ${colNames}) VALUES (?, ${placeholders})`).run(newId, ...Object.values(rest));
+    } else {
+      db.prepare(`INSERT INTO reply_contexts (workflow_id) VALUES (?)`).run(newId);
     }
   }
 

@@ -243,9 +243,9 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
     imap.once("ready", () => {
       imap.openBox("INBOX", true, async (err, box) => {
         if (err || !box) { console.warn("[email-inbox] openBox failed:", err?.message); done(); return; }
-        
-        
-        
+
+
+
         // ── Incremental IMAP Reply Detection ──────────────────────────────
         const emailToTargetId = new Map<string, string>();
         const msgIdToContext = new Map<string, { targetId: string, runId: string }>();
@@ -322,11 +322,11 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
 
                 fetchHeaders.once("end", () => resolveBatch());
               });
-              
+
               if (fetchFailed) break;
             }
 
-            void (async () => {
+            await (async () => {
                 let matchedCount = 0;
                 let ignoredCount = 0;
 
@@ -378,8 +378,69 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
 
                       try {
                         const replyId = await captureReplyBody(imap, db, targetId, runId, fromEmail, msg.uid);
-                        if (replyId && premium?.replies) {
-                          await premium.replies.classifyAndDispatch(replyId);
+                        if (replyId) {
+                          let outboundEvent: { run_profile_id: string, step_id: string } | undefined;
+                          const queryEvent = (msgId: string) => db.prepare("SELECT target_id, run_id, run_profile_id, step_id FROM outbound_events WHERE message_id = ?").get(msgId) as { target_id: string, run_id: string, run_profile_id: string, step_id: string } | undefined;
+
+                          if (inReplyTo) {
+                            outboundEvent = queryEvent(inReplyTo) || queryEvent(inReplyTo.replace(/^<|>$/g, ''));
+                          }
+                          if (!outboundEvent) {
+                            for (const ref of references) {
+                              outboundEvent = queryEvent(ref) || queryEvent(ref.replace(/^<|>$/g, ''));
+                              if (outboundEvent) break;
+                            }
+                          }
+
+                          if (outboundEvent) {
+                            let onRepliedStepId: string | null = null;
+                            const stepWithEdge = db.prepare("SELECT edges_json FROM workflow_steps WHERE id = ?").get(outboundEvent.step_id) as { edges_json: string } | undefined;
+                            if (stepWithEdge?.edges_json) {
+                              try {
+                                const edges = JSON.parse(stepWithEdge.edges_json);
+                                onRepliedStepId = edges["on_replied"] ?? null;
+                              } catch {}
+                            }
+
+                            if (onRepliedStepId) {
+                              db.prepare(`
+                                UPDATE run_profile_states
+                                SET current_step_id = ?, state = 'pending', waiting_for_condition = NULL, next_eval_at = datetime('now')
+                                WHERE run_profile_id = ?
+                              `).run(onRepliedStepId, outboundEvent.run_profile_id);
+                            } else {
+                              // G2: PAUSE because correlation is missing on_replied
+                              db.prepare(`
+                                UPDATE run_profile_states
+                                SET state = 'paused', waiting_for_condition = 'uncorrelated_reply', next_eval_at = NULL
+                                WHERE run_profile_id = ?
+                              `).run(outboundEvent.run_profile_id);
+                            }
+                          } else {
+                            // No outboundEvent found. Check if we uniquely know the run_profile
+                            const activeRuns = db.prepare(`
+                              SELECT rp.id AS run_profile_id
+                              FROM run_profiles rp
+                              JOIN run_profile_tracks rpt ON rpt.run_profile_id = rp.id
+                              WHERE rp.target_id = ? AND rpt.state IN ('pending', 'in_progress')
+                            `).all(targetId) as { run_profile_id: string }[];
+
+                            if (activeRuns.length === 1) {
+                              // G2: PAUSE because we know the single active run_profile, but correlation is unknown
+                              db.prepare(`
+                                UPDATE run_profile_states
+                                SET state = 'paused', waiting_for_condition = 'uncorrelated_reply', next_eval_at = NULL
+                                WHERE run_profile_id = ?
+                              `).run(activeRuns[0].run_profile_id);
+                            } else {
+                              // G2: DO NOTHING. Multiple or zero active runs. Leave for human review.
+                              console.log(`[email-inbox] Uncorrelated reply for ${fromEmail}. Ambiguous/Missing run_profile (${activeRuns.length} active). Documenting for human review.`);
+                            }
+                          }
+
+                          if (premium?.replies) {
+                            await premium.replies.classifyAndDispatch(replyId);
+                          }
                         }
                       } catch (err) {
                         console.warn(`[email-inbox] Failed to capture/dispatch reply for ${fromEmail}:`, err);
@@ -403,7 +464,7 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
         });
 
         if (incrementalSuccess) {
-          // First sync safety: force checkpoint to the mailbox's current high-water mark 
+          // First sync safety: force checkpoint to the mailbox's current high-water mark
           // so we don't re-scan old emails in the next run, even if we found nothing recently.
           if (isFirstSync && box.uidnext) {
             highestUidProcessed = Math.max(highestUidProcessed, box.uidnext - 1);
@@ -474,9 +535,15 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
                   `).run(note, note, target.id);
 
                   db.prepare(`
+                    UPDATE run_profile_states SET state = 'completed'
+                    WHERE run_profile_id IN (SELECT id FROM run_profiles WHERE target_id = ?)
+                    AND state IN ('pending', 'running', 'paused', 'failed')
+                  `).run(target.id);
+
+                  db.prepare(`
                     UPDATE run_profile_tracks SET state = 'skipped', error_message = 'Email bounced — invalid address'
                     WHERE run_profile_id IN (SELECT id FROM run_profiles WHERE target_id = ?)
-                    AND state IN ('pending', 'in_progress')
+                    AND state IN ('pending', 'in_progress', 'completed', 'failed')
                   `).run(target.id);
 
                   if (target.company_id) {
@@ -499,9 +566,14 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
                         WHERE id = ?
                       `).run(sibNote, sibNote, sibling.id);
                       db.prepare(`
+                        UPDATE run_profile_states SET state = 'completed'
+                        WHERE run_profile_id IN (SELECT id FROM run_profiles WHERE target_id = ?)
+                        AND state IN ('pending', 'running', 'paused', 'failed')
+                      `).run(sibling.id);
+                      db.prepare(`
                         UPDATE run_profile_tracks SET state = 'skipped', error_message = 'Email domain invalid — company flagged'
                         WHERE run_profile_id IN (SELECT id FROM run_profiles WHERE target_id = ?)
-                        AND state IN ('pending', 'in_progress')
+                        AND state IN ('pending', 'in_progress', 'completed', 'failed')
                       `).run(sibling.id);
                     }
 
