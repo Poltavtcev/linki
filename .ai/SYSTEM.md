@@ -21,37 +21,37 @@ You are not allowed to bypass this system. You execute **verified engineering ta
 For every task you perform, you MUST follow this exact sequence:
 
 ```text
-SPEC -> PLAN -> IMPLEMENT -> TEST -> ADVERSARIAL REVIEW -> COMMIT
+Task / Contract -> HostileTester (Fabric) -> Titan -> Supervisor -> OpusRedTeam
 ```
 
-### Phase A: DISCOVERY & ANALYSIS ONLY
-When a user asks you to implement something, your FIRST response must be an analysis, containing:
-1. What will change
-2. Files affected
-3. APIs & DB affected
-4. Existing behavior affected
-5. Potential regressions & required tests
-*You must not modify code during this phase.*
+### Phase 0: INVENTORY, DEBATE & GATE (New Modules Only)
+Titan NEVER starts recovery of a new module without Phase 0 inventory.
+Before new modules are touched, establish: `DOMAIN.md`, `ARCHITECTURE.md`, `INVARIANTS.md`.
+**Council:** If architectural decisions are ambiguous, invoke the `CouncilTeam` subagent to run the LIFEOS `Council` skill (`~/.claude/LIFEOS/.agents/skills/Council/SKILL.md`) for a multi-agent debate to weigh options before committing to a design.
 
-### Phase B: CREATE A TASK
-Every change must be tracked in `.ai/TASKS/T-[number]-[name].md`.
-Use the task template to define the scope, preconditions, and forbidden changes.
+### Phase A: DISCOVERY & CONTRACT
+Define the task in `.ai/TASKS/T-[number]-[name].md`. Define the Contract.
 
-### Phase C: IMPLEMENTATION & BUG=TEST RULE
-If you are fixing a bug, you **MUST** write a failing test first. 
-Once the test fails, you may implement the fix until the test passes.
+### Phase B: ADVERSARIAL TESTER (Red Team 1)
+Invoke the **HostileTester** subagent. 
+- **Fabric Integration:** Tester MUST use LIFEOS Fabric patterns (`t_red_team_thinking`, `create_threat_scenarios`) from `~/.claude/LIFEOS/.agents/skills/Fabric/SKILL.md` to formally generate failure vectors (e.g. concurrent requests, duplicated webhooks) BEFORE writing tests.
+- Tester writes hostile regression/characterization tests to PROVE the system violates the contract.
+- Tester MUST verify the test FAILS on the old behavior for the exact right reason.
+- This prevents false-confidence.
 
-### Phase D: AUTOMATIC REGRESSION GATE
-Before finishing, you MUST run:
-`npm run validate` (or `npm test && npm run typecheck`)
-If ANY test fails, you are FORBIDDEN from moving to the next task. You must fix the regression.
+### Phase C: IMPLEMENTATION (Titan)
+Titan implements the fix to make the hostile tests pass, strictly without unrelated structural refactoring.
 
-### Phase E: ADVERSARIAL REVIEW (RED TEAM)
-For high-risk features, a second AI (or Opus subagent) must review the diff. 
-The Red Team's prompt is: *"How can this break?"*
+### Phase D: VALIDATION (Supervisor)
+Supervisor runs the automatic regression gate (`scripts/validate.sh`). No ESLint ignore files. Legacy lint debt remains visible, new files strictly checked.
 
-### Phase F: GIT CHECKPOINTS
-Use `git add . && git commit -m "..."` constantly. If you break the workspace, use `git reset --hard` to rollback to a known good state.
+### Phase E: ENGINEERING LEDGER
+Before EVERY production git commit, Supervisor MUST create/update a decision record in `.ai/DECISIONS/T-XXX.md`.
+Must contain: Problem/Contract, What changed, Files changed, Tests added/changed, Validation result, Risks, Known limitations, Architectural decisions, Deferred work.
+
+### Phase F: INDEPENDENT AUDIT (Opus Red Team 2)
+For critical components, hand over the finalized system to the **OpusRedTeam** subagent.
+It will use the LIFEOS RedTeam skill (`~/.claude/LIFEOS/.agents/skills/RedTeam/SKILL.md`) to stress-test the implementation, break atomic claims, and produce severity-ranked findings without fixing the code itself.
 
 ## 3. Handling Out-of-Scope Issues
 
