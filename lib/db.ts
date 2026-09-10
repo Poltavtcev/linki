@@ -434,6 +434,8 @@ function runMigrations(db: Database.Database) {
   try {
     const tableSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='workflow_steps'").get() as { sql: string } | undefined;
     if (tableSql && tableSql.sql.includes("CHECK(step_type IN")) {
+      const sourceCols = (db.prepare("PRAGMA table_info(workflow_steps)").all() as any[]).map(c => c.name);
+
       db.exec(`
         PRAGMA foreign_keys = OFF;
         DROP TABLE IF EXISTS workflow_steps_new;
@@ -449,7 +451,18 @@ function runMigrations(db: Database.Database) {
           enabled INTEGER DEFAULT 1,
           config TEXT, track TEXT, email_subject TEXT, email_body TEXT, ai_enabled INTEGER, ai_model TEXT, ai_prompt TEXT, ai_max_words INTEGER, email_position INTEGER, message_position INTEGER, ai_language TEXT, email_signature TEXT, edges_json TEXT, ai_qualification_rules TEXT, ai_comment_prompt TEXT, auto_send INTEGER DEFAULT 0
         );
-        INSERT INTO workflow_steps_new SELECT * FROM workflow_steps;
+      `);
+
+      const destCols = (db.prepare("PRAGMA table_info(workflow_steps_new)").all() as any[]).map(c => c.name);
+      for (const col of sourceCols) {
+        if (!destCols.includes(col)) {
+          throw new Error(`Migration error: Source column '${col}' does not exist in workflow_steps_new`);
+        }
+      }
+
+      const colList = sourceCols.join(", ");
+      db.exec(`
+        INSERT INTO workflow_steps_new (${colList}) SELECT ${colList} FROM workflow_steps;
         DROP TABLE workflow_steps;
         ALTER TABLE workflow_steps_new RENAME TO workflow_steps;
         PRAGMA foreign_keys = ON;
