@@ -91,7 +91,7 @@ export type StepExecutionResult =
   | { status: "LIMIT_REACHED"; next_eval_at: string }
   | { status: "WAIT"; hours: number }
   | { status: "WAIT_UNTIL"; next_eval_at: string }
-  | { status: "SKIPPED"; reason: string }
+  | { status: "SKIPPED"; reason: string; error?: string }
   | { status: "FAILED"; error: string }
   | { status: "FIT" | "MAYBE" | "NOT_FIT" };
 
@@ -343,29 +343,23 @@ async function getLinkedinUrl(db: ReturnType<typeof getDb>, target: Target, acco
 async function checkPacingAndEnrich(db: ReturnType<typeof getDb>, target: Target, accountId: string, runId: string, name: string): Promise<StepExecutionResult | null> {
   const fresh = db.prepare("SELECT enriched_profile_at, apollo_enriched_at, sales_nav_url, full_name FROM targets WHERE id = ?").get(target.id) as { enriched_profile_at: string | null; apollo_enriched_at: string | null; sales_nav_url: string | null; full_name: string | null } | undefined;
   if (!fresh) return { status: "FAILED", error: "Target not found" };
+  
   if (fresh.enriched_profile_at || fresh.apollo_enriched_at) {
     return null; // Already enriched, proceed
   }
   if (!fresh.sales_nav_url) {
-    return { status: "FAILED", error: "Missing Sales Navigator URL" };
+    return { status: "SKIPPED", reason: "Missing Sales Navigator URL", error: "Missing Sales Navigator URL" };
   }
 
-  const pacing = db.prepare("SELECT last_executed_at, last_reserved_at FROM account_pacing_state WHERE account_id = ? AND action_type = 'linkedin_enrich'").get(accountId) as any;
+  const pacing = db.prepare("SELECT last_executed_at FROM account_pacing_state WHERE account_id = ? AND action_type = 'linkedin_enrich'").get(accountId) as any;
   const lastExecMs = pacing?.last_executed_at ? new Date(pacing.last_executed_at).getTime() : 0;
-  const lastReservedMs = pacing?.last_reserved_at ? new Date(pacing.last_reserved_at).getTime() : 0;
   
   const minGap = 300000;
   const now = Date.now();
   if (now - lastExecMs < minGap) {
-    const earliestAllowed = Math.max(now, lastExecMs + minGap, lastReservedMs + minGap);
-    const slotMs = earliestAllowed + Math.floor(Math.random() * 60000); // 20% Jitter
+    const earliestAllowed = Math.max(now, lastExecMs + minGap);
+    const slotMs = earliestAllowed + Math.floor(Math.random() * 60000); // Positive Jitter (0-60s)
     const slotIso = new Date(slotMs).toISOString();
-    
-    db.prepare(`
-      INSERT INTO account_pacing_state (account_id, action_type, last_reserved_at)
-      VALUES (?, 'linkedin_enrich', ?)
-      ON CONFLICT(account_id, action_type) DO UPDATE SET last_reserved_at = excluded.last_reserved_at
-    `).run(accountId, slotIso);
     
     return { status: "WAIT_UNTIL", next_eval_at: slotIso };
   }
@@ -377,6 +371,8 @@ async function checkPacingAndEnrich(db: ReturnType<typeof getDb>, target: Target
     ON CONFLICT(account_id, action_type) DO UPDATE SET last_executed_at = excluded.last_executed_at
   `).run(accountId, new Date().toISOString());
 
+  log(db, runId, target.id, "info", `Enriching profile for ${name}`);
+
   try {
     const ctx = await getSessionContext(accountId);
     const success = await enrichProfile(ctx, { id: target.id, sales_nav_url: fresh.sales_nav_url, full_name: fresh.full_name ?? target.full_name ?? target.id }, accountId);
@@ -387,7 +383,6 @@ async function checkPacingAndEnrich(db: ReturnType<typeof getDb>, target: Target
     return { status: "FAILED", error: "ENRICHMENT_FAILED" };
   }
 }
-
 async function ensureApolloEnriched(db: ReturnType<typeof getDb>, target: Target, runId: string): Promise<void> {
   const fresh = db.prepare("SELECT apollo_enriched_at, email, linkedin_url, sales_nav_url FROM targets WHERE id = ?").get(target.id) as { apollo_enriched_at: string | null; email: string | null; linkedin_url: string | null; sales_nav_url: string | null } | undefined;
   if (!fresh || fresh.apollo_enriched_at || fresh.email) return;
@@ -506,9 +501,10 @@ export async function executeStep(
 
   try {
     if (step.step_type === "ai_qualify") {
-      log(db, runId, target.id, "info", `Running AI qualification for ${name}`);
       const enrichRes = await checkPacingAndEnrich(db, target, accountId, runId, name);
       if (enrichRes) return enrichRes;
+      
+      log(db, runId, target.id, "info", `Running AI qualification for ${name}`);
       const openaiInt = db.prepare("SELECT api_key FROM integrations WHERE key = 'openai'").get() as { api_key: string } | undefined;
       let apiKey = process.env.OPENAI_API_KEY;
       if (openaiInt?.api_key) {
@@ -655,7 +651,16 @@ export async function executeStep(
       return { status: "SUCCESS" };
 
     } else if (step.step_type === "linkedin_enrich") {
-      log(db, runId, target.id, "info", `Enriching profile for ${name}`);
+      const fresh = db.prepare("SELECT enriched_profile_at, apollo_enriched_at, sales_nav_url FROM targets WHERE id = ?").get(target.id) as any;
+      if (fresh?.enriched_profile_at || fresh?.apollo_enriched_at) {
+        log(db, runId, target.id, "info", `${name} is already enriched — skipping scrape`);
+        return { status: "SUCCESS" };
+      }
+      if (!fresh?.sales_nav_url) {
+        log(db, runId, target.id, "error", `Missing Sales Navigator URL for ${name}`);
+        return { status: "SKIPPED", reason: "Missing Sales Navigator URL", error: "Missing Sales Navigator URL" };
+      }
+
       const enrichRes = await checkPacingAndEnrich(db, target, accountId, runId, name);
       if (enrichRes) return enrichRes;
       
