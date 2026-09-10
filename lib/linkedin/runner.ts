@@ -18,10 +18,7 @@ import { matchPerson } from "@/lib/apollo";
 import { premium } from "@/lib/premium";
 import { decryptSecret } from "@/lib/crypto";
 
-// Minimum gap between Sales Nav profile enrichment calls per account (ms)
-const SALES_NAV_ENRICH_MIN_GAP_MS = 5 * 60 * 1000;
-// Per-account timestamp of last ensureSalesNavEnriched execution
-const lastSalesNavEnrichAt: Record<string, number> = {};
+
 export const lastLinkedinSync = new Map<string, number>();
 export const activeLinkedinSyncs = new Set<string>();
 export const syncBackoffs = new Map<string, number>();
@@ -343,19 +340,51 @@ async function getLinkedinUrl(db: ReturnType<typeof getDb>, target: Target, acco
 
 // ─── pre-action enrichment ───────────────────────────────────────────────────
 
-async function ensureSalesNavEnriched(db: ReturnType<typeof getDb>, target: Target, accountId: string): Promise<"SUCCESS" | "THROTTLED" | "FAILED"> {
+async function checkPacingAndEnrich(db: ReturnType<typeof getDb>, target: Target, accountId: string, runId: string, name: string): Promise<StepExecutionResult | null> {
   const fresh = db.prepare("SELECT enriched_profile_at, apollo_enriched_at, sales_nav_url, full_name FROM targets WHERE id = ?").get(target.id) as { enriched_profile_at: string | null; apollo_enriched_at: string | null; sales_nav_url: string | null; full_name: string | null } | undefined;
-  if (!fresh || fresh.enriched_profile_at || fresh.apollo_enriched_at || !fresh.sales_nav_url) return "SUCCESS";
-  const last = lastSalesNavEnrichAt[accountId] ?? 0;
-  if (Date.now() - last < SALES_NAV_ENRICH_MIN_GAP_MS) return "THROTTLED";
+  if (!fresh) return { status: "FAILED", error: "Target not found" };
+  if (fresh.enriched_profile_at || fresh.apollo_enriched_at) {
+    return null; // Already enriched, proceed
+  }
+  if (!fresh.sales_nav_url) {
+    return { status: "FAILED", error: "Missing Sales Navigator URL" };
+  }
+
+  const pacing = db.prepare("SELECT last_executed_at, last_reserved_at FROM account_pacing_state WHERE account_id = ? AND action_type = 'linkedin_enrich'").get(accountId) as any;
+  const lastExecMs = pacing?.last_executed_at ? new Date(pacing.last_executed_at).getTime() : 0;
+  const lastReservedMs = pacing?.last_reserved_at ? new Date(pacing.last_reserved_at).getTime() : 0;
+  
+  const minGap = 300000;
+  const now = Date.now();
+  if (now - lastExecMs < minGap) {
+    const earliestAllowed = Math.max(now, lastExecMs + minGap, lastReservedMs + minGap);
+    const slotMs = earliestAllowed + Math.floor(Math.random() * 60000); // 20% Jitter
+    const slotIso = new Date(slotMs).toISOString();
+    
+    db.prepare(`
+      INSERT INTO account_pacing_state (account_id, action_type, last_reserved_at)
+      VALUES (?, 'linkedin_enrich', ?)
+      ON CONFLICT(account_id, action_type) DO UPDATE SET last_reserved_at = excluded.last_reserved_at
+    `).run(accountId, slotIso);
+    
+    return { status: "WAIT_UNTIL", next_eval_at: slotIso };
+  }
+
+  // Cooldown has passed, pessimistically update execution time
+  db.prepare(`
+    INSERT INTO account_pacing_state (account_id, action_type, last_executed_at)
+    VALUES (?, 'linkedin_enrich', ?)
+    ON CONFLICT(account_id, action_type) DO UPDATE SET last_executed_at = excluded.last_executed_at
+  `).run(accountId, new Date().toISOString());
+
   try {
-    lastSalesNavEnrichAt[accountId] = Date.now();
     const ctx = await getSessionContext(accountId);
     const success = await enrichProfile(ctx, { id: target.id, sales_nav_url: fresh.sales_nav_url, full_name: fresh.full_name ?? target.full_name ?? target.id }, accountId);
-    return success ? "SUCCESS" : "FAILED";
+    if (!success) return { status: "FAILED", error: "ENRICHMENT_FAILED" };
+    return null; // enrichment succeeded, continue
   } catch (e) {
-    console.warn(`[runner] Sales Nav enrichment failed for ${target.full_name ?? target.id}:`, e instanceof Error ? e.message : e);
-    return "FAILED";
+    console.warn(`[runner] Sales Nav enrichment failed for ${name}:`, e instanceof Error ? e.message : e);
+    return { status: "FAILED", error: "ENRICHMENT_FAILED" };
   }
 }
 
@@ -458,7 +487,7 @@ async function ensureApolloEnriched(db: ReturnType<typeof getDb>, target: Target
 
 // ─── step execution ──────────────────────────────────────────────────────────
 
-async function executeStep(
+export async function executeStep(
   db: ReturnType<typeof getDb>,
   runId: string,
   runProfileId: string,
@@ -478,7 +507,8 @@ async function executeStep(
   try {
     if (step.step_type === "ai_qualify") {
       log(db, runId, target.id, "info", `Running AI qualification for ${name}`);
-      await ensureSalesNavEnriched(db, target, accountId);
+      const enrichRes = await checkPacingAndEnrich(db, target, accountId, runId, name);
+      if (enrichRes) return enrichRes;
       const openaiInt = db.prepare("SELECT api_key FROM integrations WHERE key = 'openai'").get() as { api_key: string } | undefined;
       let apiKey = process.env.OPENAI_API_KEY;
       if (openaiInt?.api_key) {
@@ -626,27 +656,11 @@ async function executeStep(
 
     } else if (step.step_type === "linkedin_enrich") {
       log(db, runId, target.id, "info", `Enriching profile for ${name}`);
-      const fresh = db.prepare("SELECT enriched_profile_at, apollo_enriched_at, sales_nav_url FROM targets WHERE id = ?").get(target.id) as any;
-      if (fresh?.enriched_profile_at || fresh?.apollo_enriched_at) {
-        log(db, runId, target.id, "info", `${name} is already enriched — skipping scrape`);
-        return { status: "SUCCESS" };
-      }
-      if (!fresh?.sales_nav_url) {
-        log(db, runId, target.id, "error", `Missing Sales Navigator URL for ${name}`);
-        return { status: "FAILED", error: "Missing Sales Navigator URL" };
-      }
-
-      const outcome = await ensureSalesNavEnriched(db, target, accountId);
-      if (outcome === "SUCCESS") {
-        log(db, runId, target.id, "info", `Profile enriched successfully`);
-        return { status: "SUCCESS" };
-      } else if (outcome === "THROTTLED") {
-        log(db, runId, target.id, "warn", `Profile enrichment was throttled`);
-        return { status: "FAILED", error: "ENRICHMENT_THROTTLED" };
-      } else {
-        log(db, runId, target.id, "error", `Profile enrichment failed`);
-        return { status: "FAILED", error: "ENRICHMENT_FAILED" };
-      }
+      const enrichRes = await checkPacingAndEnrich(db, target, accountId, runId, name);
+      if (enrichRes) return enrichRes;
+      
+      log(db, runId, target.id, "info", `Profile enriched successfully`);
+      return { status: "SUCCESS" };
 
     } else if (step.step_type === "visit") {
       log(db, runId, target.id, "info", `Visiting ${name}`);

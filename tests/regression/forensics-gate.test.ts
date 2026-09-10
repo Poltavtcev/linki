@@ -41,7 +41,7 @@ describe("captureForensicFixture environment gate", () => {
   };
 
   it("1. non-production -> capture is enabled", async () => {
-    process.env.NODE_ENV = "development";
+    Object.defineProperty(process.env, "NODE_ENV", { value: "development" });
     process.env.FORENSICS_ENABLED = undefined;
 
     await runCapture();
@@ -51,7 +51,7 @@ describe("captureForensicFixture environment gate", () => {
   });
 
   it("2. production + FORENSICS_ENABLED missing -> capture is disabled", async () => {
-    process.env.NODE_ENV = "production";
+    Object.defineProperty(process.env, "NODE_ENV", { value: "production" });
     process.env.FORENSICS_ENABLED = undefined;
 
     await runCapture();
@@ -61,7 +61,7 @@ describe("captureForensicFixture environment gate", () => {
   });
 
   it("3. production + FORENSICS_ENABLED=true -> capture is enabled", async () => {
-    process.env.NODE_ENV = "production";
+    Object.defineProperty(process.env, "NODE_ENV", { value: "production" });
     process.env.FORENSICS_ENABLED = "true";
 
     await runCapture();

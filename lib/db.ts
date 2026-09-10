@@ -1393,6 +1393,14 @@ function initDb(db: Database.Database) {
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS account_pacing_state (
+      account_id TEXT,
+      action_type TEXT,
+      last_executed_at TEXT,
+      last_reserved_at TEXT,
+      PRIMARY KEY (account_id, action_type)
+    );
+
     CREATE TABLE IF NOT EXISTS run_lists (
       run_id TEXT NOT NULL,
       list_id TEXT NOT NULL,
