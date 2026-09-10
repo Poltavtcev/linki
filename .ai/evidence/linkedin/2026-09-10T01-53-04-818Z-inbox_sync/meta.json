@@ -1,0 +1,9 @@
+{
+  "timestamp": "2026-09-10T01:53:04.913Z",
+  "url": "chrome-error://chromewebdata/",
+  "title": "",
+  "action": "inbox_sync",
+  "accountId": "00b902f7-c79e-4e6c-848d-b879f5bd342a",
+  "error": "page.goto: net::ERR_NETWORK_CHANGED at https://www.linkedin.com/feed/\nCall log:\n\u001b[2m  - navigating to \"https://www.linkedin.com/feed/\", waiting until \"domcontentloaded\"\u001b[22m\n",
+  "stack": "page.goto: net::ERR_NETWORK_CHANGED at https://www.linkedin.com/feed/\nCall log:\n\u001b[2m  - navigating to \"https://www.linkedin.com/feed/\", waiting until \"domcontentloaded\"\u001b[22m\n\n    at LinkedInNetworkObserver.observe (/Users/admin/dyad-apps/linki/.next/dev/server/chunks/[root-of-the-server]__c05981e3._.js:139:20)\n    at syncLinkedInInboxReadOnly (/Users/admin/dyad-apps/linki/.next/dev/server/chunks/[root-of-the-server]__c05981e3._.js:3322:49)\n    at async tickSync (/Users/admin/dyad-apps/linki/.next/dev/server/chunks/[root-of-the-server]__c05981e3._.js:6803:40)\n    at async syncLoop (/Users/admin/dyad-apps/linki/.next/dev/server/chunks/[root-of-the-server]__c05981e3._.js:6700:17)"
+}

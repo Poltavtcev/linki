@@ -383,11 +383,12 @@ function dropDeprecatedRunProfileColumns(db: Database.Database) {
         run_id TEXT REFERENCES runs(id) ON DELETE CASCADE,
         target_id TEXT REFERENCES targets(id) ON DELETE CASCADE,
         email_account_id TEXT,
+        source_list_id TEXT,
         created_at TEXT DEFAULT (datetime('now')),
         UNIQUE(run_id, target_id)
       );
-      INSERT INTO run_profiles_new (id, run_id, target_id, email_account_id, created_at)
-        SELECT id, run_id, target_id, email_account_id, created_at FROM run_profiles;
+      INSERT INTO run_profiles_new (id, run_id, target_id, email_account_id, source_list_id, created_at)
+        SELECT id, run_id, target_id, email_account_id, source_list_id, created_at FROM run_profiles;
       DROP TABLE run_profiles;
       ALTER TABLE run_profiles_new RENAME TO run_profiles;
       PRAGMA foreign_keys = ON;
@@ -869,7 +870,17 @@ function runMigrations(db: Database.Database) {
       context_used_json TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-    )`
+    )`,
+    // Campaign <-> Lists explicit relationship
+    `CREATE TABLE IF NOT EXISTS run_lists (
+      run_id TEXT NOT NULL,
+      list_id TEXT NOT NULL,
+      first_added_at TEXT NOT NULL,
+      last_added_at TEXT NOT NULL,
+      PRIMARY KEY (run_id, list_id)
+    )`,
+    "ALTER TABLE run_profiles ADD COLUMN source_list_id TEXT",
+    "INSERT OR IGNORE INTO run_lists (run_id, list_id, first_added_at, last_added_at) SELECT id, list_id, created_at, created_at FROM runs WHERE list_id IS NOT NULL"
   ];
 
   for (const sql of migrations) {
@@ -1253,6 +1264,7 @@ function initDb(db: Database.Database) {
       next_step_at TEXT,
       error_message TEXT,
       created_at TEXT DEFAULT (datetime('now')),
+      source_list_id TEXT,
       UNIQUE(run_id, target_id)
     );
 
@@ -1379,6 +1391,14 @@ function initDb(db: Database.Database) {
       context_used_json TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS run_lists (
+      run_id TEXT NOT NULL,
+      list_id TEXT NOT NULL,
+      first_added_at TEXT NOT NULL,
+      last_added_at TEXT NOT NULL,
+      PRIMARY KEY (run_id, list_id)
     );
   `);
 }

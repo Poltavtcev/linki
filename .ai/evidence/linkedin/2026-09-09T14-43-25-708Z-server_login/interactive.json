@@ -1,0 +1,56 @@
+[
+  {
+    "tag": "A",
+    "text": "LinkedIn",
+    "class": "linkedin-logo",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Sign in",
+    "class": "nav__button__muted--signin nav_button_section",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Join now",
+    "class": "nav__button__medium--joinnow nav_button_section",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "User Agreement",
+    "class": "",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Privacy Policy",
+    "class": "",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Community Guidelines",
+    "class": "",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Cookie Policy",
+    "class": "",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Copyright Policy",
+    "class": "",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Send Feedback",
+    "class": "",
+    "id": ""
+  }
+]

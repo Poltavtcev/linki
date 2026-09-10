@@ -1,0 +1,10 @@
+{
+  "timestamp": "2026-09-09T19:27:41.212Z",
+  "url": "https://www.linkedin.com/sales/lead/ACwAAASeA4MBEKB57eJhuXAhV69yjmCgMhtU-no,NAME_SEARCH,66cO",
+  "title": "Sales Navigator",
+  "action": "linkedin_enrich",
+  "targetId": "96976bf4-aaf7-4b89-ad24-1941e1370115",
+  "accountId": "00b902f7-c79e-4e6c-848d-b879f5bd342a",
+  "error": "page.goto: Timeout 1ms exceeded.\nCall log:\n  - navigating to \"https://www.linkedin.com/sales/lead/ACwAAASeA4MBEKB57eJhuXAhV69yjmCgMhtU-no,NAME_SEARCH,66cO\", waiting until \"domcontentloaded\"\n",
+  "stack": "page.goto: Timeout 1ms exceeded.\nCall log:\n  - navigating to \"https://www.linkedin.com/sales/lead/ACwAAASeA4MBEKB57eJhuXAhV69yjmCgMhtU-no,NAME_SEARCH,66cO\", waiting until \"domcontentloaded\"\n\n    at enrichProfile (/Users/admin/dyad-apps/linki/lib/linkedin/enrich.ts:74:16)\n    at async <anonymous> (/Users/admin/dyad-apps/linki/scripts/test-linkedin-enrich-manual.ts:18:20)"
+}

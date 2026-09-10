@@ -1,0 +1,140 @@
+[
+  {
+    "tag": "A",
+    "text": "Cookie Policy",
+    "class": "",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "settings",
+    "class": "",
+    "id": ""
+  },
+  {
+    "tag": "BUTTON",
+    "text": "Accept",
+    "class": "artdeco-global-alert-action artdeco-button artdeco-button--inverse artdeco-button--2 artdeco-button--primary",
+    "id": ""
+  },
+  {
+    "tag": "BUTTON",
+    "text": "Reject",
+    "class": "artdeco-global-alert-action artdeco-button artdeco-button--inverse artdeco-button--2 artdeco-button--primary",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Skip to main content",
+    "class": "skip-link btn-md btn-primary absolute z-11 -top-[100vh] focus:top-0",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "LinkedIn",
+    "class": "nav__logo-link link-no-visited-state z-1 mr-auto min-h-[52px] flex items-center babybear:z-0 hover:no-underline focus:no-underline active:no-underline\n          ",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "User Agreement",
+    "class": "join-form__form-body-agreement-item-link",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Privacy Policy",
+    "class": "join-form__form-body-agreement-item-link",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Cookie Policy",
+    "class": "join-form__form-body-agreement-item-link",
+    "id": ""
+  },
+  {
+    "tag": "BUTTON",
+    "text": "Agree & Join",
+    "class": "join-form__form-body-submit-button ",
+    "id": "join-form-submit"
+  },
+  {
+    "tag": "DIV",
+    "text": "Continue with google",
+    "class": "third-party-join__gsi-btn-container",
+    "id": ""
+  },
+  {
+    "tag": "BUTTON",
+    "text": "Sign in",
+    "class": "authwall-join-form__form-toggle--bottom form-toggle",
+    "id": ""
+  },
+  {
+    "tag": "BUTTON",
+    "text": "",
+    "class": "modal__outlet ",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "About",
+    "class": "li-footer__item-link flex items-center font-sans text-xs font-bold text-color-text-solid-secondary hover:text-color-link-hover focus:text-color-link-focus",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Accessibility",
+    "class": "li-footer__item-link flex items-center font-sans text-xs font-bold text-color-text-solid-secondary hover:text-color-link-hover focus:text-color-link-focus",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "User Agreement",
+    "class": "li-footer__item-link flex items-center font-sans text-xs font-bold text-color-text-solid-secondary hover:text-color-link-hover focus:text-color-link-focus",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Privacy Policy",
+    "class": "li-footer__item-link flex items-center font-sans text-xs font-bold text-color-text-solid-secondary hover:text-color-link-hover focus:text-color-link-focus",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Cookie Policy",
+    "class": "li-footer__item-link flex items-center font-sans text-xs font-bold text-color-text-solid-secondary hover:text-color-link-hover focus:text-color-link-focus",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Copyright Policy",
+    "class": "li-footer__item-link flex items-center font-sans text-xs font-bold text-color-text-solid-secondary hover:text-color-link-hover focus:text-color-link-focus",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Brand Policy",
+    "class": "li-footer__item-link flex items-center font-sans text-xs font-bold text-color-text-solid-secondary hover:text-color-link-hover focus:text-color-link-focus",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Guest Controls",
+    "class": "li-footer__item-link flex items-center font-sans text-xs font-bold text-color-text-solid-secondary hover:text-color-link-hover focus:text-color-link-focus",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Community Guidelines",
+    "class": "li-footer__item-link flex items-center font-sans text-xs font-bold text-color-text-solid-secondary hover:text-color-link-hover focus:text-color-link-focus",
+    "id": ""
+  },
+  {
+    "tag": "BUTTON",
+    "text": "Language",
+    "class": "language-selector__button select-none relative pr-2 font-sans text-xs font-bold text-color-text-low-emphasis hover:text-color-link-hover hover:cursor-pointer focus:text-color-link-focus focus:outline-dotted focus:outline-1",
+    "id": ""
+  }
+]

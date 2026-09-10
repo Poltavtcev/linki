@@ -10,7 +10,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
 
   const db = getDb();
   const runId = req.query.id as string;
-  const { target_ids } = req.body as { target_ids?: string[] };
+  const { target_ids, list_id } = req.body as { target_ids?: string[], list_id?: string };
 
   if (!Array.isArray(target_ids) || target_ids.length === 0) {
     return res.status(400).json({ error: "target_ids required" });
@@ -74,6 +74,15 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     eligible.push(tid);
   }
 
+  // Always try to upsert the list if one was provided
+  if (list_id) {
+    db.prepare(`
+      INSERT INTO run_lists (run_id, list_id, first_added_at, last_added_at)
+      VALUES (?, ?, datetime('now'), datetime('now'))
+      ON CONFLICT(run_id, list_id) DO UPDATE SET last_added_at = excluded.last_added_at
+    `).run(runId, list_id);
+  }
+
   if (eligible.length === 0) {
     return res.json({ enrolled: 0, skipped_already_enrolled, skipped_active_elsewhere });
   }
@@ -90,8 +99,8 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     for (const row of companyRows) {
       if (row.company_id) {
         if (!companyAccountMap.has(row.company_id)) {
-          companyAccountMap.set(row.company_id, emailAccountPool[cursor % emailAccountPool.length]);
-          cursor++;
+           companyAccountMap.set(row.company_id, emailAccountPool[cursor % emailAccountPool.length]);
+           cursor++;
         }
         emailAssignment.set(row.id, companyAccountMap.get(row.company_id)!);
       } else {
@@ -102,7 +111,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 
   const insertProfile = db.prepare(
-    "INSERT INTO run_profiles (id, run_id, target_id, email_account_id) VALUES (?, ?, ?, ?)"
+    "INSERT INTO run_profiles (id, run_id, target_id, email_account_id, source_list_id) VALUES (?, ?, ?, ?, ?) ON CONFLICT(run_id, target_id) DO NOTHING"
   );
   const insertState = db.prepare(
     "INSERT INTO run_profile_states (run_profile_id, current_step_id, state) VALUES (?, ?, 'pending')"
@@ -111,21 +120,30 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
   const insertTrack = db.prepare(
     "INSERT INTO run_profile_tracks (id, run_profile_id, track, state, current_step) VALUES (?, ?, 'linkedin', 'pending', 0)"
   );
+
+  let newlyEnrolledCount = 0;
+
   const insertMany = db.transaction((ids: string[]) => {
     for (const tid of ids) {
       const assignedEmailAccountId = emailAssignment.get(tid) ?? null;
       const rpId = randomUUID();
-      insertProfile.run(rpId, runId, tid, assignedEmailAccountId);
-      if (rootStepId) {
-        insertState.run(rpId, rootStepId);
+      const res = insertProfile.run(rpId, runId, tid, assignedEmailAccountId, list_id ?? null);
+      if (res.changes > 0) {
+        newlyEnrolledCount++;
+        if (rootStepId) {
+          insertState.run(rpId, rootStepId);
+        }
+        insertTrack.run(randomUUID(), rpId);
+      } else {
+        // Did not insert because ON CONFLICT DO NOTHING triggered
+        skipped_already_enrolled++;
       }
-      insertTrack.run(randomUUID(), rpId);
     }
   });
   insertMany(eligible);
 
   return res.json({
-    enrolled: eligible.length,
+    enrolled: newlyEnrolledCount,
     skipped_already_enrolled,
     skipped_active_elsewhere,
   });

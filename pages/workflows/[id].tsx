@@ -71,6 +71,7 @@ interface WorkflowData {
     list_id?: string;
     list_name: string;
     account_name: string;
+    run_lists?: { list_id: string; name: string; total_size: number; enrolled_count: number; enrolled_elsewhere_count: number }[];
   } | null;
 }
 
@@ -95,6 +96,7 @@ interface Stats {
     list_id?: string;
     list_name: string;
     account_name: string;
+    run_lists?: { list_id: string; name: string; total_size: number; enrolled_count: number; enrolled_elsewhere_count: number }[];
   } | null;
 }
 
@@ -299,6 +301,25 @@ export const getServerSideProps: GetServerSideProps = async ({ params, query }) 
     )
     .get(id) as { id: string; status: string; list_id: string; list_name: string; account_name: string } | undefined;
 
+  let runLists: any[] = [];
+  if (activeRun) {
+    runLists = db.prepare(`
+      SELECT
+        rl.list_id,
+        l.name,
+        (SELECT COUNT(*) FROM list_targets WHERE list_id = rl.list_id) as total_size,
+        (SELECT COUNT(*) FROM run_profiles WHERE run_id = rl.run_id AND source_list_id = rl.list_id) as enrolled_count,
+        (SELECT COUNT(*) FROM list_targets lt
+         JOIN run_profiles rp ON rp.target_id = lt.target_id
+         WHERE lt.list_id = rl.list_id AND rp.run_id = rl.run_id
+         AND (rp.source_list_id != rl.list_id OR rp.source_list_id IS NULL)) as enrolled_elsewhere_count
+      FROM run_lists rl
+      LEFT JOIN lists l ON l.id = rl.list_id
+      WHERE rl.run_id = ?
+      ORDER BY l.name
+    `).all(activeRun.id);
+  }
+
   const lists = db
     .prepare(
       `SELECT l.id, l.name, COUNT(lt.target_id) as target_count
@@ -341,7 +362,7 @@ export const getServerSideProps: GetServerSideProps = async ({ params, query }) 
   return {
     props: {
       replyContext,
-      workflow: { ...(workflow as object), steps, active_run: activeRun ?? null },
+      workflow: { ...(workflow as object), steps, active_run: activeRun ? { ...activeRun, run_lists: runLists } : null },
       lists,
       accounts,
       templates,
@@ -395,12 +416,12 @@ function buildWizardSteps(steps: Step[]): WizardStep[] {
   const stepMap = new Map<string, any>();
   const incomingEdges = new Set<string>();
   const parsedSteps: Record<string, WizardStep> = {};
-  
+
   // 1. First pass: parse nodes
   for (const s of steps) {
     const raw = s as unknown as Record<string, unknown>;
     const track: Track = s.track ?? (s.step_type === "email" ? "email" : "linkedin");
-    
+
     parsedSteps[s.id] = {
       track,
       type: s.step_type as any,
@@ -424,7 +445,7 @@ function buildWizardSteps(steps: Step[]): WizardStep[] {
       _id: s.id,
       _step_order: s.step_order
     } as any;
-    
+
     const edges = (parsedSteps[s.id] as any)._edges;
     for (const [key, targetId] of Object.entries(edges)) {
       incomingEdges.add(targetId as string);
@@ -434,17 +455,17 @@ function buildWizardSteps(steps: Step[]): WizardStep[] {
   // Find roots (no incoming edges)
   let rootCandidates = steps.filter(s => !incomingEdges.has(s.id));
   if (rootCandidates.length === 0 && steps.length > 0) rootCandidates = [steps[0]];
-  
+
   const visited = new Set<string>();
 
   function traverse(nodeId: string | null): WizardStep[] {
     if (!nodeId || !parsedSteps[nodeId]) return [];
     if (visited.has(nodeId)) return []; // Prevents infinite loops if graph is cyclical somehow
     visited.add(nodeId);
-    
+
     const node = parsedSteps[nodeId] as any;
     const edges = node._edges;
-    
+
     if (node.type === "delay") {
       const nextSeq = traverse(edges["next"]);
       if (nextSeq.length > 0) {
@@ -452,11 +473,11 @@ function buildWizardSteps(steps: Step[]): WizardStep[] {
       }
       return nextSeq;
     }
-    
+
     const standardEdges = new Set(["next"]);
     const branches: Record<string, WizardStep[]> = {};
     let hasBranches = false;
-    
+
     for (const [key, targetId] of Object.entries(edges)) {
       if (!standardEdges.has(key)) {
         // R4-B Rule: If a conditional edge points to the exact same target as 'next',
@@ -473,20 +494,20 @@ function buildWizardSteps(steps: Step[]): WizardStep[] {
         else if (key === "on_maybe") uiName = "MAYBE";
         else if (key === "on_not_fit") uiName = "NOT_FIT";
         else if (key === "on_timeout") uiName = "IF NOT ACCEPTED (Timeout)";
-        
+
         branches[uiName] = traverse(targetId as string);
         hasBranches = true;
       }
     }
-    
+
     if (node.type === "ai_qualify") { branches["FIT"] = branches["FIT"] || []; branches["MAYBE"] = branches["MAYBE"] || []; branches["NOT_FIT"] = branches["NOT_FIT"] || []; hasBranches = true; }
     if (node.type === "connect") { branches["IF ACCEPTED"] = branches["IF ACCEPTED"] || []; branches["IF NOT ACCEPTED (Timeout)"] = branches["IF NOT ACCEPTED (Timeout)"] || []; hasBranches = true; }
     if (node.type === "message" || node.type === "sales_inmail" || node.type === "email") { branches["IF REPLIED"] = branches["IF REPLIED"] || []; hasBranches = true; }
-    
+
     if (hasBranches) {
       node.branches = branches;
     }
-    
+
     const nextSeq = traverse(edges["next"]);
     const resultNode = { ...node };
     delete resultNode._edges;
@@ -494,7 +515,7 @@ function buildWizardSteps(steps: Step[]): WizardStep[] {
     delete resultNode._step_order;
     return [resultNode, ...nextSeq];
   }
-  
+
   rootCandidates.sort((a, b) => a.step_order - b.step_order);
   const result: WizardStep[] = [];
   for (const root of rootCandidates) {
@@ -741,7 +762,7 @@ function Wizard({
                       {(!isFirst || ws.delayDaysBefore > 0) && (
                         <div className="flex flex-col items-center justify-center -my-1 z-10 relative">
                           <div className="w-[2px] h-5 bg-base-content/10" />
-                          
+
                           {prevWs?.type === 'ai_qualify' && path.length === 1 ? (
                             <div className="flex gap-1.5 z-10">
                               {(() => {
@@ -753,8 +774,8 @@ function Wizard({
                                 } catch {}
                                 return mainOutcomes.map(out => (
                                   <span key={out} className={`px-2 py-0.5 rounded-full border text-[10px] font-bold shadow-sm ${
-                                      out === 'FIT' ? 'bg-success/10 border-success/30 text-success' : 
-                                      out === 'MAYBE' ? 'bg-warning/10 border-warning/30 text-warning' : 
+                                      out === 'FIT' ? 'bg-success/10 border-success/30 text-success' :
+                                      out === 'MAYBE' ? 'bg-warning/10 border-warning/30 text-warning' :
                                       'bg-error/10 border-error/30 text-error'
                                   }`}>
                                     ✓ {out}
@@ -766,8 +787,8 @@ function Wizard({
                             <div className="flex flex-col items-center gap-1.5 z-10">
                               {path.length === 1 && prevWs && ["message", "email", "sales_inmail", "connect"].includes(prevWs.type) && (
                                 <span className={`px-2.5 py-0.5 rounded-full border text-[10px] font-bold shadow-sm ${
-                                  prevWs.type === "connect" 
-                                    ? "bg-info/10 border-info/30 text-info" 
+                                  prevWs.type === "connect"
+                                    ? "bg-info/10 border-info/30 text-info"
                                     : "bg-warning/10 border-warning/30 text-warning"
                                 }`}>
                                   {prevWs.type === "connect" ? "If not accepted" : "If no reply"}
@@ -818,12 +839,12 @@ function Wizard({
                             {Object.entries(ws.branches!)
                                                           .filter(([bName]) => {
                                                              if (ws.type === 'ai_qualify') {
-                                                                try { 
-                                                                  const cfg = JSON.parse(ws.config || '{}'); 
+                                                                try {
+                                                                  const cfg = JSON.parse(ws.config || '{}');
                                                                   let mainOutcomes = ["FIT"];
                                                                   if (Array.isArray(cfg.continue_main_on)) mainOutcomes = cfg.continue_main_on;
                                                                   else if (typeof cfg.continue_main_on === 'string') mainOutcomes = [cfg.continue_main_on];
-                                                                  if (mainOutcomes.includes(bName)) return false; 
+                                                                  if (mainOutcomes.includes(bName)) return false;
                                                                 } catch {}
                                                              }
                                                              if (ws.type === 'connect' && bName === 'IF NOT ACCEPTED (Timeout)') return false;
@@ -831,7 +852,7 @@ function Wizard({
                                                              return true;
                                                           })
                                                           .map(([bName, bSteps]) => (
-                              <button 
+                              <button
                                 key={bName}
                                 type="button"
                                 onClick={(e) => { e.stopPropagation(); setDrawerPath([...path, "branches", bName]); }}
@@ -845,8 +866,8 @@ function Wizard({
                           </div>
                         )}
                       </div>
-                      
-                      
+
+
 
                     </div>
                   );
@@ -968,7 +989,7 @@ function Wizard({
   // In add-contacts mode every contact in the list is "active" already (this run) — dedup happens server-side.
   const allBlocked = !isAddContacts && conflicts !== null && conflicts.blocked > 0 && conflicts.blocked >= conflicts.total;
   const hasEmailStep = wizardSteps.some((s) => s.type === "email");
-  
+
   const filteredListTargets = useMemo(() => {
     let result = listTargets;
     if (wizardFilters.length > 0) {
@@ -978,10 +999,10 @@ function Wizard({
           if (fieldKey === "hubspot") fieldKey = "hubspot_contact_id";
           if (fieldKey === "enriched") fieldKey = "apollo_enriched_at";
           if (fieldKey === "industry") fieldKey = "company_industry";
-          
+
           const val = (t as any)[fieldKey];
           const query = f.value ? f.value.toLowerCase() : "";
-          
+
           switch (f.op) {
             case "is_true":
               if (Number(val) !== 1) return false;
@@ -1018,7 +1039,7 @@ function Wizard({
     return result;
   }, [listTargets, wizardFilters]);
 
-  
+
   useEffect(() => {
     if (prospectMode === "all" && listTargets.length > 0) {
       setSelectedTargetIds(new Set(filteredListTargets.map((t: ListTarget) => t.id)));
@@ -1156,7 +1177,7 @@ function Wizard({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt: campaignPrompt }),
     });
-    
+
     const existing = await fetch(`/api/workflows/${workflowId}/steps`);
     const existingSteps: Step[] = existing.ok ? await existing.json() : [];
     await Promise.all(existingSteps.map((s) => fetch(`/api/workflows/${workflowId}/steps/${s.id}`, { method: "DELETE" })));
@@ -1254,7 +1275,7 @@ function Wizard({
     }
 
     await saveSequenceBackward(wizardSteps, null);
-    
+
     // Save AI Context
     try {
       await fetch(`/api/workflows/${workflowId}/reply-context`, {
@@ -1270,7 +1291,7 @@ function Wizard({
          })
       });
     } catch (e) {}
-    
+
     setSaving(false);
   }
 
@@ -1281,7 +1302,7 @@ function Wizard({
     const res = await fetch(`/api/runs/${activeRunId}/enroll`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ target_ids: Array.from(selectedTargetIds) }),
+      body: JSON.stringify({ target_ids: Array.from(selectedTargetIds), list_id: listId || undefined }),
     });
     setLaunching(false);
     if (!res.ok) {
@@ -1526,7 +1547,7 @@ function Wizard({
                         ? "Pick contacts from any list to enroll into the running campaign. Already-enrolled contacts are skipped."
                         : "Pick a list, then choose all contacts or a manual subset."}
                     </p>
-                    
+
                     <div className="mb-4 bg-base-200/50 p-3 rounded-xl border border-base-300 flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium">Cross-campaign Enrollment</p>
@@ -1658,7 +1679,7 @@ function Wizard({
                                 }}
                                 />
                             </div>
-                            
+
                             {prospectMode === "all" ? (
                               <div className="flex-1 flex items-center justify-center rounded-xl border border-base-300/30 bg-base-200/20">
                                 <div className="text-center">
@@ -1743,7 +1764,7 @@ function Wizard({
                     <p className="text-base-content/60 text-sm mb-8">
                       Build your outreach timeline. Steps execute sequentially as a unified flow.
                     </p>
-                    
+
                     <div className="space-y-0 mb-8">
                       {wizardSteps.length === 0 ? (
                         <div className="text-center py-12 border-2 border-dashed border-base-300/40 rounded-2xl bg-base-200/20 text-base-content/40 text-sm">
@@ -1753,7 +1774,7 @@ function Wizard({
                         wizardSteps.map((ws, idx) => <StepCard key={idx} ws={ws} prevWs={idx > 0 ? wizardSteps[idx - 1] : undefined} path={[idx]} isFirst={idx === 0} />)
                       )}
                     </div>
-                    
+
                     <div className="flex justify-center">
                       <div className="dropdown dropdown dropdown-end">
                         <label tabIndex={0} className="btn btn-primary shadow-lg shadow-primary/20 gap-2 rounded-full px-6">
@@ -1767,14 +1788,14 @@ function Wizard({
                           <li><a onClick={() => addWizardStep("message")} className="gap-3"><RiMessage2Line size={14} className="text-success"/> Message</a></li>
                           {hasPremium && <li><a onClick={() => addWizardStep("sales_inmail")} className="gap-3"><RiSendPlaneLine size={14} className="text-primary"/> Sales Nav InMail</a></li>}
                           <li><a onClick={() => addWizardStep("linkedin_like")} className="gap-3"><RiThumbUpLine size={14} className="text-primary"/> Like Recent Posts</a></li>
-                          
+
                           <li className="menu-title mt-2"><span className="text-xs font-bold text-base-content/40 uppercase tracking-wider">Email</span></li>
                           <li><a onClick={() => addWizardStep("email")} className="gap-3"><RiMailLine size={14} className="text-warning"/> Cold Email</a></li>
-                          
+
                           <li className="menu-title mt-2"><span className="text-xs font-bold text-base-content/40 uppercase tracking-wider">Integrations</span></li>
                           <li><a onClick={() => addWizardStep("integration")} className="gap-3"><RiPlugLine size={14} className="text-accent"/> Integration</a></li>
                           <li><a onClick={() => addWizardStep("change_status")} className="gap-3"><RiGroupLine size={14} className="text-secondary"/> CRM Status</a></li>
-                          
+
                           <li className="menu-title mt-2"><span className="text-xs font-bold text-base-content/40 uppercase tracking-wider">AI Agents</span></li>
                           <li><a onClick={() => addWizardStep("ai_qualify")} className="gap-3"><RiRobot2Line size={14} className="text-secondary"/> AI Qualify</a></li>
                           <li><a onClick={() => addWizardStep("ai_comment")} className="gap-3"><RiMessage2Line size={14} className="text-secondary"/> AI Comment</a></li>
@@ -1784,8 +1805,8 @@ function Wizard({
                   </div>
                 );
               })()}
-              
-              
+
+
               {/* ── Page: AI Auto-Replies ── */}
               {page === "ai_replies" && (
                 <div className="max-w-2xl mx-auto space-y-6">
@@ -1793,7 +1814,7 @@ function Wizard({
                     <h2 className="text-xl font-semibold mb-1">AI Auto-Responder</h2>
                     <p className="text-base-content/50 text-sm">Automatically draft and send replies when prospects respond to this playbook.</p>
                   </div>
-                  
+
                   <div onClick={() => setArActive(!arActive)} className="flex items-center gap-4 p-5 rounded-2xl bg-base-200 border border-base-300 cursor-pointer hover:border-primary/40 transition-colors select-none">
                     <div className={`w-11 h-6 flex items-center rounded-full p-0.5 transition-colors duration-300 ease-in-out cursor-pointer shrink-0 ${arActive ? 'bg-primary' : 'bg-base-300'}`}>
                       <div className={`bg-white w-5 h-5 rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${arActive ? 'translate-x-5' : 'translate-x-0'}`} />
@@ -2250,7 +2271,7 @@ function Wizard({
         </div>
       </div>
 
-      
+
       {/* ── Fixed Right Drawer for Branch Editing ── */}
       {drawerPath && (() => {
            let arr: any = wizardSteps;
@@ -2261,7 +2282,7 @@ function Wizard({
            }
            const branchSteps = (arr || []) as WizardStep[];
            const close = () => setDrawerPath(null);
-           
+
            return (
              <>
                <div className="fixed inset-0 bg-base-300/20 backdrop-blur-[1px] z-[40]" onClick={close}></div>
@@ -2279,16 +2300,16 @@ function Wizard({
                    <div className="p-6 space-y-0 flex-1">
                      {branchSteps.length === 0 ? (
                         <div className="text-[11px] text-base-content/40 italic px-4 py-3 bg-base-200/50 rounded-xl text-center border border-base-300/50 mb-8">
-                          {parentName === "IF REPLIED" ? "Sequence marks as Responded and stops here." : 
-                           parentName === "IF ACCEPTED" ? "Sequence continues to next step in main trunk." : 
-                           parentName === "IF NOT ACCEPTED (Timeout)" ? "Sequence skips to here if invite expires." : 
-                           parentName === "FIT" || parentName === "NOT_FIT" || parentName === "MAYBE" ? "Sequence ends." : 
+                          {parentName === "IF REPLIED" ? "Sequence marks as Responded and stops here." :
+                           parentName === "IF ACCEPTED" ? "Sequence continues to next step in main trunk." :
+                           parentName === "IF NOT ACCEPTED (Timeout)" ? "Sequence skips to here if invite expires." :
+                           parentName === "FIT" || parentName === "NOT_FIT" || parentName === "MAYBE" ? "Sequence ends." :
                            "Flow rejoins main sequence."}
                         </div>
                      ) : (
                         branchSteps.map((bWs, bIdx) => <StepCard key={bIdx} ws={bWs} prevWs={bIdx > 0 ? branchSteps[bIdx - 1] : undefined} path={[...drawerPath, bIdx]} isFirst={bIdx === 0} />)
                      )}
-                     
+
                      <div className="mt-8 flex justify-center pb-64">
                        <div className="dropdown dropdown-end dropdown-bottom">
                           <label tabIndex={0} className="btn btn-sm btn-outline shadow-sm gap-1.5 rounded-full px-4 text-xs font-semibold">
@@ -2305,7 +2326,7 @@ function Wizard({
                                 {hasPremium && <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("sales_inmail", drawerPath); }} className="gap-3 text-xs"><RiSendPlaneLine size={12} className="text-primary"/> Sales Nav InMail</a></li>}
                                 <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("linkedin_like", drawerPath); }} className="gap-3 text-xs"><RiThumbUpLine size={12} className="text-primary"/> Like Recent Posts</a></li>
                                 <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("ai_comment", drawerPath); }} className="gap-3 text-xs"><RiRobot2Line size={12} className="text-info"/> AI Comment</a></li>
-                                
+
                                 <li className="menu-title mt-1"><span className="text-[10px] font-bold text-base-content/40 uppercase tracking-wider">Email</span></li>
                                 <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("email", drawerPath); }} className="gap-3 text-xs"><RiMailLine size={12} className="text-warning"/> Cold Email</a></li>
                               </>
@@ -2313,7 +2334,7 @@ function Wizard({
                             <li className="menu-title mt-1"><span className="text-[10px] font-bold text-base-content/40 uppercase tracking-wider">Integrations</span></li>
                             <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("integration", drawerPath); }} className="gap-3 text-xs"><RiPlugLine size={12} className="text-accent"/> Integration</a></li>
                             <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("change_status", drawerPath); }} className="gap-3 text-xs"><RiGroupLine size={12} className="text-secondary"/> CRM Status</a></li>
-                            
+
                             <li className="menu-title mt-1"><span className="text-[10px] font-bold text-base-content/40 uppercase tracking-wider">AI Agents</span></li>
                             <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("ai_qualify", drawerPath); }} className="gap-3 text-xs"><RiRobot2Line size={12} className="text-secondary"/> AI Qualify</a></li>
                             <li><a onClick={(e) => { e.stopPropagation(); addWizardStep("ai_comment", drawerPath); }} className="gap-3 text-xs"><RiMessage2Line size={12} className="text-secondary"/> AI Comment</a></li>
@@ -2414,7 +2435,7 @@ function Wizard({
                     )}
                   </div>
                 )}
-                
+
                 {ws.type === "ai_qualify" && (
                   <div className="space-y-4">
                     <div>
@@ -2437,7 +2458,7 @@ function Wizard({
                     </div>
                   </div>
                 )}
-                
+
                                 {ws.type === "ai_qualify" && (
                   <div className="space-y-4">
                     <div>
@@ -2445,13 +2466,13 @@ function Wizard({
                       <div className="flex flex-wrap gap-2">
                         {["FIT", "MAYBE", "NOT_FIT"].map(opt => {
                            let selectedArr: string[] = ["FIT"];
-                           try { 
-                             const cfg = JSON.parse(ws.config || '{}'); 
+                           try {
+                             const cfg = JSON.parse(ws.config || '{}');
                              if (Array.isArray(cfg.continue_main_on)) selectedArr = cfg.continue_main_on;
                              else if (typeof cfg.continue_main_on === 'string') selectedArr = [cfg.continue_main_on];
                            } catch {}
                            const isSelected = selectedArr.includes(opt);
-                           
+
                            return (
                              <button
                                key={opt}
@@ -2466,7 +2487,7 @@ function Wizard({
                                  updateStep(path, { config: JSON.stringify(c) });
                                }}
                                className={`inline-flex items-center justify-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
-                                 isSelected 
+                                 isSelected
                                    ? opt === 'FIT' ? 'border-success/40 bg-success/10 text-success' : opt === 'MAYBE' ? 'border-warning/40 bg-warning/10 text-warning' : 'border-error/40 bg-error/10 text-error'
                                    : 'border-base-300 bg-transparent text-base-content/40 hover:bg-base-200'
                                }`}
@@ -2502,7 +2523,7 @@ function Wizard({
                             updateStep(path, { config: JSON.stringify(c) });
                          }} className="w-full bg-base-300/50 border border-base-300/50 rounded-xl px-3 py-2 text-sm text-base-content focus:outline-none focus:border-secondary/40" />
                        </div>
-                       
+
                     </div>
                   </div>
                 )}
@@ -2657,7 +2678,7 @@ function Wizard({
                     </div>
                   );
                 })()}
-                
+
                 {ws.type === "integration" && (() => {
                   let parsedConfig = { action_type: "enrich_email", provider_chain: ["prospeo", "apollo", "snov", "skrapp", "hunter", "lusha", "contactout"] };
                   try {
@@ -2666,7 +2687,7 @@ function Wizard({
                       if (p && typeof p === "object") parsedConfig = p;
                     }
                   } catch (e) {}
-                  
+
                   return (
                     <div className="space-y-4">
                       <div className="bg-base-300/40 border border-base-300/50 rounded-xl p-4">
@@ -2683,7 +2704,7 @@ function Wizard({
                         <div className="space-y-4">
                           <div>
                             <label className="text-xs text-base-content/50 font-medium block mb-2">Action Type</label>
-                            <select 
+                            <select
                               className="select select-bordered w-full text-sm"
                               value={parsedConfig.action_type || "enrich_email"}
                               onChange={(e) => {
@@ -2700,7 +2721,7 @@ function Wizard({
                             <div className="pt-2 border-t border-base-300/50">
                               <label className="text-xs text-base-content/50 font-medium block mb-1">Waterfall Priority Array</label>
                               <p className="text-[10px] text-base-content/40 mb-3">Define the priority of API providers. The system tries them in order.</p>
-                              
+
                               <div className="space-y-2">
                                 {(() => {
                                   const configured = integrations.filter((i) => i.configured && ENRICHERS.includes(i.key)).map((i) => i.key);
@@ -2713,7 +2734,7 @@ function Wizard({
                                   }
 
                                   const chain: string[] = Array.isArray(parsedConfig.provider_chain) ? parsedConfig.provider_chain : [];
-                                  
+
                                   // Find the active providers in order, then append inactive ones at the bottom
                                   const active = chain.filter((k) => configured.includes(k));
                                   const inactive = configured.filter((k) => !active.includes(k));
@@ -3984,8 +4005,51 @@ export default function WorkflowDetailPage({
           )}
         </div>
 
-        {/* Prospects table */}
-        <div className="flex-1 min-w-0 overflow-y-auto">
+        {/* Prospects table and Campaign Sources */}
+        <div className="flex-1 min-w-0 flex flex-col gap-4 overflow-y-auto pr-4 pb-8">
+          {activeRun && activeRun.run_lists && activeRun.run_lists.length > 0 && (
+            <div className="bg-base-200 border border-base-300/50 rounded-xl p-4">
+              <h3 className="text-sm font-semibold mb-3">Campaign Sources</h3>
+              <div className="overflow-x-auto">
+                <table className="table w-full text-xs">
+                  <thead>
+                    <tr className="border-base-300/50 text-base-content/50 uppercase tracking-wide">
+                      <th>List Name</th>
+                      <th className="text-right">List Size</th>
+                      <th className="text-right">Already Enrolled Elsewhere</th>
+                      <th className="text-right">Newly Enrolled</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {activeRun.run_lists.map(rl => (
+                      <tr key={rl.list_id} className="border-base-300/30">
+                        <td className="font-medium">{rl.name ?? <span className="text-base-content/50 italic">Deleted List ({rl.list_id.split('-')[0]}...)</span>}</td>
+                        <td className="text-right text-base-content/70">{rl.total_size}</td>
+                        <td className="text-right text-base-content/70">{rl.enrolled_elsewhere_count}</td>
+                        <td className="text-right font-medium text-success">{rl.enrolled_count}</td>
+                      </tr>
+                    ))}
+                    {(() => {
+                      const totalFromLists = activeRun.run_lists.reduce((acc, rl) => acc + rl.enrolled_count, 0);
+                      const directOrLegacyCount = displayStats.total_prospects - totalFromLists;
+                      if (directOrLegacyCount > 0) {
+                        return (
+                          <tr className="border-base-300/30 bg-base-300/20">
+                            <td className="font-medium text-base-content/60 italic">Direct / Legacy Enrollments</td>
+                            <td className="text-right text-base-content/40">—</td>
+                            <td className="text-right text-base-content/40">—</td>
+                            <td className="text-right font-medium text-success">{directOrLegacyCount}</td>
+                          </tr>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           {displayStats.total_prospects === 0 ? (
             <div className="text-center py-20 text-base-content/40 text-sm border border-base-300/50 rounded-lg">
               {steps.length === 0

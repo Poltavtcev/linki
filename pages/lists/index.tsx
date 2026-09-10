@@ -12,9 +12,7 @@ interface List {
   description: string | null;
   target_count: number;
   created_at: string;
-  active_run_id: string | null;
-  active_run_status: string | null;
-  active_workflow_name: string | null;
+  active_campaigns: { id: string; status: string; name: string }[];
 }
 
 interface ImportJob {
@@ -39,19 +37,35 @@ export const getServerSideProps: GetServerSideProps = async () => {
   const db = getDb();
   const lists = db
     .prepare(
-      `SELECT l.*, COUNT(lt.target_id) as target_count,
-              ar.id as active_run_id,
-              ar.status as active_run_status,
-              w.name as active_workflow_name
+      `SELECT l.*,
+        (SELECT COUNT(*) FROM list_targets WHERE list_id = l.id) as target_count,
+        (SELECT json_group_array(json_object('id', r.id, 'status', r.status, 'name', w.name))
+         FROM run_lists rl
+         JOIN runs r ON r.id = rl.run_id
+         JOIN workflows w ON w.id = r.workflow_id
+         WHERE rl.list_id = l.id AND r.status IN ('running', 'paused')
+        ) as active_campaigns_json
        FROM lists l
-       LEFT JOIN list_targets lt ON lt.list_id = l.id
-       LEFT JOIN runs ar ON ar.list_id = l.id AND ar.status IN ('running', 'paused')
-       LEFT JOIN workflows w ON w.id = ar.workflow_id
-       GROUP BY l.id
        ORDER BY l.created_at DESC`
     )
     .all();
-  return { props: { initialLists: lists } };
+    
+  const parsedLists = lists.map((l: any) => {
+    let active_campaigns = [];
+    if (l.active_campaigns_json) {
+      try {
+        const parsed = JSON.parse(l.active_campaigns_json);
+        active_campaigns = (Array.isArray(parsed) ? parsed : []).filter((c: any) => c && c.id);
+      } catch (e) {}
+    }
+    const { active_campaigns_json, ...rest } = l;
+    return {
+      ...rest,
+      active_campaigns,
+    };
+  });
+
+  return { props: { initialLists: parsedLists } };
 };
 
 export default function ListsPage({ initialLists }: { initialLists: List[] }) {
@@ -233,11 +247,15 @@ export default function ListsPage({ initialLists }: { initialLists: List[] }) {
                     <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-base-300 text-base-content/60">{l.target_count}</span>
                   </td>
                   <td>
-                    {l.active_run_id ? (
-                      <span className="inline-flex items-center gap-1.5 text-xs text-base-content/60">
-                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${l.active_run_status === 'running' ? 'bg-success animate-pulse' : 'bg-warning'}`} />
-                        {l.active_workflow_name ?? 'Active'}
-                      </span>
+                    {l.active_campaigns && l.active_campaigns.length > 0 ? (
+                      <div className="flex flex-col gap-1">
+                        {l.active_campaigns.map((c) => (
+                          <span key={c.id} className="inline-flex items-center gap-1.5 text-xs text-base-content/60">
+                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${c.status === 'running' ? 'bg-success animate-pulse' : 'bg-warning'}`} />
+                            {c.name ?? 'Active'}
+                          </span>
+                        ))}
+                      </div>
                     ) : (
                       <span className="text-base-content/20 text-xs">—</span>
                     )}

@@ -1,0 +1,10 @@
+{
+  "timestamp": "2026-09-09T19:28:48.047Z",
+  "url": "https://www.linkedin.com/sales/login",
+  "title": "Sales Navigator",
+  "action": "linkedin_enrich_nodata",
+  "targetId": "96976bf4-aaf7-4b89-ad24-1941e1370115",
+  "accountId": "00b902f7-c79e-4e6c-848d-b879f5bd342a",
+  "error": "No profile data intercepted",
+  "stack": "Error: No profile data intercepted\n    at enrichProfile (/Users/admin/dyad-apps/linki/lib/linkedin/enrich.ts:81:44)\n    at async <anonymous> (/Users/admin/dyad-apps/linki/scripts/test-linkedin-enrich-manual.ts:17:20)"
+}

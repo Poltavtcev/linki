@@ -1,0 +1,10 @@
+{
+  "timestamp": "2026-09-10T11:42:26.387Z",
+  "url": "about:blank",
+  "title": "",
+  "action": "linkedin_enrich",
+  "targetId": "0d617a53-2bf5-4f90-a113-83a1cb1c61af",
+  "accountId": "00b902f7-c79e-4e6c-848d-b879f5bd342a",
+  "error": "page.goto: Protocol error (Page.navigate): Cannot navigate to invalid URL\nCall log:\n\u001b[2m  - navigating to \"linkedin.com/sales/people/ACoAAA8MrTsBvlxbIghd1Dhp5gKAzgB04N1acTI,name,-tQE/\", waiting until \"domcontentloaded\"\u001b[22m\n",
+  "stack": "page.goto: Protocol error (Page.navigate): Cannot navigate to invalid URL\nCall log:\n\u001b[2m  - navigating to \"linkedin.com/sales/people/ACoAAA8MrTsBvlxbIghd1Dhp5gKAzgB04N1acTI,name,-tQE/\", waiting until \"domcontentloaded\"\u001b[22m\n\n    at enrichProfile (/Users/admin/dyad-apps/linki/.next/dev/server/chunks/[root-of-the-server]__dff3ec68._.js:5493:20)\n    at async ensureSalesNavEnriched (/Users/admin/dyad-apps/linki/.next/dev/server/chunks/[root-of-the-server]__dff3ec68._.js:5956:25)\n    at async executeStep (/Users/admin/dyad-apps/linki/.next/dev/server/chunks/[root-of-the-server]__dff3ec68._.js:6250:29)\n    at async tickActions (/Users/admin/dyad-apps/linki/.next/dev/server/chunks/[root-of-the-server]__dff3ec68._.js:6782:28)\n    at async actionLoop (/Users/admin/dyad-apps/linki/.next/dev/server/chunks/[root-of-the-server]__dff3ec68._.js:6577:17)"
+}

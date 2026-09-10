@@ -1,0 +1,1364 @@
+[
+  {
+    "tag": "A",
+    "text": "Cookie Policy",
+    "class": "",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "settings",
+    "class": "",
+    "id": ""
+  },
+  {
+    "tag": "BUTTON",
+    "text": "Accept",
+    "class": "artdeco-global-alert-action artdeco-button artdeco-button--inverse artdeco-button--2 artdeco-button--primary",
+    "id": ""
+  },
+  {
+    "tag": "BUTTON",
+    "text": "Reject",
+    "class": "artdeco-global-alert-action artdeco-button artdeco-button--inverse artdeco-button--2 artdeco-button--primary",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Skip to main content",
+    "class": "skip-link btn-md btn-primary absolute z-11 -top-[100vh] focus:top-0",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "LinkedIn",
+    "class": "nav__logo-link link-no-visited-state z-1 mr-auto min-h-[52px] flex items-center babybear:z-0 hover:no-underline focus:no-underline active:no-underline\n           babymamabear:mr-3",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Top Content",
+    "class": "top-nav-link flex justify-center items-center min-h-[52px] hover:text-color-text visited:hover:text-color-text hover:no-underline\n        min-w-8\n        flex-col mx-1 babybear:mx-0\n        text-color-text-secondary visited:text-color-text-secondary",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "People",
+    "class": "top-nav-link flex justify-center items-center min-h-[52px] hover:text-color-text visited:hover:text-color-text hover:no-underline\n        min-w-8\n        flex-col mx-1 babybear:mx-0\n        top-nav-link--selected text-color-text visited:text-color-text border-solid border-b-2 border-color-text",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Learning",
+    "class": "top-nav-link flex justify-center items-center min-h-[52px] hover:text-color-text visited:hover:text-color-text hover:no-underline\n        min-w-8\n        flex-col mx-1 babybear:mx-0\n        text-color-text-secondary visited:text-color-text-secondary",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Jobs",
+    "class": "top-nav-link flex justify-center items-center min-h-[52px] hover:text-color-text visited:hover:text-color-text hover:no-underline\n        min-w-8\n        flex-col mx-1 babybear:mx-0\n        text-color-text-secondary visited:text-color-text-secondary",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Games",
+    "class": "top-nav-link flex justify-center items-center min-h-[52px] hover:text-color-text visited:hover:text-color-text hover:no-underline\n        min-w-8\n        flex-col mx-1 babybear:mx-0\n        text-color-text-secondary visited:text-color-text-secondary",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Join now",
+    "class": "nav__button-tertiary btn-tertiary ml-1 btn-md",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Sign in",
+    "class": "nav__button-secondary btn-secondary-emphasis btn-md",
+    "id": ""
+  },
+  {
+    "tag": "BUTTON",
+    "text": "Marcin Golis",
+    "class": "cursor-pointer",
+    "id": ""
+  },
+  {
+    "tag": "BUTTON",
+    "text": "Marcin Golis",
+    "class": "cursor-pointer hover:bg-color-background-none-tint-hover",
+    "id": ""
+  },
+  {
+    "tag": "BUTTON",
+    "text": "Contact Info",
+    "class": "link cursor-pointer text-md focus:outline focus:outline-2 focus:outline-color-action",
+    "id": ""
+  },
+  {
+    "tag": "BUTTON",
+    "text": "See your mutual connections",
+    "class": "font-semibold text-color-link cursor-pointer",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Join to view profile",
+    "class": "top-card-layout__cta mt-2 ml-1.5 h-auto babybear:flex-auto top-card-layout__cta--primary btn-md btn-primary",
+    "id": ""
+  },
+  {
+    "tag": "BUTTON",
+    "text": "Message",
+    "class": "contextual-sign-in-modal__outlet-btn cursor-pointer btn-md btn-primary top-card-layout__cta mt-2 ml-1.5 h-auto babybear:flex-auto top-card-layout__cta--secondary btn-md btn-secondary-emphasis",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "autoDNA",
+    "class": "flex text-md mb-1.5 font-sans font-bold leading-open items-center\n        link",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "University of Lodz",
+    "class": "flex text-md mb-1.5 font-sans font-bold leading-open items-center\n        link",
+    "id": ""
+  },
+  {
+    "tag": "BUTTON",
+    "text": "Open menu",
+    "class": "ellipsis-menu__trigger\n                collapsible-dropdown__button btn-md btn-tertiary cursor-pointer\n                !py-[6px] !px-1 flex items-center rounded-[50%]\n                \n                ",
+    "id": ""
+  },
+  {
+    "tag": "BUTTON",
+    "text": "see more",
+    "class": "sign-in-modal__outlet-btn cursor-pointer btn-md btn-primary !btn-sm !pl-2 !btn-tertiary !text-color-text-low-emphasis !font-normal !visited:text-color-text-low-emphasis",
+    "id": ""
+  },
+  {
+    "tag": "BUTTON",
+    "text": "Posts",
+    "class": "tab-button tab-pill tab-selected",
+    "id": "activities-tab_tab_0"
+  },
+  {
+    "tag": "BUTTON",
+    "text": "Comments",
+    "class": "tab-button tab-pill ",
+    "id": "activities-tab_tab_1"
+  },
+  {
+    "tag": "BUTTON",
+    "text": "Reactions",
+    "class": "tab-button tab-pill ",
+    "id": "activities-tab_tab_2"
+  },
+  {
+    "tag": "A",
+    "text": "Marcin Golis",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "BUTTON",
+    "text": "Open menu",
+    "class": "ellipsis-menu__trigger\n                collapsible-dropdown__button btn-md btn-tertiary cursor-pointer\n                !py-[6px] !px-1 flex items-center rounded-[50%]\n                \n                ",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Marcin Golis shared this",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Natalia",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Max",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Borys",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Cyrek Digital",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "...more",
+    "class": "absolute z-[9999] right-0 bottom-0 !text-color-text-low-emphasis inline-block px-1 mr-2 bg-color-background-container !no-underline font-normal",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Max Cyrek",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Marcin Golis shared this",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "cyrekdigital.com",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Marcin Stypuła",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Artur Wojczal",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Cyrek Digital",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "...more",
+    "class": "absolute z-[9999] right-0 bottom-0 !text-color-text-low-emphasis inline-block px-1 mr-2 bg-color-background-container !no-underline font-normal",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "...more",
+    "class": "absolute z-[9999] right-0 bottom-0 !text-color-text-low-emphasis inline-block px-1 mr-2 bg-color-background-container !no-underline font-normal",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "public_profile__posts",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "12",
+    "class": "flex items-center font-normal text-color-text-low-emphasis !no-underline visited:text-color-text-low-emphasis  my-1",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "4 Comments",
+    "class": "flex items-center font-normal text-color-text-low-emphasis !no-underline visited:text-color-text-low-emphasis\n                before:middot\n                my-1",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "",
+    "class": "reactions-menu__link text-color-text social-action-bar__button relative h-6 cursor-pointer w-full",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Comment",
+    "class": "social-action-bar__button !rounded-none basis-full max-w-[110px]\n                babybear:pl-0.5 babybear:pr-0.5\n                ",
+    "id": ""
+  },
+  {
+    "tag": "BUTTON",
+    "text": "",
+    "class": "social-share__button social-share__button-square\n            social-share-button social-action-bar__button\n            flex-1\n            \n            social-share-button--square\n            ",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Marcin Golis",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "BUTTON",
+    "text": "Open menu",
+    "class": "ellipsis-menu__trigger\n                collapsible-dropdown__button btn-md btn-tertiary cursor-pointer\n                !py-[6px] !px-1 flex items-center rounded-[50%]\n                \n                ",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Marcin Golis shared this",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Cyrek Digital",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Marcin Golis shared this",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Marcin Golis",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "m.in",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "#Błąd404",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "#SEO",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "#SEOPolska",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "...more",
+    "class": "absolute z-[9999] right-0 bottom-0 !text-color-text-low-emphasis inline-block px-1 mr-2 bg-color-background-container !no-underline font-normal",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "...more",
+    "class": "absolute z-[9999] right-0 bottom-0 !text-color-text-low-emphasis inline-block px-1 mr-2 bg-color-background-container !no-underline font-normal",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "public_profile__posts",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "10",
+    "class": "flex items-center font-normal text-color-text-low-emphasis !no-underline visited:text-color-text-low-emphasis  my-1",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "",
+    "class": "reactions-menu__link text-color-text social-action-bar__button relative h-6 cursor-pointer w-full",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Comment",
+    "class": "social-action-bar__button !rounded-none basis-full max-w-[110px]\n                babybear:pl-0.5 babybear:pr-0.5\n                ",
+    "id": ""
+  },
+  {
+    "tag": "BUTTON",
+    "text": "",
+    "class": "social-share__button social-share__button-square\n            social-share-button social-action-bar__button\n            flex-1\n            \n            social-share-button--square\n            ",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Marcin Golis",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "BUTTON",
+    "text": "Open menu",
+    "class": "ellipsis-menu__trigger\n                collapsible-dropdown__button btn-md btn-tertiary cursor-pointer\n                !py-[6px] !px-1 flex items-center rounded-[50%]\n                \n                ",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Marcin Golis shared this",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "https://lnkd.in/diEua2rn",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Cyrek Digital Sp. z o.o. - Copywriter",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "1 Comment",
+    "class": "flex items-center font-normal text-color-text-low-emphasis !no-underline visited:text-color-text-low-emphasis\n                \n                my-1",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "",
+    "class": "reactions-menu__link text-color-text social-action-bar__button relative h-6 cursor-pointer w-full",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Comment",
+    "class": "social-action-bar__button !rounded-none basis-full max-w-[110px]\n                babybear:pl-0.5 babybear:pr-0.5\n                ",
+    "id": ""
+  },
+  {
+    "tag": "BUTTON",
+    "text": "",
+    "class": "social-share__button social-share__button-square\n            social-share-button social-action-bar__button\n            flex-1\n            \n            social-share-button--square\n            ",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Marcin Golis",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "BUTTON",
+    "text": "Open menu",
+    "class": "ellipsis-menu__trigger\n                collapsible-dropdown__button btn-md btn-tertiary cursor-pointer\n                !py-[6px] !px-1 flex items-center rounded-[50%]\n                \n                ",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Marcin Golis shared this",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "...more",
+    "class": "absolute z-[9999] right-0 bottom-0 !text-color-text-low-emphasis inline-block px-1 mr-2 bg-color-background-container !no-underline font-normal",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Animalhotels.com",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Marcin Golis shared this",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Lukasz Klab",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Marcin Osiński",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Kamila Zdzienicka",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "#marketing",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "#pr",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "#startup",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "#praca",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "#misja",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "...more",
+    "class": "absolute z-[9999] right-0 bottom-0 !text-color-text-low-emphasis inline-block px-1 mr-2 bg-color-background-container !no-underline font-normal",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "...more",
+    "class": "absolute z-[9999] right-0 bottom-0 !text-color-text-low-emphasis inline-block px-1 mr-2 bg-color-background-container !no-underline font-normal",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "public_profile__posts",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "2",
+    "class": "flex items-center font-normal text-color-text-low-emphasis !no-underline visited:text-color-text-low-emphasis  my-1",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "",
+    "class": "reactions-menu__link text-color-text social-action-bar__button relative h-6 cursor-pointer w-full",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Comment",
+    "class": "social-action-bar__button !rounded-none basis-full max-w-[110px]\n                babybear:pl-0.5 babybear:pr-0.5\n                ",
+    "id": ""
+  },
+  {
+    "tag": "BUTTON",
+    "text": "",
+    "class": "social-share__button social-share__button-square\n            social-share-button social-action-bar__button\n            flex-1\n            \n            social-share-button--square\n            ",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Marcin Golis",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "BUTTON",
+    "text": "Open menu",
+    "class": "ellipsis-menu__trigger\n                collapsible-dropdown__button btn-md btn-tertiary cursor-pointer\n                !py-[6px] !px-1 flex items-center rounded-[50%]\n                \n                ",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Marcin Golis shared this",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Piotr",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "...more",
+    "class": "absolute z-[9999] right-0 bottom-0 !text-color-text-low-emphasis inline-block px-1 mr-2 bg-color-background-container !no-underline font-normal",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Piotr Pawluczyk",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Marcin Golis shared this",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Cyrek Digital",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "#hiring",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "#digital",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "#socialmedia",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "#agencjamarketingowa",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "...more",
+    "class": "absolute z-[9999] right-0 bottom-0 !text-color-text-low-emphasis inline-block px-1 mr-2 bg-color-background-container !no-underline font-normal",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "...more",
+    "class": "absolute z-[9999] right-0 bottom-0 !text-color-text-low-emphasis inline-block px-1 mr-2 bg-color-background-container !no-underline font-normal",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "public_profile__posts",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "4",
+    "class": "flex items-center font-normal text-color-text-low-emphasis !no-underline visited:text-color-text-low-emphasis  my-1",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "4 Comments",
+    "class": "flex items-center font-normal text-color-text-low-emphasis !no-underline visited:text-color-text-low-emphasis\n                before:middot\n                my-1",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "",
+    "class": "reactions-menu__link text-color-text social-action-bar__button relative h-6 cursor-pointer w-full",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Comment",
+    "class": "social-action-bar__button !rounded-none basis-full max-w-[110px]\n                babybear:pl-0.5 babybear:pr-0.5\n                ",
+    "id": ""
+  },
+  {
+    "tag": "BUTTON",
+    "text": "",
+    "class": "social-share__button social-share__button-square\n            social-share-button social-action-bar__button\n            flex-1\n            \n            social-share-button--square\n            ",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Marcin Golis",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "BUTTON",
+    "text": "Open menu",
+    "class": "ellipsis-menu__trigger\n                collapsible-dropdown__button btn-md btn-tertiary cursor-pointer\n                !py-[6px] !px-1 flex items-center rounded-[50%]\n                \n                ",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Marcin Golis shared this",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Cyrek Digital",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Max Cyrek",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Marcin Golis shared this",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Cyrek Digital",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "#seo",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "#technicalseo",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "#marketing",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "...more",
+    "class": "absolute z-[9999] right-0 bottom-0 !text-color-text-low-emphasis inline-block px-1 mr-2 bg-color-background-container !no-underline font-normal",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "...more",
+    "class": "absolute z-[9999] right-0 bottom-0 !text-color-text-low-emphasis inline-block px-1 mr-2 bg-color-background-container !no-underline font-normal",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "public_profile__posts",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "4",
+    "class": "flex items-center font-normal text-color-text-low-emphasis !no-underline visited:text-color-text-low-emphasis  my-1",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "",
+    "class": "reactions-menu__link text-color-text social-action-bar__button relative h-6 cursor-pointer w-full",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Comment",
+    "class": "social-action-bar__button !rounded-none basis-full max-w-[110px]\n                babybear:pl-0.5 babybear:pr-0.5\n                ",
+    "id": ""
+  },
+  {
+    "tag": "BUTTON",
+    "text": "",
+    "class": "social-share__button social-share__button-square\n            social-share-button social-action-bar__button\n            flex-1\n            \n            social-share-button--square\n            ",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Marcin Golis",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "BUTTON",
+    "text": "Open menu",
+    "class": "ellipsis-menu__trigger\n                collapsible-dropdown__button btn-md btn-tertiary cursor-pointer\n                !py-[6px] !px-1 flex items-center rounded-[50%]\n                \n                ",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Marcin Golis shared this",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Cyrek Digital",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "...more",
+    "class": "absolute z-[9999] right-0 bottom-0 !text-color-text-low-emphasis inline-block px-1 mr-2 bg-color-background-container !no-underline font-normal",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Borys Bednarek",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Marcin Golis shared this",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "#seo",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "#praca",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "#seospecialist",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "#cyrek",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "#digital",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "...more",
+    "class": "absolute z-[9999] right-0 bottom-0 !text-color-text-low-emphasis inline-block px-1 mr-2 bg-color-background-container !no-underline font-normal",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "...more",
+    "class": "absolute z-[9999] right-0 bottom-0 !text-color-text-low-emphasis inline-block px-1 mr-2 bg-color-background-container !no-underline font-normal",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "7",
+    "class": "flex items-center font-normal text-color-text-low-emphasis !no-underline visited:text-color-text-low-emphasis  my-1",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "",
+    "class": "reactions-menu__link text-color-text social-action-bar__button relative h-6 cursor-pointer w-full",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Comment",
+    "class": "social-action-bar__button !rounded-none basis-full max-w-[110px]\n                babybear:pl-0.5 babybear:pr-0.5\n                ",
+    "id": ""
+  },
+  {
+    "tag": "BUTTON",
+    "text": "",
+    "class": "social-share__button social-share__button-square\n            social-share-button social-action-bar__button\n            flex-1\n            \n            social-share-button--square\n            ",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Marcin Golis",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "BUTTON",
+    "text": "Open menu",
+    "class": "ellipsis-menu__trigger\n                collapsible-dropdown__button btn-md btn-tertiary cursor-pointer\n                !py-[6px] !px-1 flex items-center rounded-[50%]\n                \n                ",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Marcin Golis shared this",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Cyrek Digital",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Marcin Golis shared this",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Marcin Golis",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Cyrek Digital",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Ahrefs",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Screaming Frog",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "#seo",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "#digital",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "#google",
+    "class": "link activity-attributed-text z-[9999] relative",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "...more",
+    "class": "absolute z-[9999] right-0 bottom-0 !text-color-text-low-emphasis inline-block px-1 mr-2 bg-color-background-container !no-underline font-normal",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "...more",
+    "class": "absolute z-[9999] right-0 bottom-0 !text-color-text-low-emphasis inline-block px-1 mr-2 bg-color-background-container !no-underline font-normal",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "public_profile__posts",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "5",
+    "class": "flex items-center font-normal text-color-text-low-emphasis !no-underline visited:text-color-text-low-emphasis  my-1",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "",
+    "class": "reactions-menu__link text-color-text social-action-bar__button relative h-6 cursor-pointer w-full",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Comment",
+    "class": "social-action-bar__button !rounded-none basis-full max-w-[110px]\n                babybear:pl-0.5 babybear:pr-0.5\n                ",
+    "id": ""
+  },
+  {
+    "tag": "BUTTON",
+    "text": "",
+    "class": "social-share__button social-share__button-square\n            social-share-button social-action-bar__button\n            flex-1\n            \n            social-share-button--square\n            ",
+    "id": ""
+  },
+  {
+    "tag": "BUTTON",
+    "text": "Next Slide",
+    "class": "slide-list__nav-button rounded-xl px-1.5 py-1 btn-overlay cursor-pointer disabled:hidden",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "See all activities",
+    "class": "see-more-activities btn-md btn-secondary-emphasis mt-3 py-[10px] inline-block min-h-0 babybear:w-full",
+    "id": ""
+  },
+  {
+    "tag": "BUTTON",
+    "text": "Sign in",
+    "class": "sign-in-modal__outlet-btn cursor-pointer btn-md btn-primary blurred-overlay__sign-in-cta block box-border babybear:btn-secondary-emphasis\n                w-full",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "User Agreement",
+    "class": "",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Privacy Policy",
+    "class": "",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Cookie Policy",
+    "class": "",
+    "id": ""
+  },
+  {
+    "tag": "DIV",
+    "text": "Continue with google",
+    "class": "google-auth-button__placeholder mx-auto\n          google-auth-button__placeholder--black-border",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "",
+    "class": "profile-section-card__image-link",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "AgilePM® Foundation",
+    "class": "text-color-text text-[18px] link-styled link-no-visited-state hover:!text-color-text active:!text-color-text",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "APMG International",
+    "class": "relative hover:underline link-styled hover:!text-color-text active:!text-color-text !font-normal",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "See credential",
+    "class": "btn-md btn-tertiary-emphasis -ml-1 inline-block px-[8px] py-0 min-h-0 rounded-[4px] h-[32px] leading-[32px] hover:underline hover:!text-color-link",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Sylwia Haracz\n\n“Marcin to osoba pełna profesjonalizmu i niezwykłe pozytywnego usposobienia! Nie znajduje problemów, a raczej rozwiązania. Nic dla niego nie jest niemożliwe. Łączy w sobie OGROMNĄ wiedzę, zaangażowanie w projekt, a także indywidualne podejście. Współpracowaliśmy razem przy projekcie dla marki Obsessive i muszę z czystym sumieniem powiedzieć, że Marcin był najlepszą osobą, jaką spotkałam na swojej drodze w tej firmie. Pracując z nim miałam 100% pewność, że projekt jest w dobrych rękach, nie wymaga ciągłego sprawdzania i kontrolowania. Polecam serdecznie współpracę z Marcinem!”",
+    "class": "base-card relative w-full hover:no-underline focus:no-underline\n        base-card--link\n        outline-offset-[4px] base-main-card flex flex-wrap py-1.5 pr-2 babybear:pr-0\n        \n        base-main-card--link\n         endorsement-card__entity",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Join now to view",
+    "class": "btn-md btn-secondary-emphasis inline-block",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Join to view full profile",
+    "class": "hidden-summary__cta hidden-summary__cta--secondary btn-sm !text-[16px] btn-secondary-emphasis inline-block mt-3 mr-1.5",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Marek Masalski",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "View Profile",
+    "class": "btn-sm btn-secondary inline-flex items-center mt-0.5 relative z-[3] action-button hover:no-underline",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Rafał Siwak",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "View Profile",
+    "class": "btn-sm btn-secondary inline-flex items-center mt-0.5 relative z-[3] action-button hover:no-underline",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Agata Banaszyńska",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "View Profile",
+    "class": "btn-sm btn-secondary inline-flex items-center mt-0.5 relative z-[3] action-button hover:no-underline",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Marcin Sędek",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "View Profile",
+    "class": "btn-sm btn-secondary inline-flex items-center mt-0.5 relative z-[3] action-button hover:no-underline",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Monika Kazimierczak",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "View Profile",
+    "class": "btn-sm btn-secondary inline-flex items-center mt-0.5 relative z-[3] action-button hover:no-underline",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Jakub Niedzielski",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "View Profile",
+    "class": "btn-sm btn-secondary inline-flex items-center mt-0.5 relative z-[3] action-button hover:no-underline",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Maciej Rutkowski",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "View Profile",
+    "class": "btn-sm btn-secondary inline-flex items-center mt-0.5 relative z-[3] action-button hover:no-underline",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Aleksandra Ciołek",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "View Profile",
+    "class": "btn-sm btn-secondary inline-flex items-center mt-0.5 relative z-[3] action-button hover:no-underline",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Rafał Chudzik",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "View Profile",
+    "class": "btn-sm btn-secondary inline-flex items-center mt-0.5 relative z-[3] action-button hover:no-underline",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Krzysztof Madej",
+    "class": "base-card__full-link absolute top-0 right-0 bottom-0 left-0 p-0 z-[2] outline-offset-[4px]",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "View Profile",
+    "class": "btn-sm btn-secondary inline-flex items-center mt-0.5 relative z-[3] action-button hover:no-underline",
+    "id": ""
+  },
+  {
+    "tag": "BUTTON",
+    "text": "Show more profiles",
+    "class": "show-more-less__button show-more-less__more-button show-more-less-button\n                ",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "View top content",
+    "class": "top-content-cta__btn btn-md btn-secondary-emphasis text-md font-bold mt-1 block box-border",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "53m\nMarketing: Copywriting w mediach społecznościowych",
+    "class": "base-card relative w-full hover:no-underline focus:no-underline\n        base-card--link\n        outline-offset-[4px] base-aside-card flex my-1.5\n        hover:show-play-button focus:show-play-button\n        base-aside-card--link\n         aside-learning-course-card",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "34m\nZrównoważony rozwój dla swojej strategii chmury",
+    "class": "base-card relative w-full hover:no-underline focus:no-underline\n        base-card--link\n        outline-offset-[4px] base-aside-card flex my-1.5\n        hover:show-play-button focus:show-play-button\n        base-aside-card--link\n         aside-learning-course-card",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "55m\nZrównoważony rozwój jako możliwość innowacji",
+    "class": "base-card relative w-full hover:no-underline focus:no-underline\n        base-card--link\n        outline-offset-[4px] base-aside-card flex my-1.5\n        hover:show-play-button focus:show-play-button\n        base-aside-card--link\n         aside-learning-course-card",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "See all courses",
+    "class": "course-recommendations__view-all-link btn-md btn-secondary-emphasis inline-block",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "About",
+    "class": "li-footer__item-link flex items-center font-sans text-xs font-bold text-color-text-solid-secondary hover:text-color-link-hover focus:text-color-link-focus",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Accessibility",
+    "class": "li-footer__item-link flex items-center font-sans text-xs font-bold text-color-text-solid-secondary hover:text-color-link-hover focus:text-color-link-focus",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "User Agreement",
+    "class": "li-footer__item-link flex items-center font-sans text-xs font-bold text-color-text-solid-secondary hover:text-color-link-hover focus:text-color-link-focus",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Privacy Policy",
+    "class": "li-footer__item-link flex items-center font-sans text-xs font-bold text-color-text-solid-secondary hover:text-color-link-hover focus:text-color-link-focus",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Cookie Policy",
+    "class": "li-footer__item-link flex items-center font-sans text-xs font-bold text-color-text-solid-secondary hover:text-color-link-hover focus:text-color-link-focus",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Copyright Policy",
+    "class": "li-footer__item-link flex items-center font-sans text-xs font-bold text-color-text-solid-secondary hover:text-color-link-hover focus:text-color-link-focus",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Brand Policy",
+    "class": "li-footer__item-link flex items-center font-sans text-xs font-bold text-color-text-solid-secondary hover:text-color-link-hover focus:text-color-link-focus",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Guest Controls",
+    "class": "li-footer__item-link flex items-center font-sans text-xs font-bold text-color-text-solid-secondary hover:text-color-link-hover focus:text-color-link-focus",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Community Guidelines",
+    "class": "li-footer__item-link flex items-center font-sans text-xs font-bold text-color-text-solid-secondary hover:text-color-link-hover focus:text-color-link-focus",
+    "id": ""
+  },
+  {
+    "tag": "BUTTON",
+    "text": "Language",
+    "class": "language-selector__button select-none relative pr-2 font-sans text-xs font-bold text-color-text-low-emphasis hover:text-color-link-hover hover:cursor-pointer focus:text-color-link-focus focus:outline-dotted focus:outline-1",
+    "id": ""
+  },
+  {
+    "tag": "BUTTON",
+    "text": "Dismiss",
+    "class": "modal__dismiss btn-tertiary h-[40px] w-[40px] p-0 rounded-full indent-0\n                  contextual-sign-in-modal__modal-dismiss absolute right-0 m-[20px] cursor-pointer",
+    "id": ""
+  },
+  {
+    "tag": "DIV",
+    "text": "Continue with google",
+    "class": "google-auth-button__placeholder mx-auto\n          ",
+    "id": ""
+  },
+  {
+    "tag": "BUTTON",
+    "text": "Sign in with Email",
+    "class": "contextual-sign-in-modal__sign-in-with-email-cta my-2 btn-sm btn-secondary min-h-[40px] w-full flex align-center justify-center",
+    "id": ""
+  },
+  {
+    "tag": "DIV",
+    "text": "Continue with google",
+    "class": "google-auth-button__placeholder mx-auto\n          google-auth-button__placeholder--black-border",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Join now",
+    "class": "contextual-sign-in-modal__join-link",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "User Agreement",
+    "class": "",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Privacy Policy",
+    "class": "",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Cookie Policy",
+    "class": "",
+    "id": ""
+  }
+]

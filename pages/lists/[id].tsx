@@ -87,11 +87,12 @@ export const getServerSideProps: GetServerSideProps = async ({ params }) => {
                 SELECT 1 FROM run_profile_tracks rt3
                 WHERE rt3.run_profile_id = rp.id AND rt3.state = 'completed'
               ) THEN rp.id END) as completed_profiles
-       FROM runs r
+       FROM run_lists rl
+       JOIN runs r ON r.id = rl.run_id
        LEFT JOIN workflows w ON w.id = r.workflow_id
        LEFT JOIN accounts a ON a.id = r.account_id
-       LEFT JOIN run_profiles rp ON rp.run_id = r.id
-       WHERE r.list_id = ?
+       LEFT JOIN run_profiles rp ON rp.run_id = r.id AND rp.source_list_id = rl.list_id
+       WHERE rl.list_id = ?
        GROUP BY r.id
        ORDER BY r.created_at DESC`
     )

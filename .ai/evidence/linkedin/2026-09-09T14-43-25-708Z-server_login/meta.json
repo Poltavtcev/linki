@@ -1,0 +1,9 @@
+{
+  "timestamp": "2026-09-09T14:43:25.999Z",
+  "url": "https://www.linkedin.com/checkpoint/challenge/AgHdTEqZzN6WsAAAAaCGn6htIm5eKmRMPy-VxCIWUvWb4WP4ULNQdi6hUyinOADK7p8IpBjog5ZKZq8oUldEQPfv7ueuRg?ut=3uGrHtgzwjZso1",
+  "title": "Security Verification | LinkedIn",
+  "action": "server_login",
+  "accountId": "test-wrong-pass-123",
+  "error": "LinkedIn requires a CAPTCHA, which can't be solved on the server. Use cookie paste instead.",
+  "stack": "Error: LinkedIn requires a CAPTCHA, which can't be solved on the server. Use cookie paste instead.\n    at startHeadlessLogin (/Users/admin/dyad-apps/linki/lib/linkedin/session.ts:437:42)\n    at async testWrongPassword (/Users/admin/dyad-apps/linki/scratch/wrong_password_test.ts:8:18)"
+}

@@ -84,7 +84,25 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
        LEFT JOIN accounts a ON a.id = r.account_id
        WHERE r.workflow_id = ? AND r.status IN ('running', 'paused')
        LIMIT 1`
-    ).get(workflowId) as { id: string; status: string; list_id: string; list_name: string; account_name: string } | undefined;
+    ).get(workflowId) as any;
+
+    if (activeRun) {
+      activeRun.run_lists = db.prepare(`
+        SELECT
+          rl.list_id,
+          l.name,
+          (SELECT COUNT(*) FROM list_targets WHERE list_id = rl.list_id) as total_size,
+          (SELECT COUNT(*) FROM run_profiles WHERE run_id = rl.run_id AND source_list_id = rl.list_id) as enrolled_count,
+          (SELECT COUNT(*) FROM list_targets lt 
+           JOIN run_profiles rp ON rp.target_id = lt.target_id 
+           WHERE lt.list_id = rl.list_id AND rp.run_id = rl.run_id 
+           AND (rp.source_list_id != rl.list_id OR rp.source_list_id IS NULL)) as enrolled_elsewhere_count
+        FROM run_lists rl
+        LEFT JOIN lists l ON l.id = rl.list_id
+        WHERE rl.run_id = ?
+        ORDER BY l.name
+      `).all(activeRun.id);
+    }
 
     return res.json({
       total_prospects: counts.total_prospects ?? 0,

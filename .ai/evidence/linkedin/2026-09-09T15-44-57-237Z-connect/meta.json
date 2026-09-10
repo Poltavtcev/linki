@@ -1,0 +1,10 @@
+{
+  "timestamp": "2026-09-09T15:44:57.316Z",
+  "url": "https://www.linkedin.com/authwall?trk=bf&trkInfo=AQFS04x6nRfbsAAAAaCG1-0IKXnuc56GfZ7FhpJjfAOfzTWisnA2lX482F1ukLKQVP4ARggGzRS3eVcGPjX6OR7VTLF75XyHsQpgJSJ_U1RlUlWCvInu6BMQljSTEuNTK38ohbM=&original_referer=&sessionRedirect=https%3A%2F%2Fwww.linkedin.com%2Fin%2Fmarcin-golis-0253444b",
+  "title": "Sign Up | LinkedIn",
+  "action": "connect",
+  "targetId": "96976bf4-aaf7-4b89-ad24-1941e1370115",
+  "accountId": "00b902f7-c79e-4e6c-848d-b879f5bd342a",
+  "error": "Could not find the LinkedIn More/Mais menu or its Connect/Conectar option",
+  "stack": "Error: Could not find the LinkedIn More/Mais menu or its Connect/Conectar option\n    at sendConnectionRequest (/Users/admin/dyad-apps/linki/lib/linkedin/connect.ts:529:13)\n    at async executeStep (/Users/admin/dyad-apps/linki/lib/linkedin/runner.ts:657:9)\n    at async tickActions (/Users/admin/dyad-apps/linki/lib/linkedin/runner.ts:1073:26)\n    at async main (/Users/admin/dyad-apps/linki/scratch/simulate_transition2.ts:10:3)"
+}

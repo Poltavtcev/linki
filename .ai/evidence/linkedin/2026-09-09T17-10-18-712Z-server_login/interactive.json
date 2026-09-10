@@ -1,0 +1,56 @@
+[
+  {
+    "tag": "A",
+    "text": "LinkedIn",
+    "class": "linkedin-logo",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Zaloguj się",
+    "class": "nav__button__muted--signin nav_button_section",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Dołącz teraz",
+    "class": "nav__button__medium--joinnow nav_button_section",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Umowa użytkownika",
+    "class": "",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Polityka ochrony prywatności",
+    "class": "",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Wskazówki dotyczące społeczności",
+    "class": "",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Zasady korzystania z plików cookie",
+    "class": "",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Polityka praw autorskich",
+    "class": "",
+    "id": ""
+  },
+  {
+    "tag": "A",
+    "text": "Wyślij opinię",
+    "class": "",
+    "id": ""
+  }
+]

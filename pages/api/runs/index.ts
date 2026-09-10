@@ -60,6 +60,10 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
       .prepare("INSERT INTO runs (id, workflow_id, list_id, account_id, email_account_id) VALUES (?, ?, ?, ?, ?)")
       .run(runId, workflow_id, list_id, account_id, emailAccountPool[0] ?? null);
 
+    db
+      .prepare("INSERT INTO run_lists (run_id, list_id, first_added_at, last_added_at) VALUES (?, ?, datetime('now'), datetime('now'))")
+      .run(runId, list_id);
+
     // Create run_profiles — either for selected targets or all targets in the list
     const candidates: { target_id: string }[] = Array.isArray(target_ids) && target_ids.length > 0
       ? (target_ids as string[]).map((id) => ({ target_id: id }))
@@ -164,7 +168,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     const rootStepId = rootStepRow ? rootStepRow.id : null;
 
     const insertProfile = db.prepare(
-      "INSERT INTO run_profiles (id, run_id, target_id, email_account_id) VALUES (?, ?, ?, ?)"
+      "INSERT INTO run_profiles (id, run_id, target_id, email_account_id, source_list_id) VALUES (?, ?, ?, ?, ?)"
     );
     const insertState = db.prepare(
       "INSERT INTO run_profile_states (run_profile_id, current_step_id, state) VALUES (?, ?, 'pending')"
@@ -179,7 +183,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
       for (const t of ts) {
         const assignedEmailAccountId = emailAssignment.get(t.target_id) ?? null;
         const rpId = randomUUID();
-        insertProfile.run(rpId, runId, t.target_id, assignedEmailAccountId);
+        insertProfile.run(rpId, runId, t.target_id, assignedEmailAccountId, list_id);
         if (rootStepId) {
           insertState.run(rpId, rootStepId);
         }

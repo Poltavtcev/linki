@@ -1,0 +1,10 @@
+{
+  "timestamp": "2026-09-09T14:22:20.722Z",
+  "url": "https://www.linkedin.com/in/marcin-golis-0253444b",
+  "title": "Marcin Golis - autoDNA | LinkedIn",
+  "action": "connect",
+  "targetId": "96976bf4-aaf7-4b89-ad24-1941e1370115",
+  "accountId": "00b902f7-c79e-4e6c-848d-b879f5bd342a",
+  "error": "Could not find the LinkedIn More/Mais menu or its Connect/Conectar option",
+  "stack": "Error: Could not find the LinkedIn More/Mais menu or its Connect/Conectar option\n    at sendConnectionRequest (/Users/admin/dyad-apps/linki/.next/dev/server/chunks/[root-of-the-server]__dff3ec68._.js:3902:19)\n    at async executeStep (/Users/admin/dyad-apps/linki/.next/dev/server/chunks/[root-of-the-server]__dff3ec68._.js:6212:17)\n    at async tickActions (/Users/admin/dyad-apps/linki/.next/dev/server/chunks/[root-of-the-server]__dff3ec68._.js:6656:28)\n    at async actionLoop (/Users/admin/dyad-apps/linki/.next/dev/server/chunks/[root-of-the-server]__dff3ec68._.js:6451:17)\n    at async Promise.all (index 1)"
+}
