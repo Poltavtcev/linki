@@ -122,10 +122,10 @@ function calculateDailyJitteredLimit(maxLimit: number, accountId: string, dateSt
   const input = accountId + "_" + dateStr;
   let h = 0;
   for (let i = 0; i < input.length; i++) h = (h * 31 + input.charCodeAt(i)) >>> 0;
-  
+
   // Randomness between 0.80 and 1.00
   // e.g. h % 21 => 0 to 20 => 80% to 100%
-  const variancePercent = 80 + (h % 21); 
+  const variancePercent = 80 + (h % 21);
   return Math.max(1, Math.floor((maxLimit * variancePercent) / 100));
 }
 
@@ -343,17 +343,19 @@ async function getLinkedinUrl(db: ReturnType<typeof getDb>, target: Target, acco
 
 // ─── pre-action enrichment ───────────────────────────────────────────────────
 
-async function ensureSalesNavEnriched(db: ReturnType<typeof getDb>, target: Target, accountId: string): Promise<void> {
+async function ensureSalesNavEnriched(db: ReturnType<typeof getDb>, target: Target, accountId: string): Promise<"SUCCESS" | "THROTTLED" | "FAILED"> {
   const fresh = db.prepare("SELECT enriched_profile_at, apollo_enriched_at, sales_nav_url, full_name FROM targets WHERE id = ?").get(target.id) as { enriched_profile_at: string | null; apollo_enriched_at: string | null; sales_nav_url: string | null; full_name: string | null } | undefined;
-  if (!fresh || fresh.enriched_profile_at || fresh.apollo_enriched_at || !fresh.sales_nav_url) return;
+  if (!fresh || fresh.enriched_profile_at || fresh.apollo_enriched_at || !fresh.sales_nav_url) return "SUCCESS";
   const last = lastSalesNavEnrichAt[accountId] ?? 0;
-  if (Date.now() - last < SALES_NAV_ENRICH_MIN_GAP_MS) return;
+  if (Date.now() - last < SALES_NAV_ENRICH_MIN_GAP_MS) return "THROTTLED";
   try {
     lastSalesNavEnrichAt[accountId] = Date.now();
     const ctx = await getSessionContext(accountId);
-    await enrichProfile(ctx, { id: target.id, sales_nav_url: fresh.sales_nav_url, full_name: fresh.full_name ?? target.full_name ?? target.id });
+    const success = await enrichProfile(ctx, { id: target.id, sales_nav_url: fresh.sales_nav_url, full_name: fresh.full_name ?? target.full_name ?? target.id }, accountId);
+    return success ? "SUCCESS" : "FAILED";
   } catch (e) {
     console.warn(`[runner] Sales Nav enrichment failed for ${target.full_name ?? target.id}:`, e instanceof Error ? e.message : e);
+    return "FAILED";
   }
 }
 
@@ -535,7 +537,7 @@ async function executeStep(
         apiKey = decryptSecret(openaiInt.api_key);
       }
       if (!apiKey) return { status: "FAILED", error: "Missing API key for AI comment" };
-      
+
       let config: any = {};
       try { config = JSON.parse(step.config || "{}"); } catch(e) {}
       const maxAgeDays = config.max_age_days || 30;
@@ -545,7 +547,7 @@ async function executeStep(
       const page = await getSessionPage(accountId);
       try {
         await page.goto(linkedinUrl.replace(/\/$/, "") + "/recent-activity/all/", { waitUntil: "domcontentloaded", timeout: 30000 });
-        
+
         // Wait for posts to load or explicitly detect empty state
         await Promise.race([
           page.waitForSelector('.feed-shared-update-v2, .profile-creator-shared-feed-update__container', { timeout: 15000 }).catch(() => {}),
@@ -556,7 +558,7 @@ async function executeStep(
         const count = await posts.count();
         if (count > 0) {
           // Process liking N posts
-          
+
 
           // Process commenting on the first valid post
           const post = posts.first();
@@ -581,23 +583,23 @@ async function executeStep(
                ]
             });
             const commentText = chat.choices[0].message.content || "Great insights!";
-            
+
             // Structural selector for the comment trigger
             const commentBtn = post.locator('button[aria-label*="Comment"], button.comment-button, button:has-text("Comment"), button:has-text("Коментувати")').first();
-            
+
             if (await commentBtn.count() > 0) {
               await commentBtn.click({ timeout: 5000 });
               await page.waitForTimeout(1000);
               await post.locator('.ql-editor').fill(commentText);
               await page.waitForTimeout(500);
-              
+
               // Structural locator for the submit button (look for primary button or specific class)
               const submitBtn = post.locator('button.artdeco-button--primary').filter({ hasText: /Post|Comment|Опублікувати|Коментувати/i })
                 .or(post.locator('button[class*="comments-comment-box__submit-button"]'))
                 .first();
-                
+
               await submitBtn.click({ timeout: 5000 });
-              
+
               // Wait for it to actually post before claiming success
               await page.waitForTimeout(2500);
               log(db, runId, target.id, "info", `Commented on post for ${name}`);
@@ -621,6 +623,30 @@ async function executeStep(
         try { await page.close(); } catch {}
       }
       return { status: "SUCCESS" };
+
+    } else if (step.step_type === "linkedin_enrich") {
+      log(db, runId, target.id, "info", `Enriching profile for ${name}`);
+      const fresh = db.prepare("SELECT enriched_profile_at, apollo_enriched_at, sales_nav_url FROM targets WHERE id = ?").get(target.id) as any;
+      if (fresh?.enriched_profile_at || fresh?.apollo_enriched_at) {
+        log(db, runId, target.id, "info", `${name} is already enriched — skipping scrape`);
+        return { status: "SUCCESS" };
+      }
+      if (!fresh?.sales_nav_url) {
+        log(db, runId, target.id, "error", `Missing Sales Navigator URL for ${name}`);
+        return { status: "FAILED", error: "Missing Sales Navigator URL" };
+      }
+
+      const outcome = await ensureSalesNavEnriched(db, target, accountId);
+      if (outcome === "SUCCESS") {
+        log(db, runId, target.id, "info", `Profile enriched successfully`);
+        return { status: "SUCCESS" };
+      } else if (outcome === "THROTTLED") {
+        log(db, runId, target.id, "warn", `Profile enrichment was throttled`);
+        return { status: "FAILED", error: "ENRICHMENT_THROTTLED" };
+      } else {
+        log(db, runId, target.id, "error", `Profile enrichment failed`);
+        return { status: "FAILED", error: "ENRICHMENT_FAILED" };
+      }
 
     } else if (step.step_type === "visit") {
       log(db, runId, target.id, "info", `Visiting ${name}`);
@@ -743,6 +769,9 @@ async function executeStep(
         INSERT INTO outbound_events (id, run_id, run_profile_id, target_id, step_id, channel, sent_at, status, body)
         VALUES (?, ?, ?, ?, ?, 'linkedin', datetime('now'), 'sent', ?)
       `).run(require("crypto").randomUUID(), runId, runProfileId, target.id, step.id, messageText);
+
+      log(db, runId, target.id, "info", `Message sent to ${name}`);
+
       return { status: "SUCCESS", context: { linkedinMessage: messageText } };
 
     } else if (step.step_type === "email") {
@@ -753,10 +782,10 @@ async function executeStep(
       }
       if (!emailAccountId || !emailAccountLimits) return { status: "FAILED", error: "No email account" };
       log(db, runId, target.id, "info", `Emailing ${name}`);
-      
+
       let emailText = step.email_body ? renderTemplate(step.email_body, target) : "";
       const emailSubject = step.email_subject ? renderTemplate(step.email_subject, target) : "";
-      
+
       let aiDraftId: string | undefined;
       if (step.ai_enabled === 1) {
         const aiDraft = await handleAiDraft(db, runId, runProfileId, target, step, 'email', campaignPrompt, emailAccountId);
@@ -768,7 +797,7 @@ async function executeStep(
       }
 
       if (!target.email) return { status: "FAILED", error: "No email address" };
-      
+
       if (aiDraftId) {
         const res = db.prepare("UPDATE ai_drafts SET status = 'sending' WHERE id = ? AND status = 'approved'").run(aiDraftId);
         if (res.changes === 0) throw new Error("Concurrency lock failure: draft is no longer approved");
@@ -792,7 +821,7 @@ async function executeStep(
         }
         throw e;
       }
-      
+
     } else {
       return { status: "SUCCESS" };
     }
@@ -811,7 +840,7 @@ async function executeStep(
 
 // ─── global loop ─────────────────────────────────────────────────────────────
 
-const g = global as typeof global & { 
+const g = global as typeof global & {
   __linkiGlobalRunnerStarted?: boolean;
   __linkiRunnerVersion?: number;
 };
@@ -901,7 +930,7 @@ async function tickSync(db: ReturnType<typeof getDb>): Promise<void> {
 
   for (const account of allAuthenticatedAccounts) {
     const accountId = account.id;
-    
+
     // Withdraw old invitations once a day (if enabled)
     if (account.withdraw_invites_after_days) {
       const lastWithdraw = withdrawSyncs.get(accountId) || 0;
@@ -951,17 +980,17 @@ async function tickSync(db: ReturnType<typeof getDb>): Promise<void> {
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
           console.warn("[runner] LinkedIn inbox sync error:", msg);
-          
+
           const strikes = (syncStrikes.get(accountId) || 0) + 1;
           syncStrikes.set(accountId, strikes);
-          
+
           if (msg.includes("429") || msg.includes("Too Many Requests")) {
              const newBackoff = Math.min(1000 * 60 * 60 * 24, Math.pow(2, strikes) * 1000 * 60 * 15); // Exponental starting at 30m up to 24h
              syncBackoffs.set(accountId, newBackoff);
              console.warn(`[runner] 429 Rate Limit for ${accountId}. Backing off for ${newBackoff}ms`);
           } else {
              // General transient error backoff (5 mins per strike)
-             syncBackoffs.set(accountId, Math.min(1000 * 60 * 60, strikes * 1000 * 60 * 5)); 
+             syncBackoffs.set(accountId, Math.min(1000 * 60 * 60, strikes * 1000 * 60 * 5));
           }
         } finally {
           lastLinkedinSync.set(accountId, Date.now());
@@ -1002,8 +1031,8 @@ async function tickSync(db: ReturnType<typeof getDb>): Promise<void> {
 // DAG State Machine execution loop (Global Runner)
 export async function tickActions(db: ReturnType<typeof getDb>, workerId: string = "default-worker"): Promise<void> {
   if (isBreakerTripped()) return;
-  
-  
+
+
   db.prepare(`
     CREATE TABLE IF NOT EXISTS account_locks (
       account_id TEXT PRIMARY KEY,
@@ -1070,14 +1099,14 @@ export async function tickActions(db: ReturnType<typeof getDb>, workerId: string
         } catch (e) {}
       }, 60 * 1000);
 
-      
+
           const step = db.prepare("SELECT * FROM workflow_steps WHERE id = ?").get(state.current_step_id) as any;
           if (!step) {
             // Missing step implies terminal state or error
             db.prepare("UPDATE run_profile_states SET state = 'completed' WHERE run_profile_id = ?").run(state.run_profile_id);
             continue;
           }
-          
+
           const target = db.prepare("SELECT * FROM targets WHERE id = ?").get(state.target_id) as Target;
           const limits = db.prepare("SELECT * FROM accounts WHERE id = ?").get(state.account_id) as any;
           let emailLimits = null;
@@ -1086,9 +1115,9 @@ export async function tickActions(db: ReturnType<typeof getDb>, workerId: string
           }
           const rp = db.prepare("SELECT workflow_id FROM runs WHERE id = ?").get(state.run_id) as { workflow_id: string };
           const promptQ = db.prepare("SELECT prompt FROM workflows WHERE id = ?").get(rp.workflow_id) as { prompt: string | null } | undefined;
-      
+
           const result = await executeStep(db, state.run_id, state.run_profile_id, state.id, target, step, state.account_id, limits, state.email_account_id, emailLimits, promptQ?.prompt, assertLock);
-      
+
           if (result.status === "LIMIT_REACHED" || result.status === "WAIT_UNTIL") {
              db.prepare("UPDATE run_profile_states SET next_eval_at = ? WHERE run_profile_id = ? AND state NOT IN ('completed', 'failed')").run(result.next_eval_at, state.run_profile_id);
              continue;
@@ -1105,7 +1134,7 @@ export async function tickActions(db: ReturnType<typeof getDb>, workerId: string
              // On skipped, we act as success to pass through
           }
           const returnState = result.status;
-          
+
           // Check if it's a delay waiter node
           if (step.delay_seconds && step.delay_seconds > 0 && state.state === 'pending') {
             db.prepare(`
@@ -1113,10 +1142,10 @@ export async function tickActions(db: ReturnType<typeof getDb>, workerId: string
             `).run(state.run_profile_id);
             continue;
           }
-      
+
           let edges: Record<string, string> = {};
           try { edges = JSON.parse(step.edges_json || "{}"); } catch (e) {}
-          
+
           if (step.step_type === 'connect' && returnState === 'SUCCESS') {
              db.prepare("UPDATE run_profile_states SET waiting_for_condition = 'accept', state = 'running' WHERE run_profile_id = ? AND state NOT IN ('completed', 'failed')").run(state.run_profile_id);
              continue;
@@ -1127,7 +1156,7 @@ export async function tickActions(db: ReturnType<typeof getDb>, workerId: string
           } else {
              nextStepId = edges['on_success'] || edges['next'];
           }
-      
+
           if (nextStepId) {
             db.prepare("UPDATE run_profile_states SET current_step_id = ?, state = 'pending', next_eval_at = datetime('now') WHERE run_profile_id = ? AND state NOT IN ('completed', 'failed')").run(nextStepId, state.run_profile_id);
           } else {

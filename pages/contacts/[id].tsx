@@ -603,6 +603,10 @@ export default function ContactDetailPage({
   const [linkedinUrlDraft, setLinkedinUrlDraft] = useState(target.linkedin_url || "");
   const linkedinUrlInputRef = useRef<HTMLInputElement>(null);
 
+  const [editingSalesNavUrl, setEditingSalesNavUrl] = useState(false);
+  const [salesNavUrlDraft, setSalesNavUrlDraft] = useState(target.sales_nav_url || "");
+  const salesNavUrlInputRef = useRef<HTMLInputElement>(null);
+
   const [phone, setPhone] = useState(target.phone ?? "");
   const [editingPhone, setEditingPhone] = useState(false);
   const [phoneDraft, setPhoneDraft] = useState(target.phone ?? "");
@@ -803,6 +807,25 @@ export default function ContactDetailPage({
     } else {
       const data = await res.json();
       toast.error(data.error || "Failed to update LinkedIn URL");
+    }
+  }
+
+  async function saveSalesNavUrl() {
+    if (salesNavUrlDraft === (target.sales_nav_url || "")) {
+      setEditingSalesNavUrl(false);
+      return;
+    }
+    const res = await fetch(`/api/targets/${target.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sales_nav_url: salesNavUrlDraft }),
+    });
+    if (res.ok) {
+      setEditingSalesNavUrl(false);
+      window.location.reload();
+    } else {
+      const data = await res.json();
+      toast.error(data.error || "Failed to update Sales Nav URL");
     }
   }
 
@@ -1159,6 +1182,46 @@ export default function ContactDetailPage({
                   className="text-sm text-base-content/30 hover:text-base-content/60 transition-colors"
                 >
                   + Add LinkedIn URL
+                </button>
+              )}
+            </div>
+
+            <div>
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <p className="text-[11px] text-base-content/40 uppercase tracking-wide">Sales Nav URL</p>
+                <button
+                  onClick={() => { setSalesNavUrlDraft(target.sales_nav_url || ""); setEditingSalesNavUrl(true); setTimeout(() => salesNavUrlInputRef.current?.focus(), 50); }}
+                  className="text-base-content/30 hover:text-base-content/60 transition-colors"
+                  title="Edit Sales Nav URL"
+                >
+                  <RiEditLine size={11} />
+                </button>
+              </div>
+              {editingSalesNavUrl ? (
+                <div className="flex items-center gap-1.5">
+                  <input
+                    ref={salesNavUrlInputRef}
+                    type="url"
+                    value={salesNavUrlDraft}
+                    onChange={(e) => setSalesNavUrlDraft(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") saveSalesNavUrl(); if (e.key === "Escape") setEditingSalesNavUrl(false); }}
+                    className="flex-1 min-w-0 px-2 py-0.5 rounded bg-base-300 border border-primary/40 text-sm focus:outline-none focus:border-primary"
+                    placeholder="https://linkedin.com/sales/lead/..."
+                  />
+                  <button onClick={saveSalesNavUrl} className="text-success hover:text-success/80 shrink-0"><RiCheckLine size={14} /></button>
+                  <button onClick={() => setEditingSalesNavUrl(false)} className="text-base-content/40 hover:text-base-content/70 shrink-0"><RiCloseLine size={14} /></button>
+                </div>
+              ) : target.sales_nav_url ? (
+                <div className="flex items-center gap-1.5 text-sm text-base-content/80 truncate max-w-full">
+                  <RiExternalLinkLine size={13} className="text-base-content/40 shrink-0" />
+                  <a href={target.sales_nav_url} target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors truncate" title={target.sales_nav_url}>{target.sales_nav_url.replace("https://www.linkedin.com/sales/lead/", "sales/lead/")}</a>
+                </div>
+              ) : (
+                <button
+                  onClick={() => { setSalesNavUrlDraft(""); setEditingSalesNavUrl(true); setTimeout(() => salesNavUrlInputRef.current?.focus(), 50); }}
+                  className="text-sm text-base-content/30 hover:text-base-content/60 transition-colors"
+                >
+                  + Add Sales Nav URL
                 </button>
               )}
             </div>

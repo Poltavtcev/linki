@@ -1,3 +1,4 @@
+import { captureForensicFixture } from "@/lib/linkedin/forensics";
 /**
  * Profile enrichment via Sales Navigator profile page intercept.
  *
@@ -43,7 +44,8 @@ interface InterceptedResponse {
 
 export async function enrichProfile(
   ctx: BrowserContext,
-  target: { id: string; sales_nav_url: string; full_name: string }
+  target: { id: string; sales_nav_url: string; full_name: string },
+  accountId?: string
 ): Promise<boolean> {
   const db = getDb();
   const page = await ctx.newPage();
@@ -73,8 +75,27 @@ export async function enrichProfile(
     await page.waitForTimeout(8000);
 
     const intercepted = box.data;
+    if (page.url().includes("/sales/login")) {
+      console.log(`[enrich] Sales Navigator session invalid or unlicensed for ${target.full_name}`);
+      try {
+        await captureForensicFixture(page, new Error("Sales Navigator Login Redirect"), {
+          actionName: "linkedin_enrich_unlicensed",
+          targetId: target.id,
+          accountId: accountId || "unknown",
+        });
+      } catch (e) {}
+      return false;
+    }
+
     if (!intercepted) {
       console.log(`[enrich] No profile data intercepted for ${target.full_name} — skipping`);
+      try {
+        await captureForensicFixture(page, new Error("No profile data intercepted"), {
+          actionName: "linkedin_enrich_nodata",
+          targetId: target.id,
+          accountId: accountId || "unknown",
+        });
+      } catch (e) {}
       return false;
     }
 
@@ -115,6 +136,15 @@ export async function enrichProfile(
     return true;
   } catch (err) {
     console.error(`[enrich] Error enriching ${target.full_name}:`, err instanceof Error ? err.message : err);
+    try {
+      await captureForensicFixture(page, err, {
+        actionName: "linkedin_enrich",
+        targetId: target.id,
+        accountId: accountId || "unknown",
+      });
+    } catch (fixtureErr) {
+      console.error("[enrich] Failed to capture forensic fixture:", fixtureErr);
+    }
     return false;
   } finally {
     await page.close();
