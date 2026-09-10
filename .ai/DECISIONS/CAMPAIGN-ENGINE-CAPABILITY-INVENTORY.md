@@ -33,10 +33,10 @@ This document provides a complete inventory of Campaign Engine capabilities. It 
 - **Status**: **RESTORED** (via explicit `linkedin_enrich` case in `executeStep`).
 
 ### CAP-002: sales_inmail (Sales Navigator InMail)
-- **Historical Implementation**: `inhubflow-linki-main/lib/linkedin/runner.ts` natively supported premium InMail actions (bypassing connection gates).
-- **Commit of Removal**: `2cf7752cc7c707a72dff00d4d1a1c39618d9c45c`
-- **Intentional?**: LIKELY. Premium tracking/credit subsystems were probably stripped to simplify.
-- **Status**: **DEFERRED-INMAIL-001** (Logged for future recovery).
+- **Historical Implementation**: Execution logic was part of a premium enterprise feature (`ee/inmail.ts`) stripped from the open-source tree. Inbound inbox sync relied heuristically on standard messaging URLs and never natively supported Sales Nav Inbox.
+- **Commit of Removal**: Pre-dates the local DAG migration; absent in the open-core foundation.
+- **Intentional?**: YES. Premium enterprise subsystems were explicitly excluded.
+- **Status**: **DEFERRED-INMAIL-001** (See `.ai/DECISIONS/DEFERRED-INMAIL-001.md` for the complete preservation contract and future recovery requirements).
 
 ### CAP-003: change_status (Update Lead Status)
 - **Historical Implementation**: `_archive/scripts/old_runner.ts` explicitly updated `targets.lead_status`.

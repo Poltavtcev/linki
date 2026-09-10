@@ -15,6 +15,10 @@ export async function captureForensicFixture(
   error: any,
   context: ForensicContext
 ): Promise<void> {
+  if (process.env.NODE_ENV === "production" && process.env.FORENSICS_ENABLED !== "true") {
+    return;
+  }
+
   try {
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
     const safeAction = context.actionName.replace(/[^a-zA-Z0-9]/g, "_");
