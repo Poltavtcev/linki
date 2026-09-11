@@ -865,12 +865,13 @@ const g = global as typeof global & {
 };
 
 export function ensureGlobalRunnerStarted(): void {
+  if (g.__linkiGlobalRunnerStarted && process.env.NODE_ENV !== "development") return;
+
   // Increment version on every module load (HMR) to kill old detached loops
   g.__linkiRunnerVersion = (g.__linkiRunnerVersion || 0) + 1;
   const currentVersion = g.__linkiRunnerVersion;
   const instanceId = `worker-${currentVersion}-${Date.now()}`;
 
-  if (g.__linkiGlobalRunnerStarted && process.env.NODE_ENV !== "development") return;
   g.__linkiGlobalRunnerStarted = true;
   globalLoop(currentVersion, instanceId).catch(err => console.error(`[runner:${instanceId}] Global loop crashed:`, err));
 }
