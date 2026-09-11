@@ -823,7 +823,11 @@ export async function executeStep(
       }
 
       try {
-        const msgId = await sendEmail(emailAccountLimits as any, target.email, emailSubject, emailText);
+        const emailCreds = {
+          ...emailAccountLimits,
+          password: decryptSecret((emailAccountLimits as any).password)!
+        };
+        const msgId = await sendEmail(emailCreds as any, target.email, emailSubject, emailText);
         if (aiDraftId) {
           db.prepare("UPDATE ai_drafts SET status = 'sent' WHERE id = ?").run(aiDraftId);
         }
