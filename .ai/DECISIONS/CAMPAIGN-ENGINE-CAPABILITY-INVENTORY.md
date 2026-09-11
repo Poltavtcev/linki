@@ -18,7 +18,7 @@ This document provides a complete inventory of Campaign Engine capabilities. It 
 | `ai_comment` / `linkedin_like` | YES | YES | `2cf7752` | **IMPLEMENTED** | New feature (Phase 3). |
 | `linkedin_enrich` | YES | YES (Restored) | `old_runner.ts` | **IMPLEMENTED** | Restored from NO-OP in P0.3 Audit. |
 | `sales_inmail` | YES | NO (NO-OP) | `inHubFlow` | **PARTIAL/REMOVED** | Silent success trap. Needs explicit recovery (DEFERRED). |
-| `change_status` | YES | NO (NO-OP) | `old_runner.ts` | **REMOVED** | Silent success trap. |
+| `change_status` | YES | YES (Restored) | `old_runner.ts` | **IMPLEMENTED** | Restored from NO-OP in P0.3 Audit. |
 
 ## Defect Patterns Identified
 - **Silent-Success Trap**: The Campaign Engine's `executeStep` had a fallback `else { return { status: "SUCCESS" } }`. Any unknown or unhandled step type (like `sales_inmail`, `change_status`, or formerly `linkedin_enrich`) silently passed as successful. **Refactor Invariant: Unknown/unhandled nodes MUST return a failure/diagnostic state, not SUCCESS.**
@@ -41,8 +41,7 @@ This document provides a complete inventory of Campaign Engine capabilities. It 
 ### CAP-003: change_status (Update Lead Status)
 - **Historical Implementation**: `_archive/scripts/old_runner.ts` explicitly updated `targets.lead_status`.
 - **Commit of Removal**: `2cf7752cc7c707a72dff00d4d1a1c39618d9c45c`
-- **Intentional?**: UNCLEAR.
-- **Status**: **REMOVED** (Not prioritized for recovery).
+- **Status**: **RECOVERED** (Restored from NO-OP in P0.3 Audit. Added missing engine handler to explicitly update `targets.lead_status`).
 
 ## Future Feature Backlog
 

@@ -32,8 +32,8 @@ test('T-001 Finding 3: R3 retry API must successfully resume a dummy step to com
   db.prepare("INSERT INTO targets (id, full_name, linkedin_url) VALUES (?, 'Test Target', ?)").run(targetId, randomUUID());
   db.prepare("INSERT INTO email_accounts (id, name, from_email, smtp_host, username, password) VALUES (?, 'test', 'test@test.com', 'smtp', 'user', 'pass')").run(emailAccountId);
   db.prepare("INSERT INTO workflows (id, name) VALUES (?, 'test')").run(workflowId);
-  // USE 'dummy' so we don't throw NotConnectedError inside executeStep
-  db.prepare("INSERT INTO workflow_steps (id, workflow_id, step_order, track, step_type, message_body, edges_json) VALUES (?, ?, 1, 'main', 'dummy', 'Hello', '{}')").run(stepId, workflowId);
+  // USE 'delay' so we don't throw NotConnectedError inside executeStep
+  db.prepare("INSERT INTO workflow_steps (id, workflow_id, step_order, track, step_type, message_body, edges_json) VALUES (?, ?, 1, 'main', 'delay', 'Hello', '{}')").run(stepId, workflowId);
   db.prepare("INSERT INTO runs (id, workflow_id, account_id, status) VALUES (?, ?, ?, 'running')").run(runId, workflowId, accountId);
   db.prepare("INSERT INTO run_profiles (id, target_id, run_id, email_account_id) VALUES (?, ?, ?, ?)").run(runProfileId, targetId, runId, emailAccountId);
 

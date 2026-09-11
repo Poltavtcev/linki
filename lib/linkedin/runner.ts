@@ -847,8 +847,25 @@ export async function executeStep(
         throw e;
       }
 
-    } else {
+    } else if (step.step_type === "change_status") {
+      let statusId = "lead";
+      try {
+        if (step.config) {
+          const cfg = JSON.parse(step.config);
+          if (cfg && cfg.status_id) statusId = cfg.status_id;
+        }
+      } catch (e) {}
+
+      db.prepare("UPDATE targets SET lead_status = ? WHERE id = ?").run(statusId, target.id);
+      log(db, runId, target.id, "info", `Updated CRM status to ${statusId}`);
       return { status: "SUCCESS" };
+
+    } else if (step.step_type === "delay") {
+      return { status: "SUCCESS" };
+
+    } else {
+      log(db, runId, target.id, "error", `Unknown or unhandled step type: ${step.step_type}`);
+      return { status: "FAILED", error: `Unhandled step type: ${step.step_type}` };
     }
 
   } catch (err) {
