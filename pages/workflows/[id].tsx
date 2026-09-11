@@ -2918,7 +2918,7 @@ function Wizard({
                     {/* Preview / Send-test — only meaningful for manual (non-AI) mode */}
                     {!ws.aiEnabled && (
                       <div className="flex items-center gap-2">
-                        <button type="button" onClick={() => { setEmailPreviewIdx(path); setConfigPath(null); }} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-base-300/60 text-base-content/70 hover:bg-base-300 transition-colors border border-base-300/50">
+                        <button type="button" onClick={() => { setEmailPreviewIdx(path); }} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-base-300/60 text-base-content/70 hover:bg-base-300 transition-colors border border-base-300/50">
                           <RiEyeLine size={14} /> Preview
                         </button>
                         <button type="button" onClick={() => { setTestEmailIdx(path); setTestEmailAccountId(emailAccounts.find((e) => e.is_verified)?.id ?? ""); setConfigPath(null); }} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-warning/10 text-warning border border-warning/20 hover:bg-warning/20 transition-colors">

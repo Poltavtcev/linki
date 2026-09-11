@@ -827,7 +827,9 @@ export async function executeStep(
           ...emailAccountLimits,
           password: decryptSecret((emailAccountLimits as any).password)!
         };
-        const msgId = await sendEmail(emailCreds as any, target.email, emailSubject, emailText);
+        const sig = (step.email_signature !== null ? step.email_signature : (emailAccountLimits as any).signature)?.trim();
+        const finalEmailText = sig ? `${emailText}\n\n--\n${sig}` : emailText;
+        const msgId = await sendEmail(emailCreds as any, target.email, emailSubject, finalEmailText);
         if (aiDraftId) {
           db.prepare("UPDATE ai_drafts SET status = 'sent' WHERE id = ?").run(aiDraftId);
         }
